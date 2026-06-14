@@ -4,84 +4,223 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TokenWatch — Brilliant Disruptions</title>
-  <meta name="description" content="Financial intelligence, reimagined. Watch the signal through the noise." />
+  <meta name="description" content="See your team's Claude usage live. Real-time AI token monitoring and coordination for teams who live in Claude." />
+  <meta property="og:title" content="TokenWatch — Brilliant Disruptions" />
+  <meta property="og:description" content="See your team's Claude usage live. Real-time AI token monitoring for teams." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://brilliantdisruptions.com/projects/tokenwatch/" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
   <style>
+    /* ── Design System (BD tokens) ── */
     :root {
-      --void: #000008;
-      --cyan: #00e5ff;
-      --violet: #7c3aed;
-      --magenta: #ff006e;
-      --white: #f0f0ff;
-      --muted: #3a3a5c;
-      --glass: rgba(255,255,255,0.04);
+      --void:         #000008;
+      --void-2:       #05050f;
+      --cyan:         #00e5ff;
+      --cyan-dim:     #00b8cc;
+      --cyan-glow:    rgba(0,229,255,0.18);
+      --violet:       #7c3aed;
+      --magenta:      #ff006e;
+      --white:        #f0f0ff;
+      --muted:        #3a3a5c;
+      --muted-hi:     rgba(240,240,255,0.55);
+      --glass:        rgba(255,255,255,0.04);
       --glass-border: rgba(255,255,255,0.08);
+      --success:      #00ff88;
+      --warn:         #fbbf24;
+      --danger:       #ff4d6d;
+      --nav-h:        72px;
+      --container:    1160px;
+      --radius:       12px;
+      --radius-lg:    20px;
     }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
+
     body {
       background: var(--void);
       color: var(--white);
       font-family: 'Inter', system-ui, sans-serif;
       font-weight: 300;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      position: relative;
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Background gradient orbs */
+    a { color: inherit; text-decoration: none; }
+    button { background: none; border: none; cursor: pointer; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* ── Background ── */
     .bg-orb {
       position: fixed;
       border-radius: 50%;
-      filter: blur(100px);
+      filter: blur(120px);
+      opacity: 0.12;
       pointer-events: none;
+      z-index: 0;
     }
-    .bg-orb-1 { width: 600px; height: 600px; background: rgba(0,229,255,0.12); top: -100px; right: -100px; animation: drift1 20s ease-in-out infinite alternate; }
-    .bg-orb-2 { width: 500px; height: 500px; background: rgba(124,58,237,0.12); bottom: -100px; left: -100px; animation: drift2 25s ease-in-out infinite alternate; }
+    .bg-orb-1 { width: 700px; height: 700px; background: var(--violet); top: -200px; left: -200px; animation: drift1 20s ease-in-out infinite alternate; }
+    .bg-orb-2 { width: 600px; height: 600px; background: var(--cyan);   bottom: 10%; right: -150px; animation: drift2 25s ease-in-out infinite alternate; }
+    .bg-orb-3 { width: 500px; height: 500px; background: var(--magenta); top: 50%; left: 30%;        animation: drift3 18s ease-in-out infinite alternate; }
 
-    @keyframes drift1 { from { transform: translate(0,0); } to { transform: translate(-60px, 40px); } }
-    @keyframes drift2 { from { transform: translate(0,0); } to { transform: translate(40px, -60px); } }
-
-    /* Grid bg */
     body::before {
       content: '';
       position: fixed;
       inset: 0;
       background-image:
-        linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+        linear-gradient(rgba(0,229,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.025) 1px, transparent 1px);
       background-size: 60px 60px;
       pointer-events: none;
+      z-index: 0;
     }
 
-    .card {
-      position: relative;
-      z-index: 1;
-      text-align: center;
-      max-width: 560px;
-      padding: 0 24px;
+    /* ── Animations ── */
+    @keyframes drift1  { from { transform: translate(0,0); }         to { transform: translate(-60px,40px); } }
+    @keyframes drift2  { from { transform: translate(0,0); }         to { transform: translate(40px,-60px); } }
+    @keyframes drift3  { from { transform: translate(0,0); }         to { transform: translate(-40px,30px); } }
+    @keyframes pulse   { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    @keyframes blink   { 0%,100% { opacity:1; } 50% { opacity:0; } }
+    @keyframes float   { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    @keyframes glint   { 0% { transform: translateX(-200%); } 100% { transform: translateX(400%); } }
+    @keyframes tickerScroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+    @keyframes revealUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── Layout ── */
+    .container {
+      width: 100%;
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 0 clamp(20px, 5vw, 60px);
     }
+    section { position: relative; z-index: 2; padding: clamp(80px,10vw,120px) 0; }
+
+    /* ── Nav ── */
+    #nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      height: var(--nav-h);
+      background: rgba(0,0,8,0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .nav-inner {
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 0 clamp(20px, 5vw, 60px);
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .logo-bd {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 22px;
+      color: var(--cyan);
+      letter-spacing: -0.02em;
+      line-height: 1;
+      filter: drop-shadow(0 0 8px rgba(0,229,255,0.4));
+    }
+    .logo-full {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .nav-sep {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .nav-project {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: var(--cyan);
+    }
+    .nav-links {
+      display: flex;
+      gap: 28px;
+      margin-left: auto;
+      list-style: none;
+    }
+    .nav-links a {
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(240,240,255,0.5);
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--white); }
     .back-link {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
+      font-size: 10px;
       letter-spacing: 0.15em;
       color: var(--muted);
-      text-decoration: none;
-      margin-bottom: 48px;
-      transition: color 0.2s ease;
+      transition: color 0.2s;
     }
     .back-link:hover { color: var(--cyan); }
-    .back-link svg { transition: transform 0.2s ease; }
+    .back-link svg { transition: transform 0.2s; }
     .back-link:hover svg { transform: translateX(-3px); }
 
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 28px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-primary {
+      background: var(--cyan);
+      color: #000;
+      font-weight: 600;
+      box-shadow: 0 0 30px rgba(0,229,255,0.28);
+    }
+    .btn-primary:hover { box-shadow: 0 0 50px rgba(0,229,255,0.5), 0 0 100px rgba(0,229,255,0.2); }
+    .btn-primary::after {
+      content: '';
+      position: absolute;
+      top: 0; bottom: 0; left: 0;
+      width: 35%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transform: translateX(-200%);
+      animation: glint 3.5s ease-in-out infinite;
+    }
+    .btn-ghost {
+      border: 1px solid var(--glass-border);
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      color: var(--white);
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.2); box-shadow: 0 0 20px rgba(0,229,255,0.1); }
+    .btn-sm { padding: 9px 18px; font-size: 13px; }
+    .btn-lg { padding: 17px 36px; font-size: 15px; }
+
+    /* ── Badges ── */
     .badge {
       display: inline-flex;
       align-items: center;
@@ -89,13 +228,12 @@
       border: 1px solid var(--glass-border);
       background: var(--glass);
       backdrop-filter: blur(10px);
-      padding: 8px 14px;
+      padding: 7px 14px;
       border-radius: 999px;
       font-family: 'JetBrains Mono', monospace;
       font-size: 10px;
       letter-spacing: 0.15em;
       color: var(--cyan);
-      margin-bottom: 32px;
     }
     .badge-dot {
       width: 6px; height: 6px;
@@ -104,154 +242,1537 @@
       box-shadow: 0 0 6px var(--cyan);
       animation: pulse 1.5s ease-in-out infinite;
     }
-    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    .badge-dot--pink { background: var(--magenta); box-shadow: 0 0 6px var(--magenta); }
 
-    .icon-wrap {
-      margin-bottom: 24px;
+    /* ── Section typography ── */
+    .section-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
       color: var(--cyan);
-      filter: drop-shadow(0 0 16px rgba(0,229,255,0.5));
-      display: flex;
-      justify-content: center;
-    }
-
-    h1 {
-      font-family: 'Space Grotesk', sans-serif;
-      font-weight: 900;
-      font-size: clamp(48px, 10vw, 80px);
-      letter-spacing: -0.03em;
-      line-height: 0.9;
-      background: linear-gradient(135deg, var(--white), rgba(240,240,255,0.7));
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
       margin-bottom: 20px;
     }
-    .tagline {
-      font-size: 18px;
+    .section-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: clamp(28px, 3.5vw, 50px);
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+      margin-bottom: 18px;
+    }
+    .section-sub {
+      font-size: 17px;
       font-weight: 300;
-      color: rgba(240,240,255,0.55);
-      line-height: 1.6;
-      margin-bottom: 48px;
+      color: var(--muted-hi);
+      line-height: 1.65;
+      max-width: 520px;
     }
 
-    .coming-soon-text {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      margin-bottom: 32px;
+    /* ── Glass cards ── */
+    .glass-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      backdrop-filter: blur(10px);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      position: relative;
+      overflow: hidden;
     }
-    .coming-soon-text span {
-      color: var(--cyan);
-      animation: blink 1s step-end infinite;
+    .glass-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
     }
-    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+    .glass-card:hover { border-color: rgba(0,229,255,0.2); box-shadow: 0 0 40px rgba(0,229,255,0.06); }
+    .glass-card:hover::before { opacity: 1; }
 
-    .actions {
+    /* ══════════════════════════════════════════
+       HERO
+    ══════════════════════════════════════════ */
+    .hero {
+      min-height: 100vh;
+      padding-top: calc(var(--nav-h) + 60px);
       display: flex;
-      gap: 16px;
-      justify-content: center;
-      flex-wrap: wrap;
+      align-items: center;
     }
-    .btn {
+    .hero-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 72px;
+      align-items: center;
+      width: 100%;
+    }
+    .hero-back { margin-bottom: 32px; }
+    .hero-eyebrow {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 14px 28px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 500;
-      letter-spacing: 0.04em;
-      text-decoration: none;
-      transition: all 0.2s ease;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      color: var(--cyan);
+      margin-bottom: 24px;
     }
-    .btn-primary {
+    .hero-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: clamp(40px, 5.5vw, 62px);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      margin-bottom: 22px;
+    }
+    .hero-title em {
+      font-style: normal;
+      color: var(--cyan);
+      text-shadow: 0 0 40px rgba(0,229,255,0.4);
+    }
+    .hero-sub {
+      font-size: 18px;
+      font-weight: 300;
+      color: var(--muted-hi);
+      line-height: 1.6;
+      margin-bottom: 40px;
+      max-width: 460px;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 36px;
+    }
+    .hero-proof {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hero-avatars { display: flex; }
+    .hero-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--void);
+      margin-left: -8px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+    }
+    .hero-avatar:first-child { margin-left: 0; }
+    .hero-proof-text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    /* Popup mockup */
+    .hero-visual {
+      display: flex;
+      justify-content: flex-end;
+      animation: float 6s ease-in-out infinite;
+      position: relative;
+    }
+    .hero-visual::after {
+      content: '';
+      position: absolute;
+      bottom: -40px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 260px;
+      height: 30px;
+      background: radial-gradient(ellipse, rgba(0,229,255,0.18) 0%, transparent 70%);
+    }
+    .popup-frame {
+      width: 350px;
+      background: rgba(0,0,8,0.9);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04), 0 0 60px rgba(0,229,255,0.06);
+      position: relative;
+    }
+    .popup-frame::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,229,255,0.4) 30%, rgba(0,229,255,0.7) 50%, rgba(0,229,255,0.4) 70%, transparent);
+      z-index: 2;
+    }
+    .popup-ph {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.02);
+    }
+    .popup-brand { display: flex; align-items: center; gap: 8px; }
+    .popup-mark {
+      width: 22px; height: 22px;
+      border-radius: 5px;
+      background: var(--cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 8px;
+      font-weight: 800;
+      color: #000;
+      letter-spacing: -0.02em;
+      box-shadow: 0 0 10px rgba(0,229,255,0.4);
+    }
+    .popup-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--white);
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .popup-gear { font-size: 13px; color: rgba(240,240,255,0.3); }
+    .popup-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.02);
+    }
+    .popup-tab {
+      flex: 1;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 7px 0 5px;
+      color: rgba(240,240,255,0.3);
+      border-bottom: 2px solid transparent;
+      font-family: 'Inter', sans-serif;
+      letter-spacing: 0.02em;
+    }
+    .popup-tab.active { color: var(--white); border-bottom-color: var(--cyan); }
+    .popup-section {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .popup-lbl {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8.5px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(240,240,255,0.25);
+      margin-bottom: 8px;
+    }
+    .popup-self { display: flex; flex-direction: column; gap: 6px; }
+    .popup-self-head { display: flex; align-items: center; gap: 7px; }
+    .popup-avatar {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      font-weight: 700;
+      color: #000;
+      flex-shrink: 0;
+    }
+    .popup-avatar-cyan { background: var(--cyan); box-shadow: 0 0 8px rgba(0,229,255,0.4); }
+    .popup-you {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: rgba(240,240,255,0.4);
+      border: 1px solid var(--glass-border);
+      border-radius: 3px;
+      padding: 1px 5px;
+    }
+    .sdot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .sdot-active  { background: var(--success); box-shadow: 0 0 4px var(--success); }
+    .sdot-idle    { background: transparent; border: 1.5px solid var(--warn); }
+    .sdot-limit   { background: transparent; border: 1.5px solid var(--danger); border-radius: 2px; }
+    .sdot-offline { background: var(--muted); }
+    .popup-status-label {
+      font-size: 10px;
+      color: rgba(240,240,255,0.5);
+      flex: 1;
+    }
+    .popup-gauge {
+      width: 100%;
+      height: 4px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .popup-gauge-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--cyan-dim), var(--cyan));
+      box-shadow: 0 0 6px rgba(0,229,255,0.4);
+    }
+    .popup-gauge-fill.warn  { background: linear-gradient(90deg, #92400e, var(--warn)); box-shadow: none; }
+    .popup-gauge-fill.danger { background: linear-gradient(90deg, #7f1d1d, var(--danger)); box-shadow: none; }
+    .popup-gauge-row { display: flex; justify-content: space-between; }
+    .popup-gauge-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: rgba(240,240,255,0.35);
+    }
+    .popup-reset { font-size: 9px; color: rgba(240,240,255,0.25); }
+    .popup-member-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+    .popup-member-name { flex: 1; font-size: 11.5px; color: rgba(240,240,255,0.7); }
+    .popup-chip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: var(--cyan);
+      background: rgba(0,229,255,0.1);
+      border: 1px solid rgba(0,229,255,0.2);
+      border-radius: 10px;
+      padding: 1px 6px;
+    }
+    .popup-chip.warn   { color: var(--warn); background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.2); }
+    .popup-chip.danger { color: var(--danger); background: rgba(255,77,109,0.1); border-color: rgba(255,77,109,0.2); }
+    .popup-limit-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(255,77,109,0.08);
+      border-bottom: 1px solid rgba(255,77,109,0.15);
+      font-size: 10px;
+      color: var(--danger);
+    }
+    .popup-limit-text { flex: 1; }
+    .popup-limit-btn {
+      font-size: 9px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      border-radius: 4px;
+      padding: 2px 8px;
+    }
+    .popup-invite-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: rgba(255,255,255,0.02);
+    }
+    .popup-invite-lbl { font-size: 9px; color: rgba(240,240,255,0.25); font-family: 'JetBrains Mono', monospace; }
+    .popup-invite-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--cyan);
+      letter-spacing: 0.06em;
+      flex: 1;
+    }
+
+    /* ══════════════════════════════════════════
+       PROBLEM SECTION
+    ══════════════════════════════════════════ */
+    .problem-section {
+      background: rgba(255,255,255,0.01);
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .problem-card {
+      padding: 28px;
+    }
+    .problem-icon { font-size: 26px; margin-bottom: 14px; display: block; }
+    .problem-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .problem-desc { font-size: 13px; color: var(--muted-hi); line-height: 1.6; font-weight: 300; }
+
+    /* ══════════════════════════════════════════
+       FEATURE SECTIONS
+    ══════════════════════════════════════════ */
+    .feature-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 72px;
+      align-items: center;
+      margin-bottom: 100px;
+    }
+    .feature-row:last-child { margin-bottom: 0; }
+    .feature-row.flip { direction: rtl; }
+    .feature-row.flip > * { direction: ltr; }
+
+    .feature-tag {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      border: 1px solid rgba(0,229,255,0.2);
+      background: rgba(0,229,255,0.06);
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-bottom: 18px;
+    }
+    .feature-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: clamp(22px, 2.5vw, 30px);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 14px;
+    }
+    .feature-desc {
+      font-size: 15px;
+      font-weight: 300;
+      color: var(--muted-hi);
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+    .feature-bullets { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .feature-bullets li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13.5px;
+      font-weight: 300;
+      color: rgba(240,240,255,0.7);
+    }
+    .feature-bullets li::before {
+      content: '';
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,255,136,0.4);
+      background: rgba(0,255,136,0.08);
+      flex-shrink: 0;
+      margin-top: 1px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 5l2.5 2.5L8 3' stroke='%2300ff88' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 9px;
+    }
+
+    /* Feature mockup wrapper */
+    .feature-mockup {
+      background: rgba(5,5,15,0.8);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+      position: relative;
+    }
+    .feature-mockup::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,229,255,0.35) 30%, rgba(0,229,255,0.6) 50%, rgba(0,229,255,0.35) 70%, transparent);
+    }
+
+    /* Handoff cards */
+    .hf-card { padding: 10px 14px; border-bottom: 1px solid var(--glass-border); }
+    .hf-head { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .hf-from { font-size: 10px; color: rgba(240,240,255,0.45); }
+    .hf-time { font-size: 9px; color: rgba(240,240,255,0.25); }
+    .hf-task { font-size: 11.5px; font-weight: 300; color: rgba(240,240,255,0.7); line-height: 1.45; margin-bottom: 8px; }
+    .hf-actions { display: flex; gap: 6px; }
+    .hf-btn-accept { font-size: 10px; font-weight: 600; padding: 4px 12px; border-radius: 4px; background: var(--cyan); color: #000; font-family: 'Inter', sans-serif; }
+    .hf-btn-decline { font-size: 10px; padding: 4px 12px; border-radius: 4px; background: rgba(255,255,255,0.06); color: rgba(240,240,255,0.5); border: 1px solid var(--glass-border); font-family: 'Inter', sans-serif; }
+
+    /* Recap cards */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px 12px; }
+    .stat-card { background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px 10px; }
+    .stat-card.wide { grid-column: span 2; }
+    .stat-lbl { font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(240,240,255,0.25); margin-bottom: 3px; }
+    .stat-val { font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; color: var(--white); }
+    .stat-sub { font-size: 9px; color: rgba(240,240,255,0.4); margin-top: 2px; }
+    .stat-totals { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; }
+    .stat-total-num { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500; color: var(--white); }
+    .stat-total-lbl { font-size: 8px; color: rgba(240,240,255,0.3); }
+
+    /* Forecast bars */
+    .fc-wrap { padding: 10px 12px; }
+    .fc-lbl { font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(240,240,255,0.25); margin-bottom: 8px; }
+    .fc-axis { display: flex; justify-content: space-between; margin-bottom: 6px; padding-left: 48px; }
+    .fc-axis span { font-size: 8px; color: rgba(240,240,255,0.25); font-family: 'JetBrains Mono', monospace; }
+    .fc-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .fc-name { font-size: 9px; color: rgba(240,240,255,0.4); width: 40px; flex-shrink: 0; text-align: right; font-family: 'JetBrains Mono', monospace; }
+    .fc-bar { flex: 1; display: flex; height: 14px; border-radius: 3px; overflow: hidden; gap: 1px; }
+    .fc-seg { flex: 1; }
+    .fc-seg.avail { background: rgba(0,255,136,0.3); }
+    .fc-seg.limit { background: rgba(255,255,255,0.04); }
+    .fc-seg.self  { background: rgba(124,58,237,0.35); }
+    .fc-legend { display: flex; gap: 12px; margin-top: 6px; }
+    .fc-legend-item { display: flex; align-items: center; gap: 4px; font-size: 8px; color: rgba(240,240,255,0.3); font-family: 'JetBrains Mono', monospace; }
+    .fc-legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+    .fc-best { margin-top: 10px; padding: 8px 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-left: 3px solid var(--cyan); border-radius: 5px; }
+    .fc-best-lbl { font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(240,240,255,0.25); margin-bottom: 2px; }
+    .fc-best-time { font-size: 12px; font-weight: 500; color: var(--white); font-family: 'Space Grotesk', sans-serif; }
+    .fc-best-count { font-size: 10px; color: rgba(240,240,255,0.45); margin-top: 2px; }
+
+    /* ══════════════════════════════════════════
+       HOW IT WORKS
+    ══════════════════════════════════════════ */
+    .how-section {
+      background: rgba(255,255,255,0.01);
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+    .step-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--cyan);
+      background: rgba(0,229,255,0.08);
+      border: 1px solid rgba(0,229,255,0.2);
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .step-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .step-desc { font-size: 13px; font-weight: 300; color: var(--muted-hi); line-height: 1.6; }
+    .step-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      background: rgba(0,229,255,0.08);
+      color: var(--cyan);
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
+    /* ══════════════════════════════════════════
+       CLI SECTION
+    ══════════════════════════════════════════ */
+    .cli-section {
+      background: rgba(255,255,255,0.01);
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .cli-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 72px;
+      align-items: center;
+    }
+    .cli-terminal {
+      background: rgba(0,0,8,0.95);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+    }
+    .cli-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 14px;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .cli-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .cli-dot-r { background: #ff5f57; }
+    .cli-dot-y { background: #febc2e; }
+    .cli-dot-g { background: #28c840; }
+    .cli-title-bar {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: rgba(240,240,255,0.2);
+      flex: 1;
+      text-align: center;
+    }
+    .cli-body { padding: 18px 20px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.75; }
+    .cli-prompt { color: var(--cyan); }
+    .cli-cmd { color: rgba(240,240,255,0.8); }
+    .cli-out { color: rgba(240,240,255,0.4); padding-left: 16px; }
+    .cli-success { color: var(--success); padding-left: 16px; }
+    .cli-hi { color: var(--cyan); }
+
+    /* ══════════════════════════════════════════
+       PRICING
+    ══════════════════════════════════════════ */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .price-card {
+      padding: 26px 22px;
+      position: relative;
+    }
+    .price-card.featured {
+      border-color: rgba(0,229,255,0.3) !important;
+      box-shadow: 0 0 0 1px rgba(0,229,255,0.15), 0 8px 40px rgba(0,229,255,0.08) !important;
+    }
+    .price-card.featured::before { opacity: 1 !important; }
+    .price-card.featured::after {
+      content: 'MOST POPULAR';
+      position: absolute;
+      top: -1px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-50%);
       background: var(--cyan);
       color: #000;
-      box-shadow: 0 0 30px rgba(0,229,255,0.3);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      padding: 3px 12px;
+      border-radius: 20px;
+      white-space: nowrap;
     }
-    .btn-primary:hover { box-shadow: 0 0 50px rgba(0,229,255,0.5); transform: translateY(-2px); }
-    .btn-ghost {
-      border: 1px solid var(--glass-border);
-      background: var(--glass);
-      backdrop-filter: blur(10px);
+    .price-tier {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(240,240,255,0.35);
+      margin-bottom: 10px;
+    }
+    .price-amount {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 38px;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 4px;
       color: var(--white);
     }
-    .btn-ghost:hover { border-color: rgba(255,255,255,0.2); transform: translateY(-2px); }
+    .price-amount sup { font-size: 18px; vertical-align: super; }
+    .price-amount .per { font-size: 14px; font-weight: 400; color: rgba(240,240,255,0.4); }
+    .price-period { font-size: 11px; color: rgba(240,240,255,0.3); margin-bottom: 20px; font-family: 'JetBrains Mono', monospace; }
+    .price-cap {
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(240,240,255,0.7);
+      padding: 6px 0;
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+      margin-bottom: 18px;
+      text-align: center;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .price-features { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
+    .price-features li { font-size: 12.5px; font-weight: 300; color: rgba(240,240,255,0.5); display: flex; align-items: flex-start; gap: 8px; line-height: 1.4; }
+    .price-features li.on { color: rgba(240,240,255,0.8); }
+    .price-check { color: var(--success); flex-shrink: 0; font-size: 11px; }
+    .price-dash  { color: rgba(240,240,255,0.2); flex-shrink: 0; font-size: 11px; }
+    .price-btn { display: block; width: 100%; padding: 10px; border-radius: 7px; text-align: center; font-size: 13px; font-weight: 500; text-decoration: none; transition: all 0.2s; letter-spacing: 0.03em; }
+    .price-btn-primary { background: var(--cyan); color: #000; font-weight: 600; box-shadow: 0 0 20px rgba(0,229,255,0.22); }
+    .price-btn-primary:hover { box-shadow: 0 0 36px rgba(0,229,255,0.44); }
+    .price-btn-ghost { border: 1px solid var(--glass-border); background: var(--glass); color: rgba(240,240,255,0.7); }
+    .price-btn-ghost:hover { border-color: rgba(255,255,255,0.18); color: var(--white); }
 
-    /* Scanline chart decoration */
-    .chart-decoration {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      height: 120px;
+    /* ══════════════════════════════════════════
+       FAQ
+    ══════════════════════════════════════════ */
+    .faq-section {
+      background: rgba(255,255,255,0.01);
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .faq-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 72px;
+    }
+    .faq-item { padding: 20px 0; border-bottom: 1px solid var(--glass-border); }
+    .faq-item:first-child { border-top: 1px solid var(--glass-border); }
+    .faq-item:nth-child(2) { border-top: 1px solid var(--glass-border); }
+    .faq-q {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .faq-a { font-size: 13.5px; font-weight: 300; color: var(--muted-hi); line-height: 1.65; }
+    .faq-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      background: rgba(0,229,255,0.08);
+      color: var(--cyan);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+
+    /* ══════════════════════════════════════════
+       FOOTER CTA
+    ══════════════════════════════════════════ */
+    .footer-cta {
+      text-align: center;
+      padding: 120px 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .footer-cta::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      width: 600px; height: 400px;
+      background: radial-gradient(ellipse, rgba(124,58,237,0.12) 0%, transparent 70%);
       pointer-events: none;
-      opacity: 0.15;
+    }
+    .footer-cta-overline {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      color: var(--cyan);
+      margin-bottom: 24px;
+    }
+    .footer-cta-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: clamp(30px, 4vw, 52px);
+      line-height: 1.1;
+      letter-spacing: -0.025em;
+      margin-bottom: 18px;
+    }
+    .footer-cta-title em {
+      font-style: normal;
+      color: var(--cyan);
+      text-shadow: 0 0 40px rgba(0,229,255,0.35);
+    }
+    .footer-cta-sub { font-size: 16px; font-weight: 300; color: var(--muted-hi); margin-bottom: 40px; }
+    .footer-cta-note {
+      margin-top: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+
+    /* ══════════════════════════════════════════
+       FOOTER
+    ══════════════════════════════════════════ */
+    footer {
+      border-top: 1px solid var(--glass-border);
+      padding: 28px 0;
+      position: relative;
+      z-index: 2;
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .footer-left { display: flex; align-items: center; gap: 10px; }
+    .footer-logo { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px; color: var(--cyan); }
+    .footer-name { font-size: 13px; color: var(--muted); }
+    .footer-center { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.06em; color: var(--muted); }
+    .footer-links { display: flex; gap: 16px; list-style: none; }
+    .footer-links a { font-size: 13px; color: var(--muted); transition: color 0.2s; }
+    .footer-links a:hover { color: var(--white); }
+
+    /* ── Section divider ── */
+    .section-header { margin-bottom: 64px; }
+    .text-center { text-align: center; }
+    .text-center .section-sub { margin: 0 auto; }
+
+    /* ── Ticker ── */
+    .ticker-wrap {
+      overflow: hidden;
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 13px 0;
+      mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+      -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+    }
+    .ticker-track {
+      display: inline-flex;
+      align-items: center;
+      gap: 24px;
+      white-space: nowrap;
+      animation: tickerScroll 50s linear infinite;
+    }
+    .ticker-item { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.18em; color: var(--muted); }
+    .ticker-sep { color: var(--cyan); opacity: 0.35; font-size: 7px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 960px) {
+      .hero-inner, .cli-inner { grid-template-columns: 1fr; gap: 48px; }
+      .hero-visual { justify-content: center; }
+      .feature-row { grid-template-columns: 1fr; gap: 40px; }
+      .feature-row.flip { direction: ltr; }
+      .steps-grid { grid-template-columns: 1fr 1fr; }
+      .pricing-grid { grid-template-columns: 1fr 1fr; }
+      .problem-grid { grid-template-columns: 1fr; }
+      .faq-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      .steps-grid { grid-template-columns: 1fr; }
+      .pricing-grid { grid-template-columns: 1fr; }
+      .popup-frame { width: 100%; max-width: 330px; }
+      .nav-links { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
     }
   </style>
 </head>
 <body>
-  <div class="bg-orb bg-orb-1"></div>
-  <div class="bg-orb bg-orb-2"></div>
 
-  <div class="card">
-    <a href="../../" class="back-link">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path d="M13 8H3M7 4L3 8L7 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      BACK TO BASE
+<!-- Background orbs -->
+<div class="bg-orb bg-orb-1" aria-hidden="true"></div>
+<div class="bg-orb bg-orb-2" aria-hidden="true"></div>
+<div class="bg-orb bg-orb-3" aria-hidden="true"></div>
+
+<!-- Nav -->
+<nav id="nav" aria-label="Site navigation">
+  <div class="nav-inner">
+    <a href="../../" class="nav-logo" aria-label="Brilliant Disruptions home">
+      <span class="logo-bd">BD</span>
+      <span class="logo-full">Brilliant Disruptions</span>
     </a>
+    <span class="nav-sep" aria-hidden="true">/</span>
+    <span class="nav-project">TokenWatch</span>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#install" class="btn btn-primary btn-sm">Install Free</a></li>
+    </ul>
+  </div>
+</nav>
 
-    <div style="display:flex; justify-content:center; margin-bottom: 24px;">
-      <div class="badge">
-        <div class="badge-dot"></div>
-        FINTECH × AI INTELLIGENCE
+<!-- ════════════════════════════════════
+     HERO
+════════════════════════════════════ -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-inner">
+
+      <div class="hero-copy">
+        <div class="hero-back">
+          <a href="../../" class="back-link">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M11 7H3M6 4L3 7L6 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            BACK TO BASE
+          </a>
+        </div>
+
+        <div class="hero-eyebrow">
+          <div class="badge-dot"></div>
+          CLAUDE CODE × TEAM COORDINATION
+        </div>
+
+        <h1 class="hero-title">
+          See your team's Claude usage <em>live.</em>
+        </h1>
+
+        <p class="hero-sub">
+          TokenWatch shows you who's active, who's at their limit, and who can take the next task — before work grinds to a halt.
+        </p>
+
+        <div class="hero-actions">
+          <a href="#install" class="btn btn-primary btn-lg">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><rect x="1" y="1" width="12" height="12" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M7 4v6M4 7h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Add to Chrome — free
+          </a>
+          <a href="#features" class="btn btn-ghost">See how it works</a>
+        </div>
+
+        <div class="hero-proof">
+          <div class="hero-avatars">
+            <div class="hero-avatar" style="background:var(--cyan)">S</div>
+            <div class="hero-avatar" style="background:var(--success)">M</div>
+            <div class="hero-avatar" style="background:var(--violet)">D</div>
+            <div class="hero-avatar" style="background:var(--magenta)">A</div>
+          </div>
+          <span class="hero-proof-text">BUILT FOR TEAMS WHO LIVE IN CLAUDE</span>
+        </div>
+      </div>
+
+      <!-- Popup mockup -->
+      <div class="hero-visual">
+        <div class="popup-frame" role="img" aria-label="TokenWatch extension popup showing team status">
+          <div class="popup-ph">
+            <div class="popup-brand">
+              <div class="popup-mark">TW</div>
+              <span class="popup-name">TokenWatch</span>
+            </div>
+            <span class="popup-gear">⚙</span>
+          </div>
+          <div class="popup-tabs">
+            <div class="popup-tab active">Status</div>
+            <div class="popup-tab">Handoffs</div>
+            <div class="popup-tab">Recap</div>
+            <div class="popup-tab">Forecast</div>
+          </div>
+          <div class="popup-section">
+            <div class="popup-lbl">Your Status</div>
+            <div class="popup-self">
+              <div class="popup-self-head">
+                <div class="popup-avatar popup-avatar-cyan">Y</div>
+                <span class="popup-you">you</span>
+                <div class="sdot sdot-active"></div>
+                <span class="popup-status-label">Active · Claude Code</span>
+              </div>
+              <div class="popup-gauge"><div class="popup-gauge-fill" style="width:42%"></div></div>
+              <div class="popup-gauge-row">
+                <span class="popup-gauge-num">42%</span>
+                <span class="popup-reset">Resets in 3h 18m</span>
+              </div>
+            </div>
+          </div>
+          <div class="popup-limit-bar">
+            <span>⚠</span>
+            <span class="popup-limit-text">Limit reached — hand off to a teammate.</span>
+            <span class="popup-limit-btn">Hand off →</span>
+          </div>
+          <div class="popup-section" style="border:none">
+            <div class="popup-lbl">Your Team</div>
+            <div class="popup-member-row">
+              <div class="popup-avatar" style="background:var(--cyan)">S</div>
+              <div class="sdot sdot-active"></div>
+              <span class="popup-member-name">Sarah</span>
+              <span class="popup-chip">38%</span>
+            </div>
+            <div class="popup-member-row">
+              <div class="popup-avatar" style="background:var(--success)">M</div>
+              <div class="sdot sdot-idle"></div>
+              <span class="popup-member-name">Marcus</span>
+              <span class="popup-chip warn">71%</span>
+            </div>
+            <div class="popup-member-row">
+              <div class="popup-avatar" style="background:var(--violet)">D</div>
+              <div class="sdot sdot-limit"></div>
+              <span class="popup-member-name">Devon</span>
+              <span class="popup-chip danger">Limit</span>
+            </div>
+          </div>
+          <div class="popup-invite-row">
+            <span class="popup-invite-lbl">INVITE</span>
+            <span class="popup-invite-code">CLK-4X2</span>
+            <span style="font-size:11px;color:rgba(240,240,255,0.25)">⧉</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     TICKER
+════════════════════════════════════ -->
+<div class="ticker-wrap" aria-hidden="true">
+  <div class="ticker-track">
+    <span class="ticker-item">LIVE STATUS BOARD</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">HANDOFF QUEUE</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">WEEKLY RECAP</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">AVAILABILITY FORECAST</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">CLAUDE CODE INTEGRATION</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">REALTIME SYNC</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">NO CONVERSATION ACCESS</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">CHROME EXTENSION</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">LIVE STATUS BOARD</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">HANDOFF QUEUE</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">WEEKLY RECAP</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">AVAILABILITY FORECAST</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">CLAUDE CODE INTEGRATION</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">REALTIME SYNC</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">NO CONVERSATION ACCESS</span><span class="ticker-sep">◆</span>
+    <span class="ticker-item">CHROME EXTENSION</span><span class="ticker-sep">◆</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     PROBLEM
+════════════════════════════════════ -->
+<section class="problem-section">
+  <div class="container">
+    <div class="section-header text-center">
+      <div class="section-label">THE PROBLEM</div>
+      <h2 class="section-title">Claude limits don't just hit you.<br/>They hit your whole team.</h2>
+      <p class="section-sub">When one person's tokens run out, work stalls — unless someone can pick it up. But nobody knows who has capacity.</p>
+    </div>
+    <div class="problem-grid">
+      <div class="glass-card problem-card">
+        <span class="problem-icon">👁</span>
+        <div class="problem-title">Invisible limits</div>
+        <p class="problem-desc">Your teammates have no idea you've hit your Claude limit until you tell them — by which point the task is already blocked.</p>
+      </div>
+      <div class="glass-card problem-card">
+        <span class="problem-icon">🔀</span>
+        <div class="problem-title">Context lost in handoffs</div>
+        <p class="problem-desc">Sending "hey can you take this?" over Slack loses all the context. The next person starts cold and rebuilds from scratch.</p>
+      </div>
+      <div class="glass-card problem-card">
+        <span class="problem-icon">⏳</span>
+        <div class="problem-title">No visibility into resets</div>
+        <p class="problem-desc">You don't know when anyone's limit resets, so you can't plan collaborative sessions that actually work.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     FEATURES
+════════════════════════════════════ -->
+<section id="features">
+  <div class="container">
+    <div class="section-header text-center">
+      <div class="section-label">CAPABILITIES</div>
+      <h2 class="section-title">Everything your team needs<br/>to stay in flow.</h2>
+    </div>
+
+    <!-- Feature 1: Status Board -->
+    <div class="feature-row">
+      <div class="feature-copy">
+        <div class="feature-tag">LIVE STATUS</div>
+        <h3 class="feature-title">See the whole team's Claude usage at a glance.</h3>
+        <p class="feature-desc">TokenWatch watches claude.ai for you and syncs status across your team in real-time. Know who's available before you ask.</p>
+        <ul class="feature-bullets">
+          <li>Active, idle, limit reached, offline — updated live</li>
+          <li>Usage percentage synced from Claude Code CLI</li>
+          <li>Reset timers so you can plan your session</li>
+          <li>Color-coded status signals for instant reads</li>
+        </ul>
+      </div>
+      <div class="feature-mockup">
+        <div class="popup-ph">
+          <div class="popup-brand">
+            <div class="popup-mark">TW</div>
+            <span class="popup-name">TokenWatch</span>
+          </div>
+          <span class="popup-gear">⚙</span>
+        </div>
+        <div class="popup-tabs">
+          <div class="popup-tab active">Status</div>
+          <div class="popup-tab">Handoffs</div>
+          <div class="popup-tab">Recap</div>
+          <div class="popup-tab">Forecast</div>
+        </div>
+        <div class="popup-section">
+          <div class="popup-lbl">Your Status</div>
+          <div class="popup-self">
+            <div class="popup-self-head">
+              <div class="popup-avatar popup-avatar-cyan">Y</div>
+              <span class="popup-you">you</span>
+              <div class="sdot sdot-active"></div>
+              <span class="popup-status-label">Active · Web</span>
+            </div>
+            <div class="popup-gauge"><div class="popup-gauge-fill" style="width:42%"></div></div>
+            <div class="popup-gauge-row">
+              <span class="popup-gauge-num">42%</span>
+              <span class="popup-reset">Resets 3h 18m</span>
+            </div>
+          </div>
+        </div>
+        <div class="popup-section" style="border:none">
+          <div class="popup-lbl">Your Team</div>
+          <div class="popup-member-row">
+            <div class="popup-avatar" style="background:var(--cyan)">S</div>
+            <div class="sdot sdot-active"></div>
+            <span class="popup-member-name">Sarah</span>
+            <span class="popup-chip">38%</span>
+          </div>
+          <div class="popup-member-row">
+            <div class="popup-avatar" style="background:var(--success)">M</div>
+            <div class="sdot sdot-idle"></div>
+            <span class="popup-member-name">Marcus</span>
+            <span class="popup-chip warn">71%</span>
+          </div>
+          <div class="popup-member-row">
+            <div class="popup-avatar" style="background:var(--violet)">D</div>
+            <div class="sdot sdot-limit"></div>
+            <span class="popup-member-name">Devon</span>
+            <span class="popup-chip danger">Limit · 1h 45m</span>
+          </div>
+          <div class="popup-member-row">
+            <div class="popup-avatar" style="background:var(--magenta)">A</div>
+            <div class="sdot sdot-offline"></div>
+            <span class="popup-member-name">Alex</span>
+            <span style="font-size:9px;color:rgba(240,240,255,0.25)">Offline</span>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="icon-wrap">
-      <svg width="64" height="64" viewBox="0 0 48 48" fill="none">
-        <circle cx="24" cy="24" r="22" stroke="currentColor" stroke-width="1.5"/>
-        <path d="M12 30L17 20L22 25L27 15L33 20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="33" cy="20" r="2.5" fill="currentColor"/>
-        <path d="M12 36H36" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
+    <!-- Feature 2: Handoffs -->
+    <div class="feature-row flip">
+      <div class="feature-copy">
+        <div class="feature-tag">HANDOFF QUEUE</div>
+        <h3 class="feature-title">Hit your limit? Pass the task without losing context.</h3>
+        <p class="feature-desc">When your tokens run out, TokenWatch surfaces it instantly. Push your in-progress task to a teammate — they get a one-click accept in their popup.</p>
+        <ul class="feature-bullets">
+          <li>Auto-surfaces when your status flips to limit reached</li>
+          <li>Teammate sees task description with one-click accept</li>
+          <li>Badge count on the extension icon for pending handoffs</li>
+          <li>Full sent and incoming history</li>
+        </ul>
+      </div>
+      <div class="feature-mockup">
+        <div class="popup-ph">
+          <div class="popup-brand">
+            <div class="popup-mark">TW</div>
+            <span class="popup-name">TokenWatch</span>
+          </div>
+        </div>
+        <div class="popup-tabs">
+          <div class="popup-tab">Status</div>
+          <div class="popup-tab active">Handoffs <span style="background:var(--danger);color:white;font-family:'JetBrains Mono',monospace;font-size:8px;padding:1px 4px;border-radius:6px;margin-left:3px">2</span></div>
+          <div class="popup-tab">Recap</div>
+          <div class="popup-tab">Forecast</div>
+        </div>
+        <div style="padding:8px 14px;border-bottom:1px solid var(--glass-border)">
+          <div class="popup-lbl">Incoming (2)</div>
+        </div>
+        <div class="hf-card">
+          <div class="hf-head">
+            <span class="hf-from">📥 Marcus → you</span>
+            <span class="hf-time">12m ago</span>
+          </div>
+          <div class="hf-task">"Finish onboarding copy. Stuck on welcome email — context is in the open Claude thread."</div>
+          <div class="hf-actions">
+            <button class="hf-btn-accept">Accept</button>
+            <button class="hf-btn-decline">Decline</button>
+          </div>
+        </div>
+        <div class="hf-card">
+          <div class="hf-head">
+            <span class="hf-from">📥 Devon → you</span>
+            <span class="hf-time">1h ago</span>
+          </div>
+          <div class="hf-task">"Review the pricing page copy on staging. Just needs a second pass."</div>
+          <div class="hf-actions">
+            <button class="hf-btn-accept">Accept</button>
+            <button class="hf-btn-decline">Decline</button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <h1>TokenWatch</h1>
-    <p class="tagline">
-      Financial intelligence, reimagined.<br/>
-      Cut through the noise. Watch the signal.
-    </p>
+    <!-- Feature 3: Recap -->
+    <div class="feature-row">
+      <div class="feature-copy">
+        <div class="feature-tag">WEEKLY RECAP</div>
+        <h3 class="feature-title">Monday morning team stats that people actually share.</h3>
+        <p class="feature-desc">Every Monday, TokenWatch generates a recap of team Claude activity — who was most active, best streaks, handoff stats, and the longest relay chain.</p>
+        <ul class="feature-bullets">
+          <li>Most active user, longest streak, most handoffs sent</li>
+          <li>Team totals: sessions, limits hit, avg session length</li>
+          <li>Best collaboration window for the week</li>
+          <li>Browse up to 12 weeks of history</li>
+        </ul>
+      </div>
+      <div class="feature-mockup">
+        <div class="popup-ph">
+          <div class="popup-brand">
+            <div class="popup-mark">TW</div>
+            <span class="popup-name">TokenWatch</span>
+          </div>
+        </div>
+        <div class="popup-tabs">
+          <div class="popup-tab">Status</div>
+          <div class="popup-tab">Handoffs</div>
+          <div class="popup-tab active">Recap</div>
+          <div class="popup-tab">Forecast</div>
+        </div>
+        <div style="padding:8px 14px;border-bottom:1px solid var(--glass-border);font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(240,240,255,0.4)">WEEK OF JUN 9 → JUN 15</div>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-lbl">🏆 Most Active</div>
+            <div class="stat-val">Sarah</div>
+            <div class="stat-sub">6 sessions</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-lbl">⚡ Streak</div>
+            <div class="stat-val">Marcus</div>
+            <div class="stat-sub">5 days</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-lbl">🤝 Handoffs</div>
+            <div class="stat-val">Devon</div>
+            <div class="stat-sub">8 sent</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-lbl">🎯 Best Relay</div>
+            <div class="stat-val">Mon Jun 9</div>
+            <div class="stat-sub">4h 22m · 3 people</div>
+          </div>
+          <div class="stat-card wide">
+            <div class="stat-lbl">Team Totals</div>
+            <div class="stat-totals">
+              <div><div class="stat-total-num">31</div><div class="stat-total-lbl">Sessions</div></div>
+              <div><div class="stat-total-num">18</div><div class="stat-total-lbl">Limits hit</div></div>
+              <div><div class="stat-total-num">12</div><div class="stat-total-lbl">Handoffs</div></div>
+              <div><div class="stat-total-num">2h14</div><div class="stat-total-lbl">Avg session</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    <p class="coming-soon-text">
-      LAUNCHING SOON <span>_</span>
-    </p>
+    <!-- Feature 4: Forecast -->
+    <div class="feature-row flip">
+      <div class="feature-copy">
+        <div class="feature-tag">AVAILABILITY FORECAST</div>
+        <h3 class="feature-title">Know exactly when your team has capacity.</h3>
+        <p class="feature-desc">A 4-hour timeline showing who'll be available and when — based on current usage and reset times. Plan collaborative sessions with certainty.</p>
+        <ul class="feature-bullets">
+          <li>15-minute slot granularity, next 4 hours</li>
+          <li>Best window: when the most members are simultaneously free</li>
+          <li>Hover tooltips per time slot</li>
+          <li>Updates live as status changes</li>
+        </ul>
+      </div>
+      <div class="feature-mockup">
+        <div class="popup-ph">
+          <div class="popup-brand">
+            <div class="popup-mark">TW</div>
+            <span class="popup-name">TokenWatch</span>
+          </div>
+        </div>
+        <div class="popup-tabs">
+          <div class="popup-tab">Status</div>
+          <div class="popup-tab">Handoffs</div>
+          <div class="popup-tab">Recap</div>
+          <div class="popup-tab active">Forecast</div>
+        </div>
+        <div class="fc-wrap">
+          <div class="fc-lbl">Next 4 Hours</div>
+          <div class="fc-axis">
+            <span>1pm</span><span>2pm</span><span>3pm</span><span>4pm</span><span>5pm</span>
+          </div>
+          <div class="fc-row">
+            <span class="fc-name">Sarah</span>
+            <div class="fc-bar">
+              <div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div>
+              <div class="fc-seg limit"></div><div class="fc-seg limit"></div><div class="fc-seg limit"></div>
+              <div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div>
+              <div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div>
+            </div>
+          </div>
+          <div class="fc-row">
+            <span class="fc-name">Marcus</span>
+            <div class="fc-bar">
+              <div class="fc-seg limit"></div><div class="fc-seg limit"></div><div class="fc-seg limit"></div>
+              <div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div>
+              <div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div>
+              <div class="fc-seg limit"></div><div class="fc-seg limit"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div>
+            </div>
+          </div>
+          <div class="fc-row">
+            <span class="fc-name">Devon</span>
+            <div class="fc-bar">
+              <div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div>
+              <div class="fc-seg limit"></div><div class="fc-seg limit"></div><div class="fc-seg limit"></div><div class="fc-seg limit"></div>
+              <div class="fc-seg avail"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div>
+              <div class="fc-seg limit"></div><div class="fc-seg limit"></div><div class="fc-seg avail"></div><div class="fc-seg avail"></div>
+            </div>
+          </div>
+          <div class="fc-row">
+            <span class="fc-name" style="color:rgba(124,58,237,0.7)">You</span>
+            <div class="fc-bar">
+              <div class="fc-seg self"></div><div class="fc-seg self"></div><div class="fc-seg self"></div><div class="fc-seg self"></div><div class="fc-seg self"></div>
+              <div class="fc-seg limit"></div><div class="fc-seg limit"></div><div class="fc-seg limit"></div><div class="fc-seg limit"></div>
+              <div class="fc-seg self"></div><div class="fc-seg self"></div><div class="fc-seg self"></div><div class="fc-seg self"></div>
+              <div class="fc-seg limit"></div><div class="fc-seg limit"></div><div class="fc-seg limit"></div>
+            </div>
+          </div>
+          <div class="fc-legend">
+            <div class="fc-legend-item"><div class="fc-legend-swatch" style="background:rgba(0,255,136,0.3)"></div>Available</div>
+            <div class="fc-legend-item"><div class="fc-legend-swatch" style="background:rgba(255,255,255,0.04)"></div>At limit</div>
+          </div>
+          <div class="fc-best">
+            <div class="fc-best-lbl">✦ Best Window</div>
+            <div class="fc-best-time">3:00 PM – 4:30 PM</div>
+            <div class="fc-best-count">4 of 4 members available</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    <div class="actions">
-      <a href="mailto:hello@brilliantdisruptions.com?subject=TokenWatch%20Early%20Access" class="btn btn-primary">
-        Get Early Access
-      </a>
-      <a href="../../" class="btn btn-ghost">
-        Back to Home
-      </a>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     HOW IT WORKS
+════════════════════════════════════ -->
+<section class="how-section" id="how">
+  <div class="container">
+    <div class="section-header text-center">
+      <div class="section-label">SETUP</div>
+      <h2 class="section-title">Operational in 60 seconds.</h2>
+      <p class="section-sub">No configuration files. No OAuth dance. Install, sign in, share a code.</p>
+    </div>
+    <div class="steps-grid">
+      <div>
+        <div class="step-num">1</div>
+        <div class="step-title">Install the extension</div>
+        <p class="step-desc">Add TokenWatch to Chrome from the Web Store. The icon appears in your toolbar immediately.</p>
+      </div>
+      <div>
+        <div class="step-num">2</div>
+        <div class="step-title">Sign in with email</div>
+        <p class="step-desc">Enter your email, verify with a one-time code. No passwords. No OAuth. Done in under 30 seconds.</p>
+      </div>
+      <div>
+        <div class="step-num">3</div>
+        <div class="step-title">Create or join a team</div>
+        <p class="step-desc">Create a group and share the 6-character invite code with teammates. They're synced the moment they join.</p>
+      </div>
+      <div>
+        <div class="step-num">4</div>
+        <div class="step-title">Link Claude Code <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(240,240,255,0.3);border:1px solid var(--glass-border);border-radius:3px;padding:1px 5px;margin-left:4px">optional</span></div>
+        <p class="step-desc">Run <span class="step-code">npx tokenwatch-link init</span> to unlock precise usage % for the whole team — from the Claude CLI.</p>
+      </div>
     </div>
   </div>
+</section>
 
-  <!-- Decorative chart SVG -->
-  <svg class="chart-decoration" viewBox="0 0 1440 120" preserveAspectRatio="none">
-    <polyline
-      points="0,80 120,60 200,70 280,40 340,55 420,30 500,45 580,20 640,35 720,15 800,25 880,10 960,20 1040,5 1120,15 1200,8 1280,18 1360,5 1440,12"
-      fill="none"
-      stroke="#00e5ff"
-      stroke-width="1.5"
-    />
-    <polyline
-      points="0,90 120,75 200,85 280,60 340,72 420,50 500,65 580,40 640,55 720,38 800,48 880,30 960,40 1040,22 1120,35 1200,28 1280,38 1360,22 1440,30"
-      fill="none"
-      stroke="#7c3aed"
-      stroke-width="1"
-      opacity="0.6"
-    />
-  </svg>
+<!-- ════════════════════════════════════
+     CLI
+════════════════════════════════════ -->
+<section class="cli-section">
+  <div class="container">
+    <div class="cli-inner">
+      <div>
+        <div class="section-label">CLAUDE CODE INTEGRATION</div>
+        <h2 class="section-title">Unlock exact usage %<br/>from the terminal.</h2>
+        <p class="section-sub" style="margin-bottom:28px">The extension reads DOM signals automatically. For precise token percentages, one command links your Claude Code CLI — then your whole team sees the real numbers.</p>
+        <ul class="feature-bullets">
+          <li>Run once per machine, syncs immediately</li>
+          <li>Cryptographically secure pairing code — no keys in plain text</li>
+          <li>See who's at 80% before they hit the wall</li>
+          <li>Status line support for your terminal prompt</li>
+        </ul>
+      </div>
+      <div class="cli-terminal">
+        <div class="cli-bar">
+          <div class="cli-dot cli-dot-r"></div>
+          <div class="cli-dot cli-dot-y"></div>
+          <div class="cli-dot cli-dot-g"></div>
+          <span class="cli-title-bar">zsh — Terminal</span>
+        </div>
+        <div class="cli-body">
+          <div style="display:flex;gap:8px"><span class="cli-prompt">→</span><span class="cli-cmd">npx tokenwatch-link init</span></div>
+          <div class="cli-out">TokenWatch CLI v1.0</div>
+          <div style="height:6px"></div>
+          <div class="cli-out">Enter your pairing code from the extension:</div>
+          <div style="display:flex;gap:8px;margin-top:4px"><span class="cli-prompt">→</span><span class="cli-cmd">pairing code: <span class="cli-hi">CLK-4X2</span></span></div>
+          <div style="height:6px"></div>
+          <div class="cli-success">✓ Linked successfully</div>
+          <div class="cli-out">Status line installed at:</div>
+          <div class="cli-out" style="color:var(--cyan)">  ~/.claude/tokenwatch-statusline.js</div>
+          <div style="height:6px"></div>
+          <div class="cli-success">✓ Your team can now see your usage %</div>
+          <div style="height:6px"></div>
+          <div style="display:flex;gap:8px"><span class="cli-prompt">→</span><span class="cli-cmd" style="color:rgba(240,240,255,0.25)">_</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     PRICING
+════════════════════════════════════ -->
+<section id="pricing">
+  <div class="container">
+    <div class="section-header text-center">
+      <div class="section-label">PRICING</div>
+      <h2 class="section-title">Start free. Scale when your team does.</h2>
+      <p class="section-sub">Flat-rate tiers — no per-seat anxiety. Invite everyone, upgrade when ready.</p>
+    </div>
+
+    <div class="pricing-grid">
+      <!-- Free -->
+      <div class="glass-card price-card">
+        <div class="price-tier">Free</div>
+        <div class="price-amount">$0</div>
+        <div class="price-period">FOREVER</div>
+        <div class="price-cap">Up to 2 teammates</div>
+        <ul class="price-features">
+          <li class="on"><span class="price-check">✓</span>Live status board</li>
+          <li class="on"><span class="price-check">✓</span>DOM usage detection</li>
+          <li class="on"><span class="price-check">✓</span>5 handoffs / day</li>
+          <li class="on"><span class="price-check">✓</span>This week's recap</li>
+          <li class="on"><span class="price-check">✓</span>1-hour forecast</li>
+          <li><span class="price-dash">—</span>Email digest</li>
+          <li><span class="price-dash">—</span>Recap history</li>
+          <li><span class="price-dash">—</span>Slack integration</li>
+        </ul>
+        <a href="#install" class="price-btn price-btn-ghost">Get started free</a>
+      </div>
+
+      <!-- Pro (featured) -->
+      <div class="glass-card price-card featured">
+        <div class="price-tier">Pro</div>
+        <div class="price-amount"><sup>$</sup>10<span class="per">/mo</span></div>
+        <div class="price-period">OR $100/YR · 2 MONTHS FREE</div>
+        <div class="price-cap">Up to 10 teammates</div>
+        <ul class="price-features">
+          <li class="on"><span class="price-check">✓</span>Everything in Free</li>
+          <li class="on"><span class="price-check">✓</span>Unlimited handoffs</li>
+          <li class="on"><span class="price-check">✓</span>Last 12 weeks recap</li>
+          <li class="on"><span class="price-check">✓</span>4-hour forecast</li>
+          <li class="on"><span class="price-check">✓</span>Weekly email digest</li>
+          <li class="on"><span class="price-check">✓</span>Recap PNG export</li>
+          <li class="on"><span class="price-check">✓</span>In-page sidebar overlay</li>
+          <li><span class="price-dash">—</span>Slack integration</li>
+        </ul>
+        <a href="#install" class="price-btn price-btn-primary">Start 14-day free trial</a>
+      </div>
+
+      <!-- Team -->
+      <div class="glass-card price-card">
+        <div class="price-tier">Team</div>
+        <div class="price-amount"><sup>$</sup>20<span class="per">/mo</span></div>
+        <div class="price-period">OR $200/YR · 2 MONTHS FREE</div>
+        <div class="price-cap">Up to 25 teammates</div>
+        <ul class="price-features">
+          <li class="on"><span class="price-check">✓</span>Everything in Pro</li>
+          <li class="on"><span class="price-check">✓</span>Slack &amp; Discord bot</li>
+          <li class="on"><span class="price-check">✓</span>24-hour forecast</li>
+          <li class="on"><span class="price-check">✓</span>Full recap history</li>
+          <li class="on"><span class="price-check">✓</span>Up to 3 groups</li>
+          <li class="on"><span class="price-check">✓</span>Priority support</li>
+          <li><span class="price-dash">—</span>API access</li>
+          <li><span class="price-dash">—</span>Custom branding</li>
+        </ul>
+        <a href="#install" class="price-btn price-btn-ghost">Start free trial</a>
+      </div>
+
+      <!-- Studio -->
+      <div class="glass-card price-card">
+        <div class="price-tier">Studio</div>
+        <div class="price-amount"><sup>$</sup>50<span class="per">/mo</span></div>
+        <div class="price-period">OR $500/YR · 2 MONTHS FREE</div>
+        <div class="price-cap">Up to 100 teammates</div>
+        <ul class="price-features">
+          <li class="on"><span class="price-check">✓</span>Everything in Team</li>
+          <li class="on"><span class="price-check">✓</span>Public API access</li>
+          <li class="on"><span class="price-check">✓</span>7-day forecast + predictions</li>
+          <li class="on"><span class="price-check">✓</span>Custom branding</li>
+          <li class="on"><span class="price-check">✓</span>Predictive forecasting</li>
+          <li class="on"><span class="price-check">✓</span>Up to 10 groups</li>
+          <li class="on"><span class="price-check">✓</span>Unlimited recap history</li>
+          <li class="on"><span class="price-check">✓</span>Priority support</li>
+        </ul>
+        <a href="#install" class="price-btn price-btn-ghost">Start free trial</a>
+      </div>
+    </div>
+
+    <p style="text-align:center;margin-top:24px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;color:var(--muted)">
+      ALL PAID PLANS INCLUDE A 14-DAY FREE TRIAL · NO CARD REQUIRED · CANCEL ANYTIME
+    </p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     FAQ
+════════════════════════════════════ -->
+<section class="faq-section" id="faq">
+  <div class="container">
+    <div class="section-header text-center">
+      <div class="section-label">FAQ</div>
+      <h2 class="section-title">Questions answered.</h2>
+    </div>
+
+    <div class="faq-grid">
+      <div class="faq-item">
+        <div class="faq-q">Does TokenWatch read my Claude conversations?</div>
+        <p class="faq-a">No. TokenWatch only reads UI-level signals — banner text, status indicators, and activity presence — never conversation content. Your prompts and Claude's responses are completely private.</p>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">How does it detect usage without reading conversation content?</div>
+        <p class="faq-a">The extension watches the claude.ai DOM for usage-limit banners and activity signals. For precise percentages, the optional Claude Code CLI integration reads from your local CLI — no conversation data ever leaves your machine.</p>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">What does the CLI link actually do?</div>
+        <p class="faq-a">Running <span class="faq-code">npx tokenwatch-link init</span> installs a small script that reads your Claude CLI usage percentage and syncs it to TokenWatch via a secure pairing code. No credentials stored in plain text.</p>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Does it work with all Claude plans?</div>
+        <p class="faq-a">Yes. DOM detection works on any Claude plan. The CLI integration works with Claude Code (all tiers). Most useful for teams actively using Claude Pro or Claude Code daily.</p>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Can I try paid features before buying?</div>
+        <p class="faq-a">Yes. All paid plans include a 14-day free trial, no credit card required. If you don't upgrade before it ends, you move to Free automatically — nothing is deleted.</p>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">What happens if my team grows past the plan cap?</div>
+        <p class="faq-a">New invitations are blocked with an upgrade prompt. Existing teammates are never removed. No surprise charges, ever. Upgrade when you're ready.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     FOOTER CTA
+════════════════════════════════════ -->
+<section class="footer-cta" id="install">
+  <div class="container">
+    <div class="footer-cta-overline">DEPLOY TOKENWATCH</div>
+    <h2 class="footer-cta-title">
+      Your team's tokens reset.<br/>
+      Your productivity <em>shouldn't have to.</em>
+    </h2>
+    <p class="footer-cta-sub">Free for duos. Powerful for teams. Operational in 60 seconds.</p>
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+      <a href="#" class="btn btn-primary btn-lg">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="4" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Add to Chrome — it's free
+      </a>
+      <a href="../../#contact" class="btn btn-ghost">Contact us</a>
+    </div>
+    <div class="footer-cta-note">CHROME WEB STORE · 14-DAY PRO TRIAL · NO CARD REQUIRED</div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     FOOTER
+════════════════════════════════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <a href="../../" aria-label="Brilliant Disruptions home">
+          <span class="footer-logo">BD</span>
+        </a>
+        <span class="footer-name">Brilliant Disruptions</span>
+      </div>
+      <div class="footer-center mono">
+        © 2026 Brilliant Disruptions, Inc. All rights reserved.
+      </div>
+      <ul class="footer-links">
+        <li><a href="../../#contact">Contact</a></li>
+        <li><a href="../../">Home</a></li>
+        <li><a href="#" aria-label="GitHub">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+        </a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
 </body>
 </html>
