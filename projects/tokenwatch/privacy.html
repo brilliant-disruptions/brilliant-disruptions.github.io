@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — TokenWatch</title>
+  <meta name="description" content="TokenWatch privacy policy. We don't read your conversations. Here's exactly what we do collect and why." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --void:         #000008;
+      --cyan:         #00e5ff;
+      --violet:       #7c3aed;
+      --magenta:      #ff006e;
+      --white:        #f0f0ff;
+      --muted:        #3a3a5c;
+      --muted-hi:     rgba(240,240,255,0.55);
+      --glass:        rgba(255,255,255,0.04);
+      --glass-border: rgba(255,255,255,0.08);
+      --success:      #00ff88;
+      --nav-h:        72px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--void);
+      color: var(--white);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-weight: 300;
+      line-height: 1.7;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .bg-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.08;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .bg-orb-1 { width: 600px; height: 600px; background: var(--violet); top: -200px; left: -200px; }
+    .bg-orb-2 { width: 500px; height: 500px; background: var(--cyan);   bottom: 10%; right: -150px; }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.02) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Nav */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      height: var(--nav-h);
+      background: rgba(0,0,8,0.7);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .nav-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 clamp(20px,5vw,60px);
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-bd {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 22px;
+      color: var(--cyan);
+      letter-spacing: -0.02em;
+      filter: drop-shadow(0 0 8px rgba(0,229,255,0.4));
+    }
+    .logo-full { font-size: 13px; color: var(--muted); }
+    .nav-sep   { font-size: 13px; color: var(--muted); }
+    .nav-project {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: var(--cyan);
+    }
+    .back-link {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .back-link:hover { color: var(--cyan); text-decoration: none; }
+    .back-link svg { transition: transform 0.2s; }
+    .back-link:hover svg { transform: translateX(-3px); }
+
+    /* Layout */
+    .page {
+      position: relative;
+      z-index: 2;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: calc(var(--nav-h) + 64px) clamp(20px,5vw,40px) 100px;
+    }
+
+    /* Header */
+    .page-eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 16px;
+    }
+    .page-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: clamp(28px, 4vw, 42px);
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+      margin-bottom: 12px;
+    }
+    .page-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 48px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    /* TL;DR box */
+    .tldr {
+      background: rgba(0,229,255,0.06);
+      border: 1px solid rgba(0,229,255,0.18);
+      border-left: 3px solid var(--cyan);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 48px;
+    }
+    .tldr-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 10px;
+    }
+    .tldr-list { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+    .tldr-list li {
+      font-size: 14px;
+      color: rgba(240,240,255,0.85);
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .tldr-list li::before {
+      content: '✓';
+      color: var(--success);
+      font-size: 12px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    /* Sections */
+    .policy-section { margin-bottom: 44px; }
+
+    h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      font-size: 18px;
+      letter-spacing: -0.01em;
+      color: var(--white);
+      margin-bottom: 14px;
+      padding-top: 8px;
+    }
+    h2 .num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--cyan);
+      margin-right: 8px;
+      letter-spacing: 0.08em;
+    }
+
+    p { font-size: 14.5px; color: rgba(240,240,255,0.72); margin-bottom: 14px; line-height: 1.75; }
+    p:last-child { margin-bottom: 0; }
+
+    ul, ol { padding-left: 0; list-style: none; margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
+    li {
+      font-size: 14.5px;
+      color: rgba(240,240,255,0.72);
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      line-height: 1.6;
+    }
+    li::before {
+      content: '–';
+      color: var(--muted);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    strong { color: var(--white); font-weight: 500; }
+
+    .highlight {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 14px;
+    }
+    .highlight p { margin-bottom: 0; }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: rgba(0,229,255,0.08);
+      color: var(--cyan);
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--glass-border);
+      margin: 48px 0;
+    }
+
+    /* Contact block */
+    .contact-block {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 24px;
+      margin-top: 48px;
+    }
+    .contact-block p { margin-bottom: 6px; }
+    .contact-block a { color: var(--cyan); }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--glass-border);
+      padding: 28px 0;
+      position: relative;
+      z-index: 2;
+    }
+    .footer-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 clamp(20px,5vw,60px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .footer-left { display: flex; align-items: center; gap: 10px; }
+    .footer-logo { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px; color: var(--cyan); }
+    .footer-name { font-size: 13px; color: var(--muted); }
+    .footer-copy { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.06em; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<div class="bg-orb bg-orb-1" aria-hidden="true"></div>
+<div class="bg-orb bg-orb-2" aria-hidden="true"></div>
+
+<nav aria-label="Site navigation">
+  <div class="nav-inner">
+    <a href="../../" style="display:flex;align-items:center;gap:10px;text-decoration:none" aria-label="Brilliant Disruptions home">
+      <span class="logo-bd">BD</span>
+      <span class="logo-full">Brilliant Disruptions</span>
+    </a>
+    <span class="nav-sep" aria-hidden="true">/</span>
+    <a href="./" class="nav-project" style="text-decoration:none">TokenWatch</a>
+    <a href="./" class="back-link">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+        <path d="M10 6.5H3M6 3.5L3 6.5L6 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      BACK TO TOKENWATCH
+    </a>
+  </div>
+</nav>
+
+<main class="page">
+
+  <div class="page-eyebrow">LEGAL · TOKENWATCH</div>
+  <h1 class="page-title">Privacy Policy</h1>
+  <div class="page-meta">
+    Effective date: June 14, 2026 &nbsp;·&nbsp; Brilliant Disruptions, Inc.
+  </div>
+
+  <div class="tldr">
+    <div class="tldr-label">TL;DR — The Short Version</div>
+    <ul class="tldr-list">
+      <li>We never read, access, or store your Claude conversations or prompts.</li>
+      <li>We only read UI-level signals: usage-limit banners and activity presence on claude.ai.</li>
+      <li>The optional CLI integration reads only your usage percentage — no conversation content.</li>
+      <li>We store your email, display name, group membership, and usage status. That's it.</li>
+      <li>We don't sell your data. We don't share it with advertisers.</li>
+    </ul>
+  </div>
+
+  <!-- 1 -->
+  <div class="policy-section">
+    <h2><span class="num">01</span>Who We Are</h2>
+    <p>TokenWatch is a Chrome extension built and operated by <strong>Brilliant Disruptions, Inc.</strong> ("we," "us," or "our"). It helps teams coordinate their Claude AI usage by surfacing real-time status, handoff queues, and availability forecasts.</p>
+    <p>Questions about this policy: <a href="mailto:hello@brilliantdisruptions.com">hello@brilliantdisruptions.com</a></p>
+  </div>
+
+  <!-- 2 -->
+  <div class="policy-section">
+    <h2><span class="num">02</span>What the Extension Does — and Doesn't — Access</h2>
+
+    <div class="highlight">
+      <p><strong>TokenWatch never reads your Claude conversations, prompts, or Claude's responses.</strong> The extension has no access to the contents of any chat session. It does not inject scripts that capture keystrokes, clipboard data, or message content.</p>
+    </div>
+
+    <p>The extension operates on <strong>claude.ai</strong> and reads only the following UI-level signals:</p>
+    <ul>
+      <li><strong>Usage-limit banners</strong> — whether the page is displaying a "limit reached" or "you're approaching your limit" notification (text only; no conversation content).</li>
+      <li><strong>Activity presence</strong> — whether the claude.ai tab is active in your browser (used to determine "active" vs. "idle" status).</li>
+      <li><strong>Reset countdown text</strong> — the time remaining until your Claude usage resets, if shown in the UI.</li>
+    </ul>
+
+    <p>These signals are used solely to update your status in your team's shared TokenWatch group.</p>
+  </div>
+
+  <!-- 3 -->
+  <div class="policy-section">
+    <h2><span class="num">03</span>Claude Code CLI Integration (Optional)</h2>
+    <p>The optional <code>npx tokenwatch-link init</code> command installs a small status-line script locally at <code>~/.claude/tokenwatch-statusline.js</code>. This script:</p>
+    <ul>
+      <li>Reads your Claude CLI usage percentage from local Claude CLI state.</li>
+      <li>Sends only that percentage number to TokenWatch servers over HTTPS.</li>
+      <li>Does not read, transmit, or log any conversation content, prompt text, or Claude output.</li>
+    </ul>
+    <p>The CLI link is established via a one-time cryptographic pairing code displayed in the extension popup. The resulting credential is stored as a SHA-256 hashed device token — the raw key is never persisted after initial issuance.</p>
+    <p>This integration is entirely optional. The extension functions without it.</p>
+  </div>
+
+  <!-- 4 -->
+  <div class="policy-section">
+    <h2><span class="num">04</span>Data We Collect</h2>
+
+    <p>When you use TokenWatch, we collect and store the following:</p>
+
+    <ul>
+      <li><strong>Email address</strong> — used for authentication (magic link / one-time code). We use Supabase Auth to manage this.</li>
+      <li><strong>Display name</strong> — the name you set when joining, shown to your teammates.</li>
+      <li><strong>Avatar color</strong> — a randomly assigned color used to identify you visually in the popup.</li>
+      <li><strong>Group membership</strong> — which TokenWatch group you belong to and when you joined.</li>
+      <li><strong>Usage status</strong> — your current Claude status (active / idle / limit reached / offline), usage percentage if the CLI is linked, and estimated reset time. This is the core data synced to your team.</li>
+      <li><strong>Handoff records</strong> — when you send or receive a task handoff: sender ID, recipient ID, task description text (up to 500 characters, which you write), status, and timestamps. Task text is visible to the recipient only.</li>
+      <li><strong>Usage events</strong> — session start/end, limit-reached, and reset events. Used for the Weekly Recap feature. No conversation content is logged.</li>
+    </ul>
+
+    <p>We do <strong>not</strong> collect: browsing history, conversation content, prompt text, Claude output, keystrokes, clipboard content, or any data from websites other than claude.ai.</p>
+  </div>
+
+  <!-- 5 -->
+  <div class="policy-section">
+    <h2><span class="num">05</span>How We Use Your Data</h2>
+    <ul>
+      <li>To provide the core product: syncing your status to your team in real-time.</li>
+      <li>To power the Handoff Queue: routing task descriptions between group members.</li>
+      <li>To generate the Weekly Recap: aggregating session counts and handoff stats for your group.</li>
+      <li>To compute the Availability Forecast: projecting team capacity from current statuses and reset times.</li>
+      <li>To authenticate you and secure your account.</li>
+      <li>To enforce plan limits (user caps, handoff quotas) as described in our pricing.</li>
+    </ul>
+    <p>We do not use your data for advertising, profiling, or sale to third parties.</p>
+  </div>
+
+  <!-- 6 -->
+  <div class="policy-section">
+    <h2><span class="num">06</span>Data Sharing</h2>
+    <p>We share your data only in these limited circumstances:</p>
+    <ul>
+      <li><strong>Your team group</strong> — your display name, avatar color, and usage status are visible to members of your TokenWatch group. This is the core function of the product.</li>
+      <li><strong>Supabase</strong> — our database and authentication provider. Data is stored in Supabase infrastructure. Supabase's privacy policy applies to their handling of infrastructure-level data.</li>
+      <li><strong>Stripe</strong> — if you subscribe to a paid plan, billing is processed by Stripe. We share your email and group ID with Stripe. We never see or store card numbers.</li>
+      <li><strong>Legal requirements</strong> — we may disclose data if required by law, court order, or to protect the rights or safety of users.</li>
+    </ul>
+    <p>We do not sell, rent, or share your data with advertisers, data brokers, or any third party for commercial purposes.</p>
+  </div>
+
+  <!-- 7 -->
+  <div class="policy-section">
+    <h2><span class="num">07</span>Data Retention</h2>
+    <ul>
+      <li><strong>Usage status</strong> — updated in real-time; historical status is not retained beyond what is needed for the current session.</li>
+      <li><strong>Handoff records</strong> — retained for 7 days (Free), 90 days (Pro), 1 year (Team), or indefinitely (Studio/Enterprise), per your plan.</li>
+      <li><strong>Usage events</strong> (for Recap) — retained for 24 hours (Free), 30 days (Pro), 1 year (Team), or indefinitely (Studio/Enterprise).</li>
+      <li><strong>Account data</strong> (email, display name) — retained until you delete your account.</li>
+    </ul>
+    <p>You can delete your account at any time from the Settings panel in the extension. Account deletion removes your email, display name, group membership, and all associated records within 30 days.</p>
+  </div>
+
+  <!-- 8 -->
+  <div class="policy-section">
+    <h2><span class="num">08</span>Chrome Extension Permissions</h2>
+    <p>TokenWatch requests the following Chrome permissions and uses them as described:</p>
+    <ul>
+      <li><strong><code>host_permissions: https://claude.ai/*</code></strong> — required to run the content script that reads usage-limit banners and activity status on claude.ai. No other sites are accessed.</li>
+      <li><strong><code>storage</code></strong> — stores your authentication session, display name, group ID, and cached recap data locally in <code>chrome.storage.local</code>. This data stays on your device and is also synced to Supabase for real-time team sharing.</li>
+      <li><strong><code>alarms</code></strong> — schedules the Monday 8am local-time alarm that pre-generates the Weekly Recap in the background.</li>
+      <li><strong><code>notifications</code></strong> (optional, on-demand) — shows a Chrome notification when you hit your Claude limit and a teammate is available to receive a handoff. Requested only when you first trigger a limit event; can be denied without affecting core functionality.</li>
+    </ul>
+    <p>We do not request or use: <code>tabs</code>, <code>history</code>, <code>bookmarks</code>, <code>cookies</code>, <code>webRequest</code>, <code>clipboardRead</code>, or broad host permissions beyond claude.ai.</p>
+  </div>
+
+  <!-- 9 -->
+  <div class="policy-section">
+    <h2><span class="num">09</span>Security</h2>
+    <ul>
+      <li>All data is transmitted over HTTPS / TLS.</li>
+      <li>Row-level security (RLS) policies on our Supabase database ensure users can only read data from their own group.</li>
+      <li>CLI device tokens are stored as SHA-256 hashes — the raw token is issued once and never stored in plaintext.</li>
+      <li>Pairing codes are generated using <code>crypto.getRandomValues</code> and expire after 10 minutes or a single claim.</li>
+      <li>We do not store passwords. Authentication is handled via one-time codes sent to your email.</li>
+    </ul>
+  </div>
+
+  <!-- 10 -->
+  <div class="policy-section">
+    <h2><span class="num">10</span>Children's Privacy</h2>
+    <p>TokenWatch is not directed at children under 13. We do not knowingly collect personal information from children under 13. If you believe a child has provided us with personal information, please contact us and we will delete it promptly.</p>
+  </div>
+
+  <!-- 11 -->
+  <div class="policy-section">
+    <h2><span class="num">11</span>Your Rights</h2>
+    <p>Depending on your location, you may have rights to access, correct, export, or delete your personal data. To exercise any of these rights:</p>
+    <ul>
+      <li>Use the Settings panel in the extension to update your display name or delete your account.</li>
+      <li>Email us at <a href="mailto:hello@brilliantdisruptions.com">hello@brilliantdisruptions.com</a> for any other requests.</li>
+    </ul>
+    <p>We respond to data requests within 30 days.</p>
+  </div>
+
+  <!-- 12 -->
+  <div class="policy-section">
+    <h2><span class="num">12</span>Changes to This Policy</h2>
+    <p>We may update this policy as the product evolves. When we make material changes, we'll update the effective date at the top of this page. Continued use of TokenWatch after changes are posted constitutes acceptance of the updated policy.</p>
+    <p>We will not retroactively apply new data uses to previously collected data without your consent.</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="contact-block">
+    <p><strong>Questions or concerns?</strong></p>
+    <p>Brilliant Disruptions, Inc.<br/>
+    <a href="mailto:hello@brilliantdisruptions.com">hello@brilliantdisruptions.com</a></p>
+    <p style="margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.06em;color:var(--muted)">WE RESPOND WITHIN 24 HOURS.</p>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-left">
+      <a href="../../" style="text-decoration:none" aria-label="Brilliant Disruptions home">
+        <span class="footer-logo">BD</span>
+      </a>
+      <span class="footer-name">Brilliant Disruptions</span>
+    </div>
+    <div class="footer-copy">© 2026 BRILLIANT DISRUPTIONS, INC.</div>
+    <div>
+      <a href="./" style="font-size:12px;color:var(--muted);text-decoration:none">← TokenWatch</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
