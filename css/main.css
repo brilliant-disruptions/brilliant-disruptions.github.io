@@ -235,8 +235,8 @@ body.cursor-hidden #cursor-ring {
   overflow: hidden;
 }
 .logo-bd {
-  font-family: 'Syne', sans-serif;
-  font-weight: 900;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   font-size: 22px;
   color: var(--cyan);
   letter-spacing: -0.02em;
@@ -411,8 +411,8 @@ body.cursor-hidden #cursor-ring {
 }
 
 .hero-headline {
-  font-family: 'Syne', sans-serif;
-  font-weight: 800;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   font-size: clamp(40px, 7vw, 88px);
   line-height: 1;
   letter-spacing: -0.025em;
@@ -541,8 +541,8 @@ body.cursor-hidden #cursor-ring {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-family: 'Syne', sans-serif;
-  font-weight: 800;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   font-size: clamp(60px, 14vw, 160px);
   letter-spacing: -0.04em;
   color: rgba(255,255,255,0.02);
@@ -584,7 +584,7 @@ body.cursor-hidden #cursor-ring {
   color: var(--cyan);
 }
 .statement-text {
-  font-family: 'Syne', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
   font-size: clamp(24px, 4vw, 54px);
   line-height: 1.15;
@@ -667,8 +667,8 @@ body.cursor-hidden #cursor-ring {
   box-shadow: 0 0 6px var(--magenta);
 }
 .section-title {
-  font-family: 'Syne', sans-serif;
-  font-weight: 800;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   font-size: clamp(28px, 3.5vw, 52px);
   line-height: 1.08;
   letter-spacing: -0.025em;
@@ -718,8 +718,8 @@ body.cursor-hidden #cursor-ring {
   margin-bottom: 16px;
 }
 .signal-card-value {
-  font-family: 'Syne', sans-serif;
-  font-weight: 800;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   font-size: clamp(26px, 2.2vw, 36px);
   line-height: 1;
   background: linear-gradient(135deg, var(--white), var(--cyan));
@@ -855,8 +855,8 @@ body.cursor-hidden #cursor-ring {
   filter: drop-shadow(0 0 12px rgba(0,229,255,0.5));
 }
 .project-card--featured .card-title {
-  font-family: 'Syne', sans-serif;
-  font-weight: 800;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   font-size: clamp(24px, 3vw, 40px);
   letter-spacing: -0.02em;
   margin-bottom: 16px;
@@ -988,8 +988,8 @@ body.cursor-hidden #cursor-ring {
 }
 .contact-bg-text {
   position: absolute;
-  font-family: 'Syne', sans-serif;
-  font-weight: 900;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   font-size: clamp(120px, 25vw, 280px);
   letter-spacing: -0.05em;
   color: transparent;
@@ -1009,8 +1009,8 @@ body.cursor-hidden #cursor-ring {
   margin-bottom: 24px;
 }
 .contact-headline {
-  font-family: 'Syne', sans-serif;
-  font-weight: 800;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   font-size: clamp(28px, 4vw, 60px);
   line-height: 1.1;
   letter-spacing: -0.025em;
@@ -1052,8 +1052,8 @@ body.cursor-hidden #cursor-ring {
   gap: 10px;
 }
 .footer-logo {
-  font-family: 'Syne', sans-serif;
-  font-weight: 900;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   font-size: 18px;
   color: var(--cyan);
 }

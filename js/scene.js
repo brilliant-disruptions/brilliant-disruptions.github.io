@@ -46,7 +46,7 @@
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = '#fff';
-    ctx.font = '900 200px Syne, sans-serif';
+    ctx.font = '700 200px "Space Grotesk", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('BD', W / 2, H / 2);
@@ -67,7 +67,7 @@
       }
     }
 
-    // If Syne font not loaded yet, fall back to a basic bold sans-serif attempt
+    // If Space Grotesk font not loaded yet, fall back to a basic bold sans-serif attempt
     if (rawPositions.length < 50) {
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = '#000';
