@@ -378,8 +378,8 @@
           <em>ready for?</em>
         </h2>
         <div class="contact-actions reveal-up">
-          <a href="mailto:hello@brilliantdisruptions.com" class="btn btn-primary btn-lg magnetic" data-magnetic>
-            hello@brilliantdisruptions.com
+          <a href="#" class="btn btn-primary btn-lg magnetic js-email" data-magnetic data-u="hello" data-d="brilliantdisruptions" data-t="com">
+            hello&#64;brilliantdisruptions&#46;com
           </a>
           <p class="contact-response mono">We respond within 24 hours.</p>
         </div>
@@ -436,5 +436,10 @@
   <script src="js/cursor.js"></script>
   <script src="js/animations.js"></script>
   <script src="js/main.js"></script>
+  <script>
+    document.querySelectorAll('.js-email').forEach(function(el) {
+      el.href = 'mailto:' + el.dataset.u + '\x40' + el.dataset.d + '.' + el.dataset.t;
+    });
+  </script>
 </body>
 </html>

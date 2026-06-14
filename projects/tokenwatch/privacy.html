@@ -329,7 +329,7 @@
   <div class="policy-section">
     <h2><span class="num">01</span>Who We Are</h2>
     <p>TokenWatch is a Chrome extension built and operated by <strong>Brilliant Disruptions, Inc.</strong> ("we," "us," or "our"). It helps teams coordinate their Claude AI usage by surfacing real-time status, handoff queues, and availability forecasts.</p>
-    <p>Questions about this policy: <a href="mailto:hello@brilliantdisruptions.com">hello@brilliantdisruptions.com</a></p>
+    <p>Questions about this policy: <a href="#" class="js-email" data-u="hello" data-d="brilliantdisruptions" data-t="com">hello&#64;brilliantdisruptions&#46;com</a></p>
   </div>
 
   <!-- 2 -->
@@ -458,7 +458,7 @@
     <p>Depending on your location, you may have rights to access, correct, export, or delete your personal data. To exercise any of these rights:</p>
     <ul>
       <li>Use the Settings panel in the extension to update your display name or delete your account.</li>
-      <li>Email us at <a href="mailto:hello@brilliantdisruptions.com">hello@brilliantdisruptions.com</a> for any other requests.</li>
+      <li>Email us at <a href="#" class="js-email" data-u="hello" data-d="brilliantdisruptions" data-t="com">hello&#64;brilliantdisruptions&#46;com</a> for any other requests.</li>
     </ul>
     <p>We respond to data requests within 30 days.</p>
   </div>
@@ -475,7 +475,7 @@
   <div class="contact-block">
     <p><strong>Questions or concerns?</strong></p>
     <p>Brilliant Disruptions, Inc.<br/>
-    <a href="mailto:hello@brilliantdisruptions.com">hello@brilliantdisruptions.com</a></p>
+    <a href="#" class="js-email" data-u="hello" data-d="brilliantdisruptions" data-t="com">hello&#64;brilliantdisruptions&#46;com</a></p>
     <p style="margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.06em;color:var(--muted)">WE RESPOND WITHIN 24 HOURS.</p>
   </div>
 
@@ -496,5 +496,10 @@
   </div>
 </footer>
 
+  <script>
+    document.querySelectorAll('.js-email').forEach(function(el) {
+      el.href = 'mailto:' + el.dataset.u + '\x40' + el.dataset.d + '.' + el.dataset.t;
+    });
+  </script>
 </body>
 </html>
