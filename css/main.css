@@ -412,14 +412,14 @@ body.cursor-hidden #cursor-ring {
 
 .hero-headline {
   font-family: 'Syne', sans-serif;
-  font-weight: 900;
-  font-size: clamp(52px, 11vw, 130px);
-  line-height: 0.9;
-  letter-spacing: -0.03em;
+  font-weight: 800;
+  font-size: clamp(40px, 7vw, 88px);
+  line-height: 1;
+  letter-spacing: -0.025em;
   margin-bottom: 28px;
   display: flex;
   flex-direction: column;
-  gap: 0.02em;
+  gap: 0.04em;
 }
 .headline-line {
   display: block;
@@ -542,9 +542,9 @@ body.cursor-hidden #cursor-ring {
   left: 50%;
   transform: translate(-50%, -50%);
   font-family: 'Syne', sans-serif;
-  font-weight: 900;
-  font-size: clamp(80px, 20vw, 220px);
-  letter-spacing: -0.05em;
+  font-weight: 800;
+  font-size: clamp(60px, 14vw, 160px);
+  letter-spacing: -0.04em;
   color: rgba(255,255,255,0.02);
   user-select: none;
   pointer-events: none;
@@ -585,9 +585,9 @@ body.cursor-hidden #cursor-ring {
 }
 .statement-text {
   font-family: 'Syne', sans-serif;
-  font-weight: 800;
-  font-size: clamp(32px, 5.5vw, 72px);
-  line-height: 1.1;
+  font-weight: 700;
+  font-size: clamp(24px, 4vw, 54px);
+  line-height: 1.15;
   letter-spacing: -0.02em;
 }
 .statement-text em {
@@ -668,10 +668,10 @@ body.cursor-hidden #cursor-ring {
 }
 .section-title {
   font-family: 'Syne', sans-serif;
-  font-weight: 900;
-  font-size: clamp(36px, 5vw, 64px);
-  line-height: 1.05;
-  letter-spacing: -0.03em;
+  font-weight: 800;
+  font-size: clamp(28px, 3.5vw, 52px);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
   margin-bottom: 20px;
 }
 .section-sub {
@@ -719,8 +719,8 @@ body.cursor-hidden #cursor-ring {
 }
 .signal-card-value {
   font-family: 'Syne', sans-serif;
-  font-weight: 900;
-  font-size: clamp(32px, 2.8vw, 44px);
+  font-weight: 800;
+  font-size: clamp(26px, 2.2vw, 36px);
   line-height: 1;
   background: linear-gradient(135deg, var(--white), var(--cyan));
   -webkit-background-clip: text;
@@ -732,7 +732,7 @@ body.cursor-hidden #cursor-ring {
 }
 .signal-card-value--mono {
   font-family: 'JetBrains Mono', monospace;
-  font-size: clamp(28px, 3vw, 40px);
+  font-size: clamp(22px, 2.2vw, 32px);
 }
 .signal-card-sub {
   font-size: 12px;
@@ -856,8 +856,8 @@ body.cursor-hidden #cursor-ring {
 }
 .project-card--featured .card-title {
   font-family: 'Syne', sans-serif;
-  font-weight: 900;
-  font-size: clamp(32px, 4vw, 52px);
+  font-weight: 800;
+  font-size: clamp(24px, 3vw, 40px);
   letter-spacing: -0.02em;
   margin-bottom: 16px;
   background: linear-gradient(135deg, var(--white), rgba(240,240,255,0.8));
@@ -1010,10 +1010,10 @@ body.cursor-hidden #cursor-ring {
 }
 .contact-headline {
   font-family: 'Syne', sans-serif;
-  font-weight: 900;
-  font-size: clamp(36px, 6vw, 80px);
-  line-height: 1.05;
-  letter-spacing: -0.03em;
+  font-weight: 800;
+  font-size: clamp(28px, 4vw, 60px);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
   margin-bottom: 48px;
 }
 .contact-headline em {
