@@ -231,6 +231,8 @@ body.cursor-hidden #cursor-ring {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 .logo-bd {
   font-family: 'Syne', sans-serif;
@@ -245,6 +247,9 @@ body.cursor-hidden #cursor-ring {
   font-weight: 400;
   color: var(--muted);
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .nav-links {
   display: flex;
@@ -715,7 +720,7 @@ body.cursor-hidden #cursor-ring {
 .signal-card-value {
   font-family: 'Syne', sans-serif;
   font-weight: 900;
-  font-size: clamp(40px, 4vw, 56px);
+  font-size: clamp(32px, 2.8vw, 44px);
   line-height: 1;
   background: linear-gradient(135deg, var(--white), var(--cyan));
   -webkit-background-clip: text;
@@ -723,6 +728,7 @@ body.cursor-hidden #cursor-ring {
   -webkit-text-fill-color: transparent;
   margin-bottom: 10px;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 .signal-card-value--mono {
   font-family: 'JetBrains Mono', monospace;
@@ -1127,6 +1133,11 @@ body.cursor-hidden #cursor-ring {
   .signal-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+@media (max-width: 960px) {
+  /* Hide the wordmark early so it never fights nav links for space */
+  .logo-full { display: none; }
+}
+
 @media (max-width: 900px) {
   .ops-grid { grid-template-columns: repeat(2, 1fr); }
   .project-card--featured .card-inner { grid-template-columns: 1fr; gap: 24px; }
@@ -1136,7 +1147,6 @@ body.cursor-hidden #cursor-ring {
   .nav-links, .nav-cta { display: none; }
   .nav-hamburger { display: flex; }
   .nav-mobile-menu { display: flex; }
-  .logo-full { display: none; }
   .signal-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
   .ops-grid { grid-template-columns: 1fr; }
   .manifesto-progress { right: 12px; }

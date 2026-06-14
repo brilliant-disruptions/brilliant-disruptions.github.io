@@ -99,16 +99,18 @@
   100% { background-position: 200% center; }
 }
 
-/* Manifesto statement entrance */
+/* Manifesto statement entrance
+   Must include translate(-50%,-50%) so the absolute centering
+   is preserved throughout the animation. */
 @keyframes statementIn {
-  from { opacity: 0; transform: translateY(20px) scale(0.98); filter: blur(6px); }
-  to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 24px)) scale(0.97); filter: blur(8px); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
 }
 @keyframes statementOut {
-  from { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
-  to   { opacity: 0; transform: translateY(-20px) scale(0.98); filter: blur(6px); }
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
+  to   { opacity: 0; transform: translate(-50%, calc(-50% - 18px)) scale(0.97); filter: blur(6px); }
 }
-.manifesto-statement.enter { animation: statementIn 0.6s var(--ease-out-expo) forwards; }
+.manifesto-statement.enter { animation: statementIn 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 .manifesto-statement.exit  { animation: statementOut 0.4s ease forwards; }
 
 /* Particle trail */
