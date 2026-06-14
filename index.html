@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Brilliant Disruptions — AI-First Software Studio</title>
+  <meta name="description" content="We build the software the world doesn't know it needs yet. An AI-first studio creating disruptive software that makes the world measurably better." />
+  <meta property="og:title" content="Brilliant Disruptions" />
+  <meta property="og:description" content="We build the software the world doesn't know it needs yet." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://brilliantdisruptions.com" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+
+  <!-- Three.js -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+  <!-- GSAP -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+</head>
+<body>
+
+  <!-- ══════════ CUSTOM CURSOR ══════════ -->
+  <div id="cursor" aria-hidden="true">
+    <div id="cursor-ring"></div>
+  </div>
+  <div id="cursor-trail" aria-hidden="true"></div>
+
+  <!-- ══════════ LOADING SCREEN ══════════ -->
+  <div id="loader" aria-hidden="true">
+    <div class="loader-inner">
+      <div class="loader-logo-wrap">
+        <svg class="loader-logo" viewBox="0 0 120 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="52" font-family="Syne, sans-serif" font-weight="900" font-size="60" fill="currentColor">BD</text>
+        </svg>
+      </div>
+      <div class="loader-bar-wrap">
+        <div class="loader-bar" id="loader-bar"></div>
+      </div>
+      <div class="loader-label">INITIALIZING SYSTEMS</div>
+    </div>
+  </div>
+
+  <!-- ══════════ PARTICLE CANVAS (fixed bg) ══════════ -->
+  <canvas id="bg-canvas" aria-hidden="true"></canvas>
+
+  <!-- ══════════ GRADIENT BACKGROUND ══════════ -->
+  <div id="bg-gradient" aria-hidden="true">
+    <div class="grad-orb grad-orb-1"></div>
+    <div class="grad-orb grad-orb-2"></div>
+    <div class="grad-orb grad-orb-3"></div>
+  </div>
+
+  <!-- ══════════ NAV ══════════ -->
+  <nav id="nav">
+    <div class="nav-container">
+      <a href="#hero" class="nav-logo" aria-label="Brilliant Disruptions home">
+        <span class="logo-bd">BD</span>
+        <span class="logo-full">Brilliant Disruptions</span>
+      </a>
+      <div class="nav-links">
+        <a href="#manifesto" class="nav-link">Manifesto</a>
+        <a href="#signal" class="nav-link">Signal</a>
+        <a href="#operations" class="nav-link">Operations</a>
+      </div>
+      <a href="#contact" class="nav-cta btn btn-ghost btn-sm">Contact</a>
+      <button class="nav-hamburger" id="nav-hamburger" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <div class="nav-mobile-menu" id="nav-mobile-menu">
+      <a href="#manifesto" class="mobile-link">Manifesto</a>
+      <a href="#signal" class="mobile-link">Signal</a>
+      <a href="#operations" class="mobile-link">Operations</a>
+      <a href="#contact" class="mobile-link mobile-link--cta">Contact</a>
+    </div>
+  </nav>
+
+  <!-- ══════════ HERO ══════════ -->
+  <section id="hero" class="section section--hero">
+    <div class="hero-content" id="hero-content">
+      <div class="hero-eyebrow" id="hero-eyebrow">
+        <span class="eyebrow-dot"></span>
+        <span>AI-FIRST COMPANY</span>
+        <span class="eyebrow-dot"></span>
+      </div>
+      <h1 class="hero-headline" id="hero-headline">
+        <span class="headline-line" id="headline-1" aria-label="BRILLIANT">BRILLIANT</span>
+        <span class="headline-line" id="headline-2" aria-label="DISRUPTIONS">DISRUPTIONS</span>
+      </h1>
+      <p class="hero-sub" id="hero-sub">
+        We build the software the world<br/>doesn't know it needs yet.
+      </p>
+      <div class="hero-ctas" id="hero-ctas">
+        <a href="#operations" class="btn btn-primary magnetic" data-magnetic>See Our Work</a>
+        <a href="#contact" class="btn btn-ghost magnetic" data-magnetic>Join the Mission</a>
+      </div>
+    </div>
+
+    <div class="scroll-indicator" id="scroll-indicator" aria-hidden="true">
+      <div class="scroll-line"></div>
+      <span class="scroll-label">SCROLL</span>
+    </div>
+
+    <!-- Floating orbs (decorative) -->
+    <div class="orb orb--hero-1" aria-hidden="true"></div>
+    <div class="orb orb--hero-2" aria-hidden="true"></div>
+    <div class="orb orb--hero-3" aria-hidden="true"></div>
+  </section>
+
+  <!-- ══════════ MANIFESTO ══════════ -->
+  <section id="manifesto" class="section section--manifesto">
+    <div class="manifesto-pin" id="manifesto-pin">
+      <div class="manifesto-bg-label" aria-hidden="true">MANIFESTO</div>
+      <div class="manifesto-statements" id="manifesto-statements">
+
+        <div class="manifesto-statement" data-index="0">
+          <div class="statement-number">01</div>
+          <blockquote class="statement-text">
+            The world isn't broken.<br/>
+            It's just running on<br/>
+            <em>old code.</em>
+          </blockquote>
+        </div>
+
+        <div class="manifesto-statement" data-index="1">
+          <div class="statement-number">02</div>
+          <blockquote class="statement-text">
+            Every industry<br/>has a ceiling.<br/>
+            <em>We build the ladder.</em>
+          </blockquote>
+        </div>
+
+        <div class="manifesto-statement" data-index="2">
+          <div class="statement-number">03</div>
+          <blockquote class="statement-text">
+            AI isn't the future.<br/>
+            It's the operating system<br/>
+            <em>of now.</em>
+          </blockquote>
+        </div>
+
+        <div class="manifesto-statement" data-index="3">
+          <div class="statement-number">04</div>
+          <blockquote class="statement-text">
+            We don't move fast<br/>and break things.<br/>
+            <em>We break limits.</em>
+          </blockquote>
+        </div>
+
+        <div class="manifesto-statement" data-index="4">
+          <div class="statement-number">05</div>
+          <blockquote class="statement-text">
+            Disruption isn't<br/>a strategy.<br/>
+            <em>It's an obligation.</em>
+          </blockquote>
+        </div>
+
+      </div>
+      <div class="manifesto-progress" id="manifesto-progress" aria-hidden="true">
+        <div class="progress-dot active" data-dot="0"></div>
+        <div class="progress-dot" data-dot="1"></div>
+        <div class="progress-dot" data-dot="2"></div>
+        <div class="progress-dot" data-dot="3"></div>
+        <div class="progress-dot" data-dot="4"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ SIGNAL DASHBOARD ══════════ -->
+  <section id="signal" class="section section--signal">
+    <div class="container">
+      <div class="signal-header">
+        <div class="signal-badge">
+          <span class="signal-dot"></span>
+          <span class="mono">SIGNAL ACTIVE</span>
+        </div>
+        <h2 class="section-title reveal-up">The Intelligence<br/>Gap Is Widening.</h2>
+        <p class="section-sub reveal-up">The companies that move now won't just win.<br/>They'll define the categories.</p>
+      </div>
+
+      <div class="signal-grid">
+        <div class="signal-card reveal-up" data-delay="0">
+          <div class="signal-card-label mono">AI MARKET VALUE</div>
+          <div class="signal-card-value">
+            $<span class="counter" data-target="847" data-suffix="B">0</span>
+          </div>
+          <div class="signal-card-sub">projected global market by 2030</div>
+          <div class="signal-card-bar"><div class="signal-bar-fill" style="--fill: 84%"></div></div>
+        </div>
+
+        <div class="signal-card reveal-up" data-delay="100">
+          <div class="signal-card-label mono">WORKFLOWS DISRUPTED</div>
+          <div class="signal-card-value">
+            <span class="counter" data-target="73" data-suffix="%">0</span>
+          </div>
+          <div class="signal-card-sub">of enterprise tasks being automated by AI</div>
+          <div class="signal-card-bar"><div class="signal-bar-fill" style="--fill: 73%"></div></div>
+        </div>
+
+        <div class="signal-card reveal-up" data-delay="200">
+          <div class="signal-card-label mono">SPEED TO STANDARD</div>
+          <div class="signal-card-value signal-card-value--mono">&lt;18 mo</div>
+          <div class="signal-card-sub">from prototype to industry standard in the AI era</div>
+          <div class="signal-card-bar"><div class="signal-bar-fill" style="--fill: 60%"></div></div>
+        </div>
+
+        <div class="signal-card reveal-up" data-delay="300">
+          <div class="signal-card-label mono">POSSIBLE FUTURES</div>
+          <div class="signal-card-value">∞</div>
+          <div class="signal-card-sub">limited only by the audacity of those who build</div>
+          <div class="signal-card-bar"><div class="signal-bar-fill" style="--fill: 100%"></div></div>
+        </div>
+      </div>
+
+      <div class="signal-ticker-wrap" aria-hidden="true">
+        <div class="signal-ticker">
+          <div class="ticker-track">
+            <span class="ticker-item">MACHINE INTELLIGENCE</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">GENERATIVE AI</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">AUTONOMOUS SYSTEMS</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">NEURAL ARCHITECTURES</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">SYNTHETIC INTELLIGENCE</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">DISRUPTIVE INNOVATION</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">INTELLIGENT AUTOMATION</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">LARGE LANGUAGE MODELS</span>
+            <span class="ticker-sep">◆</span>
+            <!-- Duplicate for seamless loop -->
+            <span class="ticker-item">MACHINE INTELLIGENCE</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">GENERATIVE AI</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">AUTONOMOUS SYSTEMS</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">NEURAL ARCHITECTURES</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">SYNTHETIC INTELLIGENCE</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">DISRUPTIVE INNOVATION</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">INTELLIGENT AUTOMATION</span>
+            <span class="ticker-sep">◆</span>
+            <span class="ticker-item">LARGE LANGUAGE MODELS</span>
+            <span class="ticker-sep">◆</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ OPERATIONS / PROJECTS ══════════ -->
+  <section id="operations" class="section section--operations">
+    <div class="container">
+      <div class="ops-header">
+        <div class="signal-badge">
+          <span class="signal-dot signal-dot--pink"></span>
+          <span class="mono">CURRENT OPERATIONS</span>
+        </div>
+        <h2 class="section-title reveal-up">What We're<br/>Building.</h2>
+        <p class="section-sub reveal-up">These aren't products. They're weapons against mediocrity.</p>
+      </div>
+
+      <!-- Featured: TokenWatch -->
+      <div class="ops-featured reveal-up" id="tokenwatch-card">
+        <div class="project-card project-card--featured holo-card" data-card>
+          <div class="card-holo-overlay" aria-hidden="true"></div>
+          <div class="card-inner">
+            <div class="card-meta">
+              <div class="card-status">
+                <span class="status-dot status-dot--active"></span>
+                <span class="mono card-status-text">OPERATIONAL</span>
+              </div>
+              <div class="card-tag mono">FINTECH × AI</div>
+            </div>
+            <div class="card-icon" aria-hidden="true">
+              <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                <circle cx="24" cy="24" r="22" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M16 28L20 20L24 24L28 16L32 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="32" cy="20" r="2" fill="currentColor"/>
+                <path d="M16 34H32" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h3 class="card-title">TokenWatch</h3>
+            <p class="card-desc">Financial intelligence, reimagined. Cut through the noise. Watch the signal. Real-time AI-powered monitoring of the tokens that matter, with pattern recognition that spots what humans miss.</p>
+            <a href="projects/tokenwatch/" class="btn btn-primary card-cta">
+              Access Project
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 8H13M9 4L13 8L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Classified cards -->
+      <div class="ops-grid">
+        <div class="project-card project-card--classified holo-card reveal-up" data-card data-delay="0">
+          <div class="card-holo-overlay" aria-hidden="true"></div>
+          <div class="card-inner">
+            <div class="card-meta">
+              <div class="card-status">
+                <span class="status-dot status-dot--pending"></span>
+                <span class="mono card-status-text">IN DEVELOPMENT</span>
+              </div>
+              <div class="card-tag mono">CLASSIFIED</div>
+            </div>
+            <div class="card-classified-name mono">
+              OPERATION: [<span class="redacted">REDACTED</span>]
+            </div>
+            <p class="card-desc card-desc--muted">Intelligence suggests this will change how enterprises think about knowledge management. More soon.<span class="blink-cursor">_</span></p>
+            <div class="card-cta-placeholder mono">CLEARANCE REQUIRED ›</div>
+          </div>
+        </div>
+
+        <div class="project-card project-card--classified holo-card reveal-up" data-card data-delay="150">
+          <div class="card-holo-overlay" aria-hidden="true"></div>
+          <div class="card-inner">
+            <div class="card-meta">
+              <div class="card-status">
+                <span class="status-dot status-dot--pending"></span>
+                <span class="mono card-status-text">IN DEVELOPMENT</span>
+              </div>
+              <div class="card-tag mono">CLASSIFIED</div>
+            </div>
+            <div class="card-classified-name mono">
+              OPERATION: [<span class="redacted">REDACTED</span>]
+            </div>
+            <p class="card-desc card-desc--muted">Early signals indicate disruption at the infrastructure layer. The category doesn't have a name yet.<span class="blink-cursor">_</span></p>
+            <div class="card-cta-placeholder mono">CLEARANCE REQUIRED ›</div>
+          </div>
+        </div>
+
+        <div class="project-card project-card--classified holo-card reveal-up" data-card data-delay="300">
+          <div class="card-holo-overlay" aria-hidden="true"></div>
+          <div class="card-inner">
+            <div class="card-meta">
+              <div class="card-status">
+                <span class="status-dot status-dot--soon"></span>
+                <span class="mono card-status-text">COMING SOON</span>
+              </div>
+              <div class="card-tag mono">CLASSIFIED</div>
+            </div>
+            <div class="card-classified-name mono">
+              OPERATION: [<span class="redacted">REDACTED</span>]
+            </div>
+            <p class="card-desc card-desc--muted">We're not ready to say what this is. But we are ready to say it will be different.<span class="blink-cursor">_</span></p>
+            <div class="card-cta-placeholder mono">CLEARANCE REQUIRED ›</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════ CONTACT / CTA ══════════ -->
+  <section id="contact" class="section section--contact">
+    <div class="contact-inner">
+      <div class="contact-bg-text" aria-hidden="true">BUILD</div>
+      <div class="container">
+        <p class="contact-overline mono reveal-up">START A CONVERSATION</p>
+        <h2 class="contact-headline reveal-up">
+          Ready to build something<br/>
+          the world isn't<br/>
+          <em>ready for?</em>
+        </h2>
+        <div class="contact-actions reveal-up">
+          <a href="mailto:hello@brilliantdisruptions.com" class="btn btn-primary btn-lg magnetic" data-magnetic>
+            hello@brilliantdisruptions.com
+          </a>
+          <p class="contact-response mono">We respond within 24 hours.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ FOOTER ══════════ -->
+  <footer id="footer" class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-left">
+          <span class="footer-logo">BD</span>
+          <span class="footer-name">Brilliant Disruptions</span>
+        </div>
+        <div class="footer-center mono">
+          © 2026 Brilliant Disruptions, Inc. All rights reserved.
+        </div>
+        <div class="footer-right">
+          <a href="https://github.com/Brilliant-disruptions" target="_blank" rel="noopener noreferrer" class="footer-link" aria-label="GitHub">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+            </svg>
+          </a>
+          <a href="https://twitter.com/BrilliantDisrupt" target="_blank" rel="noopener noreferrer" class="footer-link" aria-label="Twitter / X">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+            </svg>
+          </a>
+          <a href="https://linkedin.com/company/brilliant-disruptions" target="_blank" rel="noopener noreferrer" class="footer-link" aria-label="LinkedIn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ══════════ SOUND TOGGLE ══════════ -->
+  <button id="sound-toggle" class="sound-toggle" aria-label="Toggle ambient sound" title="Toggle ambient sound">
+    <svg id="sound-on-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+    </svg>
+    <svg id="sound-off-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none">
+      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+      <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+    </svg>
+  </button>
+
+  <!-- Scripts -->
+  <script src="js/scene.js"></script>
+  <script src="js/cursor.js"></script>
+  <script src="js/animations.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
