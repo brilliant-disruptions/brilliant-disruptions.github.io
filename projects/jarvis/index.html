@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JARVIS — Brilliant Disruptions</title>
+  <meta name="description" content="Autonomous Command & Control Center for Brilliant Disruptions. AI agents, approval gates, real-time dashboards — the human approves, the machine operates." />
+  <meta property="og:title" content="JARVIS — Brilliant Disruptions" />
+  <meta property="og:description" content="Autonomous Command & Control Center. AI agents run the machine; the human approves gates and makes strategic calls." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://brilliantdisruptions.com/projects/jarvis/" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Design System (BD tokens) ── */
+    :root {
+      --void:         #000008;
+      --void-2:       #05050f;
+      --cyan:         #00e5ff;
+      --cyan-dim:     #00b8cc;
+      --cyan-glow:    rgba(0,229,255,0.18);
+      --violet:       #7c3aed;
+      --magenta:      #ff006e;
+      --white:        #f0f0ff;
+      --muted:        #3a3a5c;
+      --muted-hi:     rgba(240,240,255,0.55);
+      --glass:        rgba(255,255,255,0.04);
+      --glass-border: rgba(255,255,255,0.08);
+      --success:      #00ff88;
+      --warn:         #fbbf24;
+      --danger:       #ff4d6d;
+      --nav-h:        72px;
+      --container:    1160px;
+      --radius:       12px;
+      --radius-lg:    20px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--void);
+      color: var(--white);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-weight: 300;
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { background: none; border: none; cursor: pointer; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* ── Background ── */
+    .bg-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.12;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .bg-orb-1 { width: 700px; height: 700px; background: var(--violet); top: -200px; left: -200px; animation: drift1 20s ease-in-out infinite alternate; }
+    .bg-orb-2 { width: 600px; height: 600px; background: var(--cyan);   bottom: 10%; right: -150px; animation: drift2 25s ease-in-out infinite alternate; }
+    .bg-orb-3 { width: 500px; height: 500px; background: var(--magenta); top: 50%; left: 30%;        animation: drift3 18s ease-in-out infinite alternate; }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.025) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Animations ── */
+    @keyframes drift1  { from { transform: translate(0,0); }         to { transform: translate(-60px,40px); } }
+    @keyframes drift2  { from { transform: translate(0,0); }         to { transform: translate(40px,-60px); } }
+    @keyframes drift3  { from { transform: translate(0,0); }         to { transform: translate(-40px,30px); } }
+    @keyframes pulse   { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    @keyframes blink   { 0%,100% { opacity:1; } 50% { opacity:0; } }
+    @keyframes float   { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    @keyframes glint   { 0% { transform: translateX(-200%); } 100% { transform: translateX(400%); } }
+    @keyframes tickerScroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+    @keyframes revealUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── Layout ── */
+    .container {
+      width: 100%;
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 0 clamp(20px, 5vw, 60px);
+    }
+    section { position: relative; z-index: 2; padding: clamp(80px,10vw,120px) 0; }
+
+    /* ── Nav ── */
+    #nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      height: var(--nav-h);
+      background: rgba(0,0,8,0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .nav-inner {
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 0 clamp(20px, 5vw, 60px);
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .logo-bd {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 22px;
+      color: var(--cyan);
+      letter-spacing: -0.02em;
+      line-height: 1;
+      filter: drop-shadow(0 0 8px rgba(0,229,255,0.4));
+    }
+    .logo-full {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .nav-sep {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .nav-project {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: var(--cyan);
+    }
+    .nav-links {
+      display: flex;
+      gap: 28px;
+      margin-left: auto;
+      list-style: none;
+    }
+    .nav-links a {
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(240,240,255,0.5);
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--white); }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      transition: color 0.2s;
+    }
+    .back-link:hover { color: var(--cyan); }
+    .back-link svg { transition: transform 0.2s; }
+    .back-link:hover svg { transform: translateX(-3px); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 28px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-primary {
+      background: var(--cyan);
+      color: #000;
+      font-weight: 600;
+      box-shadow: 0 0 30px rgba(0,229,255,0.28);
+    }
+    .btn-primary:hover { box-shadow: 0 0 50px rgba(0,229,255,0.5), 0 0 100px rgba(0,229,255,0.2); }
+    .btn-primary::after {
+      content: '';
+      position: absolute;
+      top: 0; bottom: 0; left: 0;
+      width: 35%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transform: translateX(-200%);
+      animation: glint 3.5s ease-in-out infinite;
+    }
+    .btn-ghost {
+      border: 1px solid var(--glass-border);
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      color: var(--white);
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.2); box-shadow: 0 0 20px rgba(0,229,255,0.1); }
+    .btn-sm { padding: 9px 18px; font-size: 13px; }
+    .btn-lg { padding: 17px 36px; font-size: 15px; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      padding: 7px 14px;
+      border-radius: 999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--cyan);
+    }
+    .badge-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 6px var(--cyan);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    /* ── Section typography ── */
+    .section-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      color: var(--cyan);
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: clamp(28px, 3.5vw, 50px);
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+      margin-bottom: 18px;
+    }
+    .section-sub {
+      font-size: 17px;
+      font-weight: 300;
+      color: var(--muted-hi);
+      line-height: 1.65;
+      max-width: 520px;
+    }
+
+    /* ── Glass cards ── */
+    .glass-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      backdrop-filter: blur(10px);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .glass-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .glass-card:hover { border-color: rgba(0,229,255,0.2); box-shadow: 0 0 40px rgba(0,229,255,0.06); }
+    .glass-card:hover::before { opacity: 1; }
+
+    /* ══════════════════════════════════════════
+       HERO
+    ══════════════════════════════════════════ */
+    .hero {
+      min-height: 100vh;
+      padding-top: calc(var(--nav-h) + 60px);
+      display: flex;
+      align-items: center;
+    }
+    .hero-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 72px;
+      align-items: center;
+      width: 100%;
+    }
+    .hero-back { margin-bottom: 32px; }
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      color: var(--cyan);
+      margin-bottom: 24px;
+    }
+    .hero-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: clamp(40px, 5.5vw, 62px);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      margin-bottom: 22px;
+    }
+    .hero-title em {
+      font-style: normal;
+      color: var(--cyan);
+      text-shadow: 0 0 40px rgba(0,229,255,0.4);
+    }
+    .hero-sub {
+      font-size: 18px;
+      font-weight: 300;
+      color: var(--muted-hi);
+      line-height: 1.6;
+      margin-bottom: 40px;
+      max-width: 460px;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 36px;
+    }
+    .hero-proof {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hero-avatars { display: flex; }
+    .hero-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 2px solid var(--void);
+      margin-left: -8px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+    }
+    .hero-avatar:first-child { margin-left: 0; }
+    .hero-proof-text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    /* Dashboard mockup */
+    .hero-visual {
+      display: flex;
+      justify-content: flex-end;
+      animation: float 6s ease-in-out infinite;
+      position: relative;
+    }
+    .hero-visual::after {
+      content: '';
+      position: absolute;
+      bottom: -40px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 260px;
+      height: 30px;
+      background: radial-gradient(ellipse, rgba(0,229,255,0.18) 0%, transparent 70%);
+    }
+    .dash-frame {
+      width: 420px;
+      background: rgba(0,0,8,0.9);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04), 0 0 60px rgba(0,229,255,0.06);
+      position: relative;
+    }
+    .dash-frame::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,229,255,0.4) 30%, rgba(0,229,255,0.7) 50%, rgba(0,229,255,0.4) 70%, transparent);
+      z-index: 2;
+    }
+    .dash-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.02);
+    }
+    .dash-brand { display: flex; align-items: center; gap: 8px; }
+    .dash-mark {
+      width: 22px; height: 22px;
+      border-radius: 5px;
+      background: var(--cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 7px;
+      font-weight: 800;
+      color: #000;
+      letter-spacing: -0.02em;
+      box-shadow: 0 0 10px rgba(0,229,255,0.4);
+    }
+    .dash-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--white);
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .dash-status {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: var(--success);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .dash-status-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 4px var(--success);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .dash-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.02);
+      overflow-x: auto;
+    }
+    .dash-tab {
+      flex-shrink: 0;
+      text-align: center;
+      font-size: 9px;
+      font-weight: 500;
+      padding: 7px 10px 5px;
+      color: rgba(240,240,255,0.3);
+      border-bottom: 2px solid transparent;
+      font-family: 'Inter', sans-serif;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    .dash-tab.active { color: var(--white); border-bottom-color: var(--cyan); }
+    .dash-section {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .dash-lbl {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8.5px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(240,240,255,0.25);
+      margin-bottom: 8px;
+    }
+    .dash-kpi-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .dash-kpi {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      padding: 8px 8px;
+      text-align: center;
+    }
+    .dash-kpi-val {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--white);
+      line-height: 1;
+    }
+    .dash-kpi-val.cyan { color: var(--cyan); }
+    .dash-kpi-val.success { color: var(--success); }
+    .dash-kpi-val.warn { color: var(--warn); }
+    .dash-kpi-lbl {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 7px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(240,240,255,0.3);
+      margin-top: 4px;
+    }
+    .dash-agent-list { display: flex; flex-direction: column; gap: 4px; }
+    .dash-agent {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+    }
+    .dash-agent-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dash-agent-dot.active { background: var(--success); box-shadow: 0 0 4px var(--success); }
+    .dash-agent-dot.idle { background: transparent; border: 1.5px solid var(--warn); }
+    .dash-agent-dot.waiting { background: transparent; border: 1.5px solid var(--cyan); }
+    .dash-agent-name {
+      font-size: 11px;
+      color: rgba(240,240,255,0.7);
+      flex: 1;
+    }
+    .dash-agent-status {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+    .dash-agent-status.running {
+      color: var(--success);
+      background: rgba(0,255,136,0.1);
+      border: 1px solid rgba(0,255,136,0.2);
+    }
+    .dash-agent-status.queued {
+      color: var(--warn);
+      background: rgba(251,191,36,0.1);
+      border: 1px solid rgba(251,191,36,0.2);
+    }
+    .dash-agent-status.gate {
+      color: var(--cyan);
+      background: rgba(0,229,255,0.1);
+      border: 1px solid rgba(0,229,255,0.2);
+    }
+    .dash-approval {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(0,229,255,0.06);
+      border-bottom: 1px solid rgba(0,229,255,0.12);
+    }
+    .dash-approval-icon {
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .dash-approval-text {
+      flex: 1;
+      font-size: 10px;
+      color: rgba(240,240,255,0.6);
+    }
+    .dash-approval-text strong {
+      color: var(--cyan);
+      font-weight: 500;
+    }
+    .dash-approval-btn {
+      font-size: 9px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--cyan);
+      color: #000;
+      border-radius: 4px;
+      padding: 3px 10px;
+    }
+
+    /* ══════════════════════════════════════════
+       PROBLEM / PILLARS SECTION
+    ══════════════════════════════════════════ */
+    .problem-section {
+      background: rgba(255,255,255,0.01);
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+    .problem-card {
+      padding: 28px;
+    }
+    .problem-icon { font-size: 26px; margin-bottom: 14px; display: block; }
+    .problem-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .problem-desc { font-size: 13px; color: var(--muted-hi); line-height: 1.6; font-weight: 300; }
+
+    /* ══════════════════════════════════════════
+       FEATURE SECTIONS
+    ══════════════════════════════════════════ */
+    .feature-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 72px;
+      align-items: center;
+      margin-bottom: 100px;
+    }
+    .feature-row:last-child { margin-bottom: 0; }
+    .feature-row.flip { direction: rtl; }
+    .feature-row.flip > * { direction: ltr; }
+
+    .feature-tag {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      border: 1px solid rgba(0,229,255,0.2);
+      background: rgba(0,229,255,0.06);
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-bottom: 18px;
+    }
+    .feature-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: clamp(22px, 2.5vw, 30px);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 14px;
+    }
+    .feature-desc {
+      font-size: 15px;
+      font-weight: 300;
+      color: var(--muted-hi);
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+    .feature-bullets { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .feature-bullets li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13.5px;
+      font-weight: 300;
+      color: rgba(240,240,255,0.7);
+    }
+    .feature-bullets li::before {
+      content: '';
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,255,136,0.4);
+      background: rgba(0,255,136,0.08);
+      flex-shrink: 0;
+      margin-top: 1px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 5l2.5 2.5L8 3' stroke='%2300ff88' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 9px;
+    }
+
+    /* Feature mockup wrapper */
+    .feature-mockup {
+      background: rgba(5,5,15,0.8);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+      position: relative;
+    }
+    .feature-mockup::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,229,255,0.35) 30%, rgba(0,229,255,0.6) 50%, rgba(0,229,255,0.35) 70%, transparent);
+    }
+
+    /* Feature mockup internals */
+    .fm-bar {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.02);
+      border-bottom: 1px solid var(--glass-border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: rgba(240,240,255,0.3);
+    }
+    .fm-body { padding: 14px; }
+    .fm-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .fm-row:last-child { border-bottom: none; }
+    .fm-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .fm-label {
+      flex: 1;
+      font-size: 11px;
+      color: rgba(240,240,255,0.6);
+    }
+    .fm-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+    }
+    .fm-chip {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+    .fm-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .fm-stat {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .fm-stat-lbl {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 7px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(240,240,255,0.25);
+      margin-bottom: 3px;
+    }
+    .fm-stat-val {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--white);
+    }
+
+    /* ══════════════════════════════════════════
+       HOW IT WORKS / BUILD PHASES
+    ══════════════════════════════════════════ */
+    .how-section {
+      background: rgba(255,255,255,0.01);
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .step-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--cyan);
+      background: rgba(0,229,255,0.08);
+      border: 1px solid rgba(0,229,255,0.2);
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .step-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .step-desc { font-size: 13px; font-weight: 300; color: var(--muted-hi); line-height: 1.6; }
+
+    /* ══════════════════════════════════════════
+       TECH STACK
+    ══════════════════════════════════════════ */
+    .stack-section {
+      background: rgba(255,255,255,0.01);
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .stack-item {
+      padding: 20px;
+      text-align: center;
+    }
+    .stack-icon {
+      font-size: 28px;
+      margin-bottom: 10px;
+      display: block;
+    }
+    .stack-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .stack-role {
+      font-size: 11px;
+      color: var(--muted-hi);
+      font-weight: 300;
+    }
+
+    /* ══════════════════════════════════════════
+       FOOTER CTA
+    ══════════════════════════════════════════ */
+    .footer-cta {
+      text-align: center;
+      padding: 120px 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .footer-cta::before {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      width: 600px; height: 400px;
+      background: radial-gradient(ellipse, rgba(124,58,237,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .footer-cta-overline {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      color: var(--cyan);
+      margin-bottom: 24px;
+    }
+    .footer-cta-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: clamp(30px, 4vw, 52px);
+      line-height: 1.1;
+      letter-spacing: -0.025em;
+      margin-bottom: 18px;
+    }
+    .footer-cta-title em {
+      font-style: normal;
+      color: var(--cyan);
+      text-shadow: 0 0 40px rgba(0,229,255,0.35);
+    }
+    .footer-cta-sub { font-size: 16px; font-weight: 300; color: var(--muted-hi); margin-bottom: 40px; }
+    .footer-cta-note {
+      margin-top: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+
+    /* ══════════════════════════════════════════
+       FOOTER
+    ══════════════════════════════════════════ */
+    footer {
+      border-top: 1px solid var(--glass-border);
+      padding: 28px 0;
+      position: relative;
+      z-index: 2;
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .footer-left { display: flex; align-items: center; gap: 10px; }
+    .footer-logo { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px; color: var(--cyan); }
+    .footer-name { font-size: 13px; color: var(--muted); }
+    .footer-center { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.06em; color: var(--muted); }
+    .footer-links { display: flex; gap: 16px; list-style: none; }
+    .footer-links a { font-size: 13px; color: var(--muted); transition: color 0.2s; }
+    .footer-links a:hover { color: var(--white); }
+
+    /* ── Section divider ── */
+    .section-header { margin-bottom: 64px; }
+    .text-center { text-align: center; }
+    .text-center .section-sub { margin: 0 auto; }
+
+    /* ── Ticker ── */
+    .ticker-wrap {
+      overflow: hidden;
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 13px 0;
+      mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+      -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+    }
+    .ticker-track {
+      display: inline-flex;
+      align-items: center;
+      gap: 24px;
+      white-space: nowrap;
+      animation: tickerScroll 50s linear infinite;
+    }
+    .ticker-item { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.18em; color: var(--muted); }
+    .ticker-sep { color: var(--cyan); opacity: 0.35; font-size: 7px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 960px) {
+      .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+      .hero-visual { justify-content: center; }
+      .feature-row { grid-template-columns: 1fr; gap: 40px; }
+      .feature-row.flip { direction: ltr; }
+      .steps-grid { grid-template-columns: 1fr 1fr; }
+      .problem-grid { grid-template-columns: 1fr 1fr; }
+      .stack-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 620px) {
+      .steps-grid { grid-template-columns: 1fr; }
+      .problem-grid { grid-template-columns: 1fr; }
+      .stack-grid { grid-template-columns: 1fr 1fr; }
+      .dash-frame { width: 100%; max-width: 380px; }
+      .nav-links { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Background orbs -->
+<div class="bg-orb bg-orb-1" aria-hidden="true"></div>
+<div class="bg-orb bg-orb-2" aria-hidden="true"></div>
+<div class="bg-orb bg-orb-3" aria-hidden="true"></div>
+
+<!-- Nav -->
+<nav id="nav" aria-label="Site navigation">
+  <div class="nav-inner">
+    <a href="../../" class="nav-logo" aria-label="Brilliant Disruptions home">
+      <span class="logo-bd">BD</span>
+      <span class="logo-full">Brilliant Disruptions</span>
+    </a>
+    <span class="nav-sep" aria-hidden="true">/</span>
+    <span class="nav-project">JARVIS</span>
+    <ul class="nav-links">
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#agents">Agents</a></li>
+      <li><a href="#integrations">Integrations</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════
+     HERO
+════════════════════════════════════ -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-inner">
+
+      <div class="hero-copy">
+        <div class="hero-back">
+          <a href="../../" class="back-link">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M11 7H3M6 4L3 7L6 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            BACK TO BASE
+          </a>
+        </div>
+
+        <div class="hero-eyebrow">
+          <div class="badge-dot"></div>
+          AI × COMMAND &amp; CONTROL
+        </div>
+
+        <h1 class="hero-title">
+          Autonomous Command Center for <em>Brilliant Disruptions.</em>
+        </h1>
+
+        <p class="hero-sub">
+          JARVIS reflects state, forecasts outcomes, acts on rules, and orchestrates a fleet of AI agents. The human approves gates and makes strategic calls &mdash; the machine runs everything else.
+        </p>
+
+        <div class="hero-actions">
+          <a href="#architecture" class="btn btn-primary btn-lg" style="color:#000">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Explore Architecture
+          </a>
+          <a href="#agents" class="btn btn-ghost">Meet the Agents</a>
+        </div>
+
+        <div class="hero-proof">
+          <div class="hero-avatars">
+            <div class="hero-avatar" style="background:var(--cyan);box-shadow:0 0 8px rgba(0,229,255,0.4)">M</div>
+            <div class="hero-avatar" style="background:var(--violet);box-shadow:0 0 8px rgba(124,58,237,0.4);color:#fff">N</div>
+            <div class="hero-avatar" style="background:var(--magenta);box-shadow:0 0 8px rgba(255,0,110,0.4)">J</div>
+          </div>
+          <span class="hero-proof-text">BUILT BY MICHAEL, NICK &amp; JIMMY</span>
+        </div>
+      </div>
+
+      <!-- Dashboard mockup -->
+      <div class="hero-visual">
+        <div class="dash-frame">
+          <div class="dash-bar">
+            <div class="dash-brand">
+              <div class="dash-mark">J</div>
+              <span class="dash-name">JARVIS</span>
+            </div>
+            <div class="dash-status">
+              <span class="dash-status-dot"></span>
+              ALL SYSTEMS NOMINAL
+            </div>
+          </div>
+          <div class="dash-tabs">
+            <div class="dash-tab active">Overview</div>
+            <div class="dash-tab">Engineering</div>
+            <div class="dash-tab">FinOps</div>
+            <div class="dash-tab">Agents</div>
+            <div class="dash-tab">Forecast</div>
+          </div>
+          <div class="dash-section">
+            <div class="dash-lbl">SYSTEM KPIs</div>
+            <div class="dash-kpi-row">
+              <div class="dash-kpi">
+                <div class="dash-kpi-val cyan">12</div>
+                <div class="dash-kpi-lbl">AGENTS ACTIVE</div>
+              </div>
+              <div class="dash-kpi">
+                <div class="dash-kpi-val success">$24.3K</div>
+                <div class="dash-kpi-lbl">MRR</div>
+              </div>
+              <div class="dash-kpi">
+                <div class="dash-kpi-val warn">3</div>
+                <div class="dash-kpi-lbl">GATES PENDING</div>
+              </div>
+            </div>
+          </div>
+          <div class="dash-approval">
+            <span class="dash-approval-icon">&#x1F6A8;</span>
+            <span class="dash-approval-text"><strong>deploy_agent</strong> requests approval to push v2.4.1 to production</span>
+            <span class="dash-approval-btn">APPROVE</span>
+          </div>
+          <div class="dash-section">
+            <div class="dash-lbl">AGENT FLEET</div>
+            <div class="dash-agent-list">
+              <div class="dash-agent">
+                <span class="dash-agent-dot active"></span>
+                <span class="dash-agent-name">prospecting</span>
+                <span class="dash-agent-status running">RUNNING</span>
+              </div>
+              <div class="dash-agent">
+                <span class="dash-agent-dot active"></span>
+                <span class="dash-agent-name">financial_modeler</span>
+                <span class="dash-agent-status running">RUNNING</span>
+              </div>
+              <div class="dash-agent">
+                <span class="dash-agent-dot waiting"></span>
+                <span class="dash-agent-name">deploy_agent</span>
+                <span class="dash-agent-status gate">AWAITING GATE</span>
+              </div>
+              <div class="dash-agent">
+                <span class="dash-agent-dot idle"></span>
+                <span class="dash-agent-name">outreach_drafter</span>
+                <span class="dash-agent-status queued">QUEUED</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Ticker -->
+<div class="ticker-wrap" aria-hidden="true">
+  <div class="ticker-track">
+    <span class="ticker-item">EVENT-DRIVEN ARCHITECTURE</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">AI AGENT FLEET</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">APPROVAL GATES</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">REAL-TIME DASHBOARDS</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">RULES ENGINE</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">SUPABASE REALTIME</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">ANTHROPIC API</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">9 INTEGRATION ADAPTERS</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">12 AUTONOMOUS AGENTS</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">PREMORTEM / POSTMORTEM LOOP</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">CASH FLOW FORECASTING</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">INSTITUTIONAL MEMORY</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <!-- duplicate for seamless loop -->
+    <span class="ticker-item">EVENT-DRIVEN ARCHITECTURE</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">AI AGENT FLEET</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">APPROVAL GATES</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">REAL-TIME DASHBOARDS</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">RULES ENGINE</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">SUPABASE REALTIME</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">ANTHROPIC API</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">9 INTEGRATION ADAPTERS</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">12 AUTONOMOUS AGENTS</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">PREMORTEM / POSTMORTEM LOOP</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">CASH FLOW FORECASTING</span>
+    <span class="ticker-sep">&#x25C6;</span>
+    <span class="ticker-item">INSTITUTIONAL MEMORY</span>
+    <span class="ticker-sep">&#x25C6;</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════
+     FOUR PILLARS
+════════════════════════════════════ -->
+<section class="problem-section" id="architecture">
+  <div class="container">
+    <div class="section-header text-center">
+      <div class="section-label">THE FOUR PILLARS</div>
+      <h2 class="section-title">One system. Four capabilities.</h2>
+      <p class="section-sub">JARVIS does four things &mdash; and it does them continuously, autonomously, and with human oversight at every gate.</p>
+    </div>
+
+    <div class="problem-grid">
+      <div class="problem-card glass-card">
+        <span class="problem-icon" aria-hidden="true">&#x1F50D;</span>
+        <div class="problem-title">Reflects</div>
+        <p class="problem-desc">Aggregates state from every integration &mdash; GitHub, Stripe, Mercury, Gmail &mdash; into a single real-time picture of the business.</p>
+      </div>
+      <div class="problem-card glass-card">
+        <span class="problem-icon" aria-hidden="true">&#x1F4C8;</span>
+        <div class="problem-title">Forecasts</div>
+        <p class="problem-desc">Projects cash runway, revenue trajectories, and flags anomalies before they become problems. AI-powered trend analysis.</p>
+      </div>
+      <div class="problem-card glass-card">
+        <span class="problem-icon" aria-hidden="true">&#x26A1;</span>
+        <div class="problem-title">Acts</div>
+        <p class="problem-desc">A rules engine that fires downstream actions &mdash; send alerts, trigger deploys, draft outreach &mdash; when conditions are met.</p>
+      </div>
+      <div class="problem-card glass-card">
+        <span class="problem-icon" aria-hidden="true">&#x1F916;</span>
+        <div class="problem-title">Orchestrates</div>
+        <p class="problem-desc">Commands a fleet of 12 AI agents. Each has a trigger, a job, and an output. Approval gates keep humans in the loop.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     FEATURES
+════════════════════════════════════ -->
+<section id="agents">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">CAPABILITIES</div>
+      <h2 class="section-title">Built for autonomous operations.</h2>
+      <p class="section-sub">Every feature is designed around one principle: the human's job is judgment, not operation.</p>
+    </div>
+
+    <!-- Feature 1: AI Agent Fleet -->
+    <div class="feature-row">
+      <div class="feature-copy">
+        <div class="feature-tag">AI AGENT FLEET</div>
+        <h3 class="feature-title">12 agents. Zero babysitting.</h3>
+        <p class="feature-desc">Each agent has a trigger, a defined job, and structured output. They run on events, not schedules &mdash; and every high-stakes action requires human approval through gates.</p>
+        <ul class="feature-bullets">
+          <li>Prospecting agent scores and enriches inbound leads</li>
+          <li>Financial modeler projects 13-week cash flow from Stripe + Mercury</li>
+          <li>Deploy agent handles CI/CD with mandatory approval gates</li>
+          <li>Premortem analyst challenges every major decision before it ships</li>
+        </ul>
+      </div>
+      <div class="feature-mockup">
+        <div class="fm-bar">AGENT FLEET STATUS</div>
+        <div class="fm-body">
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--success);box-shadow:0 0 4px var(--success)"></span>
+            <span class="fm-label">prospecting</span>
+            <span class="fm-chip" style="color:var(--success);background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2)">RUNNING</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--success);box-shadow:0 0 4px var(--success)"></span>
+            <span class="fm-label">outreach_drafter</span>
+            <span class="fm-chip" style="color:var(--success);background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2)">RUNNING</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--success);box-shadow:0 0 4px var(--success)"></span>
+            <span class="fm-label">code_review</span>
+            <span class="fm-chip" style="color:var(--success);background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2)">RUNNING</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="border:1.5px solid var(--cyan);background:transparent"></span>
+            <span class="fm-label">deploy_agent</span>
+            <span class="fm-chip" style="color:var(--cyan);background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.2)">GATE</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="border:1.5px solid var(--warn);background:transparent"></span>
+            <span class="fm-label">financial_modeler</span>
+            <span class="fm-chip" style="color:var(--warn);background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2)">IDLE</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="border:1.5px solid var(--warn);background:transparent"></span>
+            <span class="fm-label">premortem_analyst</span>
+            <span class="fm-chip" style="color:var(--warn);background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2)">IDLE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 2: Integrations -->
+    <div class="feature-row flip" id="integrations">
+      <div class="feature-copy">
+        <div class="feature-tag">9 INTEGRATION ADAPTERS</div>
+        <h3 class="feature-title">Every tool. One nervous system.</h3>
+        <p class="feature-desc">JARVIS connects to the tools you already use &mdash; GitHub for code, Stripe for revenue, Mercury for banking, Gmail for outreach &mdash; and turns fragmented signals into a unified operational picture.</p>
+        <ul class="feature-bullets">
+          <li>GitHub: PRs, commits, CI status, and deploy triggers</li>
+          <li>Stripe: MRR, churn, subscription lifecycle events</li>
+          <li>Mercury: Account balances, transactions, cash position</li>
+          <li>Anthropic API: Powers the entire AI agent fleet</li>
+        </ul>
+      </div>
+      <div class="feature-mockup">
+        <div class="fm-bar">CONNECTIONS</div>
+        <div class="fm-body">
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--success);box-shadow:0 0 4px var(--success)"></span>
+            <span class="fm-label">GitHub</span>
+            <span class="fm-val" style="color:rgba(240,240,255,0.4)">PRs, CI, Deploys</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--success);box-shadow:0 0 4px var(--success)"></span>
+            <span class="fm-label">Stripe</span>
+            <span class="fm-val" style="color:rgba(240,240,255,0.4)">Revenue, Subs</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--success);box-shadow:0 0 4px var(--success)"></span>
+            <span class="fm-label">Mercury</span>
+            <span class="fm-val" style="color:rgba(240,240,255,0.4)">Banking, Cash</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--success);box-shadow:0 0 4px var(--success)"></span>
+            <span class="fm-label">Gmail</span>
+            <span class="fm-val" style="color:rgba(240,240,255,0.4)">Outreach, Inbox</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--success);box-shadow:0 0 4px var(--success)"></span>
+            <span class="fm-label">Anthropic</span>
+            <span class="fm-val" style="color:rgba(240,240,255,0.4)">AI Gateway</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--success);box-shadow:0 0 4px var(--success)"></span>
+            <span class="fm-label">Slack / Discord</span>
+            <span class="fm-val" style="color:rgba(240,240,255,0.4)">Notifications</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="border:1.5px solid var(--warn);background:transparent"></span>
+            <span class="fm-label">Expo EAS</span>
+            <span class="fm-val" style="color:rgba(240,240,255,0.3)">Phase 4</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="border:1.5px solid var(--warn);background:transparent"></span>
+            <span class="fm-label">App Store Connect</span>
+            <span class="fm-val" style="color:rgba(240,240,255,0.3)">Phase 4</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="border:1.5px solid var(--muted);background:transparent"></span>
+            <span class="fm-label">Google Ads</span>
+            <span class="fm-val" style="color:rgba(240,240,255,0.3)">Phase 6</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 3: Dashboard -->
+    <div class="feature-row">
+      <div class="feature-copy">
+        <div class="feature-tag">REAL-TIME DASHBOARD</div>
+        <h3 class="feature-title">10 tabs. One source of truth.</h3>
+        <p class="feature-desc">Overview, Engineering, FinOps, Growth, Customers, Agents, Forecast, Connections, Activity, and Rules &mdash; every surface is live, powered by Supabase Realtime and TanStack Query.</p>
+        <ul class="feature-bullets">
+          <li>Kanban action surface for approvals and pending work</li>
+          <li>Command bar with fuzzy search across every entity</li>
+          <li>Approval tray with one-tap approve/reject on mobile</li>
+          <li>PWA-ready with offline queue and push notifications</li>
+        </ul>
+      </div>
+      <div class="feature-mockup">
+        <div class="fm-bar">OVERVIEW DASHBOARD</div>
+        <div class="fm-body">
+          <div class="fm-grid">
+            <div class="fm-stat">
+              <div class="fm-stat-lbl">MRR</div>
+              <div class="fm-stat-val" style="color:var(--success)">$24,312</div>
+            </div>
+            <div class="fm-stat">
+              <div class="fm-stat-lbl">CASH RUNWAY</div>
+              <div class="fm-stat-val" style="color:var(--cyan)">18 mo</div>
+            </div>
+            <div class="fm-stat">
+              <div class="fm-stat-lbl">ACTIVE USERS</div>
+              <div class="fm-stat-val">1,247</div>
+            </div>
+            <div class="fm-stat">
+              <div class="fm-stat-lbl">OPEN PRs</div>
+              <div class="fm-stat-val" style="color:var(--warn)">7</div>
+            </div>
+            <div class="fm-stat">
+              <div class="fm-stat-lbl">AGENTS RUNNING</div>
+              <div class="fm-stat-val" style="color:var(--success)">5 / 12</div>
+            </div>
+            <div class="fm-stat">
+              <div class="fm-stat-lbl">GATES PENDING</div>
+              <div class="fm-stat-val" style="color:var(--warn)">3</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature 4: Institutional Memory -->
+    <div class="feature-row flip">
+      <div class="feature-copy">
+        <div class="feature-tag">INSTITUTIONAL MEMORY</div>
+        <h3 class="feature-title">Every decision. Every lesson. Searchable.</h3>
+        <p class="feature-desc">The premortem/postmortem analyst loop captures why decisions were made and what was learned. New agents consult past decisions before acting &mdash; the organization never forgets.</p>
+        <ul class="feature-bullets">
+          <li>Premortem analyst challenges decisions before they ship</li>
+          <li>Postmortem analyst extracts lessons from outcomes</li>
+          <li>Decisions table links context, alternatives, and outcomes</li>
+          <li>Learnings auto-feed into future agent prompts</li>
+        </ul>
+      </div>
+      <div class="feature-mockup">
+        <div class="fm-bar">INSTITUTIONAL MEMORY</div>
+        <div class="fm-body">
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--cyan);box-shadow:0 0 4px var(--cyan)"></span>
+            <span class="fm-label">Switch to usage-based pricing</span>
+            <span class="fm-chip" style="color:var(--success);background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2)">SHIPPED</span>
+          </div>
+          <div class="fm-row" style="padding-left:20px;border-bottom:none">
+            <span class="fm-label" style="font-size:10px;color:rgba(240,240,255,0.35)">&#x2192; Premortem: flagged churn risk for small teams</span>
+          </div>
+          <div class="fm-row" style="padding-left:20px">
+            <span class="fm-label" style="font-size:10px;color:rgba(240,240,255,0.35)">&#x2192; Learning: added $5 floor &mdash; churn dropped 12%</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--violet);box-shadow:0 0 4px var(--violet)"></span>
+            <span class="fm-label">Migrate auth to Supabase SSR</span>
+            <span class="fm-chip" style="color:var(--cyan);background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.2)">IN REVIEW</span>
+          </div>
+          <div class="fm-row">
+            <span class="fm-dot" style="background:var(--warn);box-shadow:0 0 4px var(--warn)"></span>
+            <span class="fm-label">Add Google Ads integration</span>
+            <span class="fm-chip" style="color:var(--warn);background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2)">PHASE 6</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     BUILD PHASES
+════════════════════════════════════ -->
+<section class="how-section" id="roadmap">
+  <div class="container">
+    <div class="section-header text-center">
+      <div class="section-label">BUILD SEQUENCE</div>
+      <h2 class="section-title">Six phases to full autonomy.</h2>
+      <p class="section-sub">Each phase adds a layer of capability. Nothing ships without tests, types, and approval.</p>
+    </div>
+
+    <div class="steps-grid">
+      <div>
+        <div class="step-num">0</div>
+        <div class="step-title">Foundation</div>
+        <p class="step-desc">Next.js scaffold, Supabase schema, auth, role-based access, Zustand stores, TanStack Query hooks, and the Overview tab.</p>
+      </div>
+      <div>
+        <div class="step-num">1</div>
+        <div class="step-title">Mirror</div>
+        <p class="step-desc">Read-only integration with Stripe, Mercury, and GitHub. All 10 dashboard tabs alive with live data. No write operations yet.</p>
+      </div>
+      <div>
+        <div class="step-num">2</div>
+        <div class="step-title">GitHub + Approvals</div>
+        <p class="step-desc">GitHub webhooks, Slack/Discord notifications, approval gates UI, and the first write-capable agents: code_review and briefing.</p>
+      </div>
+      <div>
+        <div class="step-num">3</div>
+        <div class="step-title">Money + Email</div>
+        <p class="step-desc">Stripe webhook processing, Mercury transaction sync, Gmail outreach integration, and the financial_modeler agent.</p>
+      </div>
+      <div>
+        <div class="step-num">4</div>
+        <div class="step-title">Autonomy + Deploys</div>
+        <p class="step-desc">Rules engine UI, deploy_agent with Expo EAS and App Store Connect, and the full premortem/postmortem analyst loop.</p>
+      </div>
+      <div>
+        <div class="step-num">5</div>
+        <div class="step-title">Mobile + Scale</div>
+        <p class="step-desc">PWA optimization, push notifications, offline queue, Google Ads integration, and performance tuning for production scale.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     TECH STACK
+════════════════════════════════════ -->
+<section class="stack-section">
+  <div class="container">
+    <div class="section-header text-center">
+      <div class="section-label">TECH STACK</div>
+      <h2 class="section-title">Modern. Typed. Real-time.</h2>
+    </div>
+
+    <div class="stack-grid">
+      <div class="stack-item glass-card">
+        <span class="stack-icon" aria-hidden="true">&#x25B2;</span>
+        <div class="stack-name">Next.js 14+</div>
+        <div class="stack-role">App Router, RSC, Edge</div>
+      </div>
+      <div class="stack-item glass-card">
+        <span class="stack-icon" aria-hidden="true">&#x1F5C4;</span>
+        <div class="stack-name">Supabase</div>
+        <div class="stack-role">Postgres, Auth, Realtime</div>
+      </div>
+      <div class="stack-item glass-card">
+        <span class="stack-icon" aria-hidden="true">&#x1F9E0;</span>
+        <div class="stack-name">Anthropic API</div>
+        <div class="stack-role">Claude AI Gateway</div>
+      </div>
+      <div class="stack-item glass-card">
+        <span class="stack-icon" aria-hidden="true">&#x1F4CA;</span>
+        <div class="stack-name">TanStack Query</div>
+        <div class="stack-role">Data Layer + Caching</div>
+      </div>
+      <div class="stack-item glass-card">
+        <span class="stack-icon" aria-hidden="true">&#x1F43B;</span>
+        <div class="stack-name">Zustand</div>
+        <div class="stack-role">Client State</div>
+      </div>
+      <div class="stack-item glass-card">
+        <span class="stack-icon" aria-hidden="true">&#x1F3A8;</span>
+        <div class="stack-name">Tailwind CSS</div>
+        <div class="stack-role">Utility-First Styling</div>
+      </div>
+      <div class="stack-item glass-card">
+        <span class="stack-icon" aria-hidden="true">&#x1F4B3;</span>
+        <div class="stack-name">Stripe</div>
+        <div class="stack-role">Payments + Revenue</div>
+      </div>
+      <div class="stack-item glass-card">
+        <span class="stack-icon" aria-hidden="true">&#x1F3E6;</span>
+        <div class="stack-name">Mercury</div>
+        <div class="stack-role">Banking + Cash Flow</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     FOOTER CTA
+════════════════════════════════════ -->
+<section class="footer-cta">
+  <div class="container">
+    <div class="footer-cta-overline">INITIALIZE JARVIS</div>
+    <h2 class="footer-cta-title">
+      The machine operates.<br/>
+      The human <em>decides.</em>
+    </h2>
+    <p class="footer-cta-sub">Event-driven. Agent-powered. Human-approved. Built for Brilliant Disruptions.</p>
+    <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+      <a href="#architecture" class="btn btn-primary btn-lg" style="color:#000">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Explore the System
+      </a>
+      <a href="../../#contact" class="btn btn-ghost">Contact the Team</a>
+    </div>
+    <div class="footer-cta-note">NEXT.JS × SUPABASE × ANTHROPIC × 12 AI AGENTS × 9 INTEGRATIONS</div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════
+     FOOTER
+════════════════════════════════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <a href="../../" aria-label="Brilliant Disruptions home">
+          <span class="footer-logo">BD</span>
+        </a>
+        <span class="footer-name">Brilliant Disruptions</span>
+      </div>
+      <div class="footer-center mono">
+        &copy; 2026 Brilliant Disruptions, Inc. All rights reserved.
+      </div>
+      <ul class="footer-links">
+        <li><a href="../../#contact">Contact</a></li>
+        <li><a href="../../">Home</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
