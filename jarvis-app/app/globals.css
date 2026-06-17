@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/* ── JARVIS design tokens — ported from the marketing site (css/main.css) ──
+   Dark void base, cyan primary accent, Space Grotesk / Inter / JetBrains Mono.
+   Applied to the spec's dense mission-control layout. */
+:root {
+  --void: #000008;
+  --void-2: #05050f;
+  --surface: #0a0b14;
+  --elevated: #11131c;
+  --elevated-2: #181b29;
+  --cyan: #00e5ff;
+  --cyan-dim: #00b8cc;
+  --violet: #7c3aed;
+  --magenta: #ff006e;
+  --white: #f0f0ff;
+  --muted: #3a3a5c;
+  --muted-hi: rgba(240, 240, 255, 0.55);
+  --glass: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-2: rgba(255, 255, 255, 0.12);
+  /* semantic (fixed) */
+  --success: #00ff88;
+  --warn: #fbbf24;
+  --danger: #ff4d6d;
+  /* risk tiers (spec §11): low=green, medium=amber, high=red */
+  --risk-low: #00ff88;
+  --risk-medium: #fbbf24;
+  --risk-high: #ff4d6d;
+  --radius: 12px;
+  --radius-lg: 20px;
+}
+
+/* Map tokens into Tailwind v4's theme so utilities like bg-surface work. */
+@theme inline {
+  --color-void: var(--void);
+  --color-void-2: var(--void-2);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-elevated-2: var(--elevated-2);
+  --color-cyan: var(--cyan);
+  --color-cyan-dim: var(--cyan-dim);
+  --color-violet: var(--violet);
+  --color-magenta: var(--magenta);
+  --color-white-soft: var(--white);
+  --color-muted: var(--muted);
+  --color-muted-hi: var(--muted-hi);
+  --color-success: var(--success);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --font-display: var(--font-space-grotesk), sans-serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--void);
+  color: var(--white);
+  font-family: var(--font-body);
+  font-weight: 300;
+}
+
+body {
+  min-height: 100vh;
+  /* subtle vertical depth like the marketing site */
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(124, 58, 237, 0.08), transparent 60%),
+    radial-gradient(900px 500px at -10% 20%, rgba(0, 229, 255, 0.06), transparent 55%),
+    var(--void);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* glass surface used across the component library */
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(10px);
+}
+
+/* thin custom scrollbars to match the terminal feel */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--glass-border-2);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
