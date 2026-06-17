@@ -1,0 +1,51 @@
+name: Deploy JARVIS to Vercel
+
+# Auto-deploys the JARVIS app (jarvis-app/) to Vercel production on every push to
+# main that touches the app. The static marketing site (served by GitHub Pages
+# from the repo root) is unaffected — this only builds/deploys the Next.js app.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   VERCEL_TOKEN       — Vercel account token (vercel.com/account/tokens)
+#   VERCEL_ORG_ID      — from `vercel link` output, or .vercel/project.json ("orgId")
+#   VERCEL_PROJECT_ID  — the JARVIS Vercel project id ("projectId")
+#
+# In the Vercel project settings, Root Directory MUST be set to `jarvis-app`.
+# Env vars (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY) are read
+# from the Vercel project, not from here.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "jarvis-app/**"
+      - ".github/workflows/deploy-jarvis.yml"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+concurrency:
+  group: deploy-jarvis-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://jarvis.brilliantdisruptions.com
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel project settings (production)
+        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Build (Turbopack, production)
+        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Deploy prebuilt output to production
+        run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
