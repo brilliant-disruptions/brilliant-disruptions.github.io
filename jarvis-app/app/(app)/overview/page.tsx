@@ -11,6 +11,7 @@ import {
 } from "@/lib/queries/hooks";
 import { Card, MetricCard, SectionTitle, HealthRing, Badge, EmptyState } from "@/components/ui";
 import { NewBuildModal } from "@/components/NewBuildModal";
+import { TriageInbox } from "@/components/TriageInbox";
 import { money, timeAgo } from "@/lib/format";
 import { primaryBtn } from "@/components/Modal";
 
@@ -44,6 +45,8 @@ export default function OverviewPage() {
         <MetricCard label="Monthly Burn" value={money(monthlyBurn)} sub="recurring" />
         <MetricCard label="Active Agents" value={activeAgents} sub={`${agents.data?.length ?? 0} total`} />
       </div>
+
+      <TriageInbox />
 
       {noBuilds ? (
         <EmptyState

@@ -174,6 +174,27 @@ export function useFeedback() {
   });
 }
 
+export function useApprovals() {
+  const activeBuild = useUIStore((s) => s.activeBuild);
+  const key = ["approvals", activeBuild];
+  useRealtime("approvals", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await scoped(
+        supabase
+          .from("approvals")
+          .select("*")
+          .eq("status", "pending")
+          .order("created_at", { ascending: false }),
+        activeBuild,
+      );
+      if (error) throw error;
+      return data as Tables<"approvals">[];
+    },
+  });
+}
+
 export function useAgents() {
   const key = ["agents"];
   useRealtime("agents", key);
