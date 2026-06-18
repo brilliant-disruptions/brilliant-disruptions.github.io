@@ -166,6 +166,55 @@ async function snapshotMetric(buildId: string | null, metric: string, value: num
   return `Snapshot ${metric} = ${value}`;
 }
 
+// ── GitHub outbound (§12.1, JARVIS → GitHub) ──────────────────────
+const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN") ?? "";
+
+async function githubRequest(method: string, path: string, body?: Json): Promise<Json> {
+  const res = await fetch(`https://api.github.com${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "jarvis-adapter",
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`GitHub ${method} ${path} → ${res.status}`);
+  return res.json();
+}
+
+// Resolve the GitHub repo ("owner/repo") + issue number for a JARVIS ticket.
+// ref is stored as "#<number>" by the inbound adapter. Returns null when the
+// ticket isn't mapped to a GitHub issue (→ caller no-ops, per the seeded rule
+// "no-op if unmapped").
+async function resolveIssue(
+  ticket: Json | null,
+): Promise<{ repo: string; number: number } | null> {
+  if (!ticket?.external_id || !ticket.build_id || !ticket.ref) return null;
+  const number = Number(String(ticket.ref).replace(/^#/, ""));
+  if (!Number.isFinite(number)) return null;
+  const { data: build } = await supabase
+    .from("builds")
+    .select("github_repo")
+    .eq("id", ticket.build_id as string)
+    .maybeSingle();
+  if (!build?.github_repo) return null;
+  return { repo: build.github_repo, number };
+}
+
+// The github.* actions receive the triggering ticket in event.payload.ticket
+// (the seeded close rule passes empty params); params.ticket_id overrides.
+async function ticketForAction(ctx: Ctx): Promise<Json | null> {
+  const id = (ctx.params.ticket_id as string) ?? null;
+  if (id) {
+    const { data } = await supabase.from("tickets").select("*").eq("id", id).maybeSingle();
+    return (data as Json) ?? null;
+  }
+  return ((ctx.event.payload as Json)?.ticket as Json) ?? null;
+}
+
 async function postWebhook(text: string): Promise<string> {
   const url = Deno.env.get("SLACK_WEBHOOK_URL") ?? Deno.env.get("DISCORD_WEBHOOK_URL");
   if (!url) return "notify.slack: no webhook configured (skipped)";
@@ -213,6 +262,51 @@ async function runAction(spec: ActionSpec, ctx: Ctx): Promise<{ status: string; 
       const p = spec.params ?? {};
       const text = String(p.text ?? p.title ?? "JARVIS notification");
       return { status: "success", summary: await postWebhook(text) };
+    }
+    case "github.close_issue": {
+      if (!GITHUB_TOKEN) return { status: "skipped", summary: "github.close_issue: no token configured" };
+      const issue = await resolveIssue(await ticketForAction(ctx));
+      if (!issue) return { status: "skipped", summary: "github.close_issue: ticket not mapped (no-op)" };
+      // Idempotent: closing an already-closed issue is a no-op on GitHub and
+      // emits no state-change webhook, so the bidirectional loop terminates.
+      await githubRequest("PATCH", `/repos/${issue.repo}/issues/${issue.number}`, { state: "closed" });
+      return { status: "success", summary: `Closed GitHub issue #${issue.number} in ${issue.repo}` };
+    }
+    case "github.comment": {
+      if (!GITHUB_TOKEN) return { status: "skipped", summary: "github.comment: no token configured" };
+      const body = String((spec.params ?? {}).body ?? "");
+      if (!body) return { status: "skipped", summary: "github.comment: empty body" };
+      const issue = await resolveIssue(await ticketForAction(ctx));
+      if (!issue) return { status: "skipped", summary: "github.comment: ticket not mapped (no-op)" };
+      await githubRequest("POST", `/repos/${issue.repo}/issues/${issue.number}/comments`, { body });
+      return { status: "success", summary: `Commented on GitHub issue #${issue.number}` };
+    }
+    case "github.create_issue": {
+      if (!GITHUB_TOKEN) return { status: "skipped", summary: "github.create_issue: no token configured" };
+      const ticket = await ticketForAction(ctx);
+      if (!ticket?.id) return { status: "skipped", summary: "github.create_issue: no ticket" };
+      if (ticket.external_id) return { status: "skipped", summary: "github.create_issue: already on GitHub (idempotent)" };
+      const { data: build } = await supabase
+        .from("builds")
+        .select("github_repo")
+        .eq("id", ticket.build_id as string)
+        .maybeSingle();
+      if (!build?.github_repo) return { status: "skipped", summary: "github.create_issue: build has no repo (no-op)" };
+      const created = await githubRequest("POST", `/repos/${build.github_repo}/issues`, {
+        title: String(ticket.title ?? "Untitled"),
+        body: (ticket.description as string) ?? "",
+      });
+      // Back-link the new issue so the loop guard recognizes the echoed webhook.
+      await supabase
+        .from("tickets")
+        .update({
+          external_id: created.node_id as string,
+          external_url: created.html_url as string,
+          ref: `#${created.number}`,
+          source: "github",
+        })
+        .eq("id", ticket.id as string);
+      return { status: "success", summary: `Created GitHub issue #${created.number} in ${build.github_repo}` };
     }
     default:
       // Phase 2+ actions (github.*, gmail.*, agent.dispatch, deploy.*, etc.)
