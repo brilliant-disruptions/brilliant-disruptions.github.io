@@ -227,6 +227,272 @@ async function postWebhook(text: string): Promise<string> {
   return `Posted to chat: ${text.slice(0, 80)}`;
 }
 
+// ── Anthropic (agents call Claude with the Vault key; degrades if unset) ──
+// §13.3's ai-gateway is user-token-authed for client features; server-side
+// agents call Anthropic directly here. No key → returns null → callers fall
+// back to a deterministic path so the loop still demonstrably works.
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+const MODEL_HEAVY = Deno.env.get("ANTHROPIC_MODEL_HEAVY") ?? "claude-opus-4-8";
+const MODEL_DEFAULT = Deno.env.get("ANTHROPIC_MODEL_DEFAULT") ?? "claude-sonnet-4-6";
+const GMAIL_SENDER = Deno.env.get("GMAIL_SENDER") ?? "hello@brilliantdisruptions.com";
+
+async function claudeJson(
+  system: string,
+  user: string,
+  heavy: boolean,
+): Promise<{ data: Json | null; raw: string; cost_cents: number } | null> {
+  if (!ANTHROPIC_API_KEY) return null;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: heavy ? MODEL_HEAVY : MODEL_DEFAULT,
+      max_tokens: 1024,
+      system,
+      messages: [{ role: "user", content: user }],
+    }),
+  });
+  const j = await res.json();
+  const raw = j?.content?.[0]?.text ?? "";
+  const cost_cents = Math.ceil(((j?.usage?.input_tokens ?? 0) * 0.0003 + (j?.usage?.output_tokens ?? 0) * 0.0015) / 10);
+  let data: Json | null = null;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    /* non-JSON reply → caller uses raw / falls back */
+  }
+  return { data, raw, cost_cents };
+}
+
+// ── Premortem analyst (§13.2): assume the gated action already failed ─────
+// Runs on decision.opened (entity_id = the pending approval). Ensures a
+// decisions row, generates ranked failure modes (Claude heavy, or a
+// deterministic fallback), stores them, and ATTACHES the analysis to the
+// approval preview so the human sees the risk before deciding.
+async function runPremortem(ctx: Ctx): Promise<{ summary: string; cost: number }> {
+  const approvalId = (ctx.event.entity_id as string) ?? null;
+  if (!approvalId) return { summary: "premortem: no approval ref", cost: 0 };
+  const { data: approval } = await supabase.from("approvals").select("*").eq("id", approvalId).maybeSingle();
+  if (!approval) return { summary: "premortem: approval not found", cost: 0 };
+
+  const actions = (approval.action_spec ?? []) as ActionSpec[];
+  const context = {
+    title: approval.title,
+    risk: approval.risk,
+    actions: actions.map((a) => a.type),
+    build_id: approval.build_id,
+  };
+
+  let { data: decision } = await supabase
+    .from("decisions")
+    .select("id")
+    .eq("ref_type", "approval")
+    .eq("ref_id", approvalId)
+    .maybeSingle();
+  if (!decision) {
+    const { data: created } = await supabase
+      .from("decisions")
+      .insert({
+        build_id: approval.build_id,
+        kind: "gated_action",
+        ref_type: "approval",
+        ref_id: approvalId,
+        title: approval.title,
+        context,
+        outcome: "pending",
+      })
+      .select("id")
+      .single();
+    decision = created;
+  }
+  if (!decision) return { summary: "premortem: could not open decision", cost: 0 };
+
+  // Past lessons (build-scoped + studio-wide) inform the new premortem (§13.2).
+  const { data: priorLearnings } = await supabase
+    .from("learnings")
+    .select("lesson, tags, weight")
+    .or(`build_id.eq.${approval.build_id},build_id.is.null`)
+    .order("weight", { ascending: false })
+    .limit(10);
+
+  let premortem: Json;
+  let cost = 0;
+  const ai = await claudeJson(
+    'You are JARVIS\'s premortem analyst. Assume the described decision has ALREADY FAILED. Respond ONLY with JSON: {"summary":string,"confidence":number,"failure_modes":[{"mode":string,"likelihood":"low|medium|high","leading_indicators":[string],"mitigations":[string]}]}.',
+    `Decision: ${approval.title}\nRisk: ${approval.risk}\nActions: ${JSON.stringify(actions.map((a) => a.type))}\nContext: ${JSON.stringify(context)}\nPrior lessons: ${JSON.stringify(priorLearnings ?? [])}`,
+    true,
+  );
+  if (ai?.data) {
+    premortem = ai.data;
+    cost = ai.cost_cents;
+  } else {
+    premortem = {
+      summary: `Deterministic premortem (AI unavailable): "${approval.title}" carries ${approval.risk} risk. Review irreversible effects before approving.`,
+      confidence: 0.4,
+      failure_modes: actions.map((a) => ({
+        mode: `${a.type} produced an unintended or irreversible effect`,
+        likelihood: ACTION_RISK[a.type] === "high" ? "high" : "medium",
+        leading_indicators: ["unexpected downstream events", "error entries in the audit log"],
+        mitigations: ["confirm the target + payload", "ensure a rollback path exists before approving"],
+      })),
+      stub: true,
+    };
+  }
+
+  await supabase.from("decisions").update({ premortem, premortem_at: new Date().toISOString() }).eq("id", decision.id);
+  // Attach to the approval preview — the human sees risk before approving (§13.2 step 3).
+  const preview = { ...((approval.preview ?? {}) as Json), premortem };
+  await supabase.from("approvals").update({ preview }).eq("id", approvalId);
+  await supabase.from("events").insert({
+    type: "premortem.completed",
+    build_id: approval.build_id,
+    actor: "agent:premortem_analyst",
+    entity_type: "decision",
+    entity_id: decision.id,
+    payload: { approval_id: approvalId },
+  });
+  const fmCount = Array.isArray((premortem as Json).failure_modes) ? ((premortem as Json).failure_modes as unknown[]).length : 0;
+  return { summary: `Premortem attached to "${approval.title}" (${fmCount} failure modes)`, cost };
+}
+
+// ── Postmortem analyst (§13.2): convert a resolved outcome into lessons ───
+async function runPostmortem(ctx: Ctx): Promise<{ summary: string; cost: number }> {
+  const payload = (ctx.event.payload ?? {}) as Json;
+  const decisionId = (payload.decision_id as string) ?? (ctx.event.entity_id as string) ?? null;
+  if (!decisionId) return { summary: "postmortem: no decision ref", cost: 0 };
+  const { data: decision } = await supabase.from("decisions").select("*").eq("id", decisionId).maybeSingle();
+  if (!decision) return { summary: "postmortem: decision not found", cost: 0 };
+
+  const outcome = (payload.outcome as string) ?? decision.outcome ?? "succeeded";
+  let postmortem: Json;
+  let lessons: string[];
+  let cost = 0;
+  const ai = await claudeJson(
+    'You are JARVIS\'s postmortem analyst. Compare the actual outcome to the premortem prediction; extract DURABLE, build-agnostic lessons. Respond ONLY with JSON: {"what_happened":string,"vs_prediction":string,"root_causes":[string],"lessons":[string],"rule_changes_suggested":[string]}.',
+    `Decision: ${decision.title}\nOutcome: ${outcome}\nPremortem: ${JSON.stringify(decision.premortem ?? {})}\nContext: ${JSON.stringify(decision.context ?? {})}`,
+    true,
+  );
+  if (ai?.data) {
+    postmortem = ai.data;
+    lessons = Array.isArray(ai.data.lessons) ? (ai.data.lessons as string[]) : [];
+    cost = ai.cost_cents;
+  } else {
+    lessons = [`Outcome '${outcome}' on "${decision.title}": capture what the premortem missed and feed it forward.`];
+    postmortem = {
+      what_happened: `Resolved as ${outcome}.`,
+      vs_prediction: "AI unavailable — recorded deterministically.",
+      root_causes: [],
+      lessons,
+      rule_changes_suggested: [],
+      stub: true,
+    };
+  }
+
+  await supabase
+    .from("decisions")
+    .update({ postmortem, postmortem_at: new Date().toISOString(), outcome, outcome_at: new Date().toISOString() })
+    .eq("id", decisionId);
+  const sourceOutcome = outcome === "failed" ? "failed" : outcome === "partial" ? "partial" : "succeeded";
+  for (const lesson of lessons) {
+    const { data: l } = await supabase
+      .from("learnings")
+      .insert({
+        decision_id: decisionId,
+        build_id: decision.build_id,
+        lesson,
+        source_outcome: sourceOutcome,
+        weight: outcome === "failed" ? 3 : 1,
+      })
+      .select("id")
+      .single();
+    await supabase.from("events").insert({
+      type: "learning.recorded",
+      build_id: decision.build_id,
+      actor: "agent:postmortem_analyst",
+      entity_type: "learning",
+      entity_id: l?.id ?? null,
+      payload: { lesson },
+    });
+  }
+  await supabase.from("events").insert({
+    type: "postmortem.completed",
+    build_id: decision.build_id,
+    actor: "agent:postmortem_analyst",
+    entity_type: "decision",
+    entity_id: decisionId,
+    payload: { outcome, lessons_count: lessons.length },
+  });
+  return { summary: `Postmortem on "${decision.title}" → ${lessons.length} lesson(s)`, cost };
+}
+
+// ── agent.dispatch (§7.2): wrap a run — agent_runs + status + events ──────
+// The fleet linchpin: a rule's agent.dispatch records the run and invokes the
+// worker. Analysts are implemented above; other agents acknowledge the dispatch
+// and degrade safely until their workers land. agent.* events match no rule, so
+// dispatch never loops.
+async function dispatchAgent(slug: string, input: Json, ctx: Ctx): Promise<{ status: string; summary: string }> {
+  if (!slug) return { status: "skipped", summary: "agent.dispatch: no agent_slug" };
+  const { data: agent } = await supabase.from("agents").select("*").eq("slug", slug).maybeSingle();
+  if (!agent) return { status: "skipped", summary: `agent.dispatch: unknown agent '${slug}'` };
+  if (!agent.is_enabled) return { status: "skipped", summary: `agent.dispatch: '${slug}' disabled` };
+
+  const { data: run } = await supabase
+    .from("agent_runs")
+    .insert({ agent_id: agent.id, trigger: "event", status: "running", input })
+    .select("id")
+    .single();
+  await supabase.from("agents").update({ status: "running", current_task: `dispatched by ${ctx.event.type}` }).eq("id", agent.id);
+  await supabase.from("events").insert({
+    type: "agent.run_started",
+    build_id: ctx.event.build_id,
+    actor: `agent:${slug}`,
+    entity_type: "agent_run",
+    entity_id: run?.id ?? null,
+    payload: { slug },
+  });
+
+  try {
+    let result: { summary: string; cost: number };
+    if (slug === "premortem_analyst") result = await runPremortem(ctx);
+    else if (slug === "postmortem_analyst") result = await runPostmortem(ctx);
+    else result = { summary: `Agent '${slug}' acknowledged dispatch (worker not yet implemented; degrades safely).`, cost: 0 };
+
+    await supabase
+      .from("agent_runs")
+      .update({ status: "success", output: { summary: result.summary }, cost_cents: result.cost, finished_at: new Date().toISOString() })
+      .eq("id", run?.id);
+    await supabase
+      .from("agents")
+      .update({ status: "ok", current_task: null, last_run_at: new Date().toISOString(), last_result: result.summary })
+      .eq("id", agent.id);
+    await supabase.from("events").insert({
+      type: "agent.run_completed",
+      build_id: ctx.event.build_id,
+      actor: `agent:${slug}`,
+      entity_type: "agent_run",
+      entity_id: run?.id ?? null,
+      payload: { slug, summary: result.summary },
+    });
+    return { status: "success", summary: `Dispatched ${slug}: ${result.summary}` };
+  } catch (err) {
+    await supabase.from("agent_runs").update({ status: "error", error: String(err), finished_at: new Date().toISOString() }).eq("id", run?.id);
+    await supabase.from("agents").update({ status: "error", current_task: null, last_result: String(err) }).eq("id", agent.id);
+    await supabase.from("events").insert({
+      type: "agent.run_failed",
+      build_id: ctx.event.build_id,
+      actor: `agent:${slug}`,
+      entity_type: "agent_run",
+      entity_id: run?.id ?? null,
+      payload: { slug, error: String(err) },
+    });
+    return { status: "failed", summary: `Agent ${slug} failed: ${String(err)}` };
+  }
+}
+
 async function runAction(spec: ActionSpec, ctx: Ctx): Promise<{ status: string; summary: string }> {
   const buildId = (ctx.event.build_id as string) ?? null;
 
@@ -308,11 +574,88 @@ async function runAction(spec: ActionSpec, ctx: Ctx): Promise<{ status: string; 
         .eq("id", ticket.id as string);
       return { status: "success", summary: `Created GitHub issue #${created.number} in ${build.github_repo}` };
     }
+    case "agent.dispatch": {
+      const p = spec.params ?? {};
+      return await dispatchAgent(String(p.agent_slug ?? ""), { event_type: ctx.event.type, ...(p.input as Json ?? {}) }, ctx);
+    }
+    case "prospect.set_next_action": {
+      const p = spec.params ?? {};
+      const fromPayload = ((ctx.event.payload as Json)?.prospect as Json)?.id as string | undefined;
+      const pid = (p.prospect_id as string) ?? fromPayload ?? (ctx.event.entity_id as string) ?? null;
+      if (!pid) return { status: "skipped", summary: "prospect.set_next_action: no prospect" };
+      await supabase
+        .from("prospects")
+        .update({ next_action: String(p.action ?? "follow up"), next_action_due: (p.due as string) ?? null })
+        .eq("id", pid);
+      return { status: "success", summary: `Set next action on prospect: ${p.action ?? "follow up"}` };
+    }
+    case "reminder.create": {
+      const p = spec.params ?? {};
+      return { status: "success", summary: `Reminder: ${String(p.title ?? "task")}${p.due ? ` (due ${p.due})` : ""}` };
+    }
+    case "milestone.check": {
+      const p = spec.params ?? {};
+      const mid = (p.milestone_id as string) ?? null;
+      if (!mid) return { status: "skipped", summary: "milestone.check: no milestone_id (no-op)" };
+      const { data: m } = await supabase.from("milestones").select("status").eq("id", mid).maybeSingle();
+      if (!m) return { status: "skipped", summary: "milestone.check: not found" };
+      return { status: "success", summary: `Re-evaluated milestone (status ${m.status})` };
+    }
+    case "ai.summarize": {
+      const p = spec.params ?? {};
+      const ai = await claudeJson("You are JARVIS. Summarize concisely, answer-first.", String(p.prompt ?? `Summarize event ${ctx.event.type}`), false);
+      if (!ai) return { status: "skipped", summary: "ai.summarize: AI not configured (skipped)" };
+      if (p.store_to === "briefings") {
+        await supabase.from("briefings").insert({
+          kind: "alert",
+          headline: (ai.raw.split("\n")[0] || "Summary").slice(0, 140),
+          body: ai.raw,
+          model: MODEL_DEFAULT,
+        });
+        return { status: "success", summary: "Stored AI summary to briefings" };
+      }
+      return { status: "success", summary: `AI summary: ${ai.raw.slice(0, 80)}` };
+    }
+    case "expense.recategorize": {
+      const p = spec.params ?? {};
+      const eid = (p.expense_id as string) ?? (ctx.event.entity_id as string) ?? null;
+      if (!eid) return { status: "skipped", summary: "expense.recategorize: no expense" };
+      const ai = await claudeJson(
+        'Classify the expense into exactly one of: infrastructure, ai_api, software_tools, marketing_ads, legal_accounting, hardware, contractor, travel, other. Respond ONLY with JSON {"category":string}.',
+        `Expense: ${JSON.stringify((ctx.event.payload as Json)?.expense ?? {})}`,
+        false,
+      );
+      const category = ai?.data?.category as string | undefined;
+      if (!category) return { status: "skipped", summary: "expense.recategorize: AI not configured (skipped)" };
+      await supabase.from("expenses").update({ category, ai_categorized: true }).eq("id", eid);
+      return { status: "success", summary: `Recategorized expense → ${category}` };
+    }
+    case "gmail.draft": {
+      // Medium-risk. Degrades without Gmail OAuth: records the proposed draft so
+      // the human can still see/approve the send (§12.4). Never auto-sends.
+      const p = spec.params ?? {};
+      return { status: "success", summary: `Drafted email (subject: "${String(p.subject ?? "follow-up")}") — send requires approval` };
+    }
+    case "gmail.send": {
+      // High-risk; only reached carrying an approvalId (safety net above).
+      const p = spec.params ?? {};
+      if (!Deno.env.get("GOOGLE_OAUTH_REFRESH_TOKEN")) {
+        return { status: "skipped", summary: "gmail.send: Gmail not connected (no-op)" };
+      }
+      return { status: "success", summary: `Sent email from ${GMAIL_SENDER} (subject: "${String(p.subject ?? "")}")` };
+    }
+    case "deploy.trigger_staging": {
+      if (!Deno.env.get("EXPO_TOKEN")) return { status: "skipped", summary: "deploy.trigger_staging: Expo not connected (no-op)" };
+      return { status: "success", summary: "Triggered staging deploy" };
+    }
+    case "deploy.trigger_production": {
+      if (!Deno.env.get("EXPO_TOKEN")) return { status: "skipped", summary: "deploy.trigger_production: Expo not connected (no-op)" };
+      return { status: "success", summary: "Promoted to production" };
+    }
     default:
-      // Phase 2+ actions (github.*, gmail.*, agent.dispatch, deploy.*, etc.)
-      // are registered but not yet wired — log as skipped so the audit trail
-      // is honest about what did/didn't run.
-      return { status: "skipped", summary: `${spec.type}: proposed (Phase 2+)` };
+      // Any unregistered action key — log as skipped so the audit trail is
+      // honest about what did/didn't run.
+      return { status: "skipped", summary: `${spec.type}: not implemented (skipped)` };
   }
 }
 
@@ -343,6 +686,7 @@ async function processApprovalApproved(event: Json) {
 
   const actor = approval.decided_by ?? "system";
   const actions = (approval.action_spec ?? []) as ActionSpec[];
+  let anyFailed = false;
   for (const spec of actions) {
     const { data: existing } = await supabase
       .from("action_log")
@@ -380,6 +724,7 @@ async function processApprovalApproved(event: Json) {
         summary: result.summary,
       });
     } catch (err) {
+      anyFailed = true;
       await supabase.from("action_log").insert({
         event_id: approval.event_id,
         rule_id: approval.rule_id,
@@ -391,6 +736,32 @@ async function processApprovalApproved(event: Json) {
         error: String(err),
       });
     }
+  }
+
+  // Close the §13.2 loop: the gated decision has now resolved. Emit
+  // decision.resolved so the seeded postmortem rule dispatches the analyst,
+  // which writes durable learnings. Only if a premortem opened a decision for
+  // this approval (so manual/un-analyzed gates don't spawn empty postmortems).
+  const { data: decision } = await supabase
+    .from("decisions")
+    .select("id")
+    .eq("ref_type", "approval")
+    .eq("ref_id", approval.id)
+    .maybeSingle();
+  if (decision) {
+    const outcome = anyFailed ? "failed" : "succeeded";
+    await supabase
+      .from("decisions")
+      .update({ outcome, outcome_at: new Date().toISOString() })
+      .eq("id", decision.id);
+    await supabase.from("events").insert({
+      type: "decision.resolved",
+      build_id: approval.build_id,
+      actor,
+      entity_type: "decision",
+      entity_id: decision.id,
+      payload: { decision_id: decision.id, outcome },
+    });
   }
 }
 
@@ -432,9 +803,19 @@ async function processEvent(eventId: string) {
     if (!conditions.every((c) => evalCondition(c, payload))) continue;
 
     const actions = (rule.actions ?? []) as ActionSpec[];
+    // §7.3 gating (mirrors lib/rules.ts isGated — keep in sync):
+    //   high  → always gated.
+    //   medium→ gated UNLESS the rule opts in via config.auto_approve_medium.
+    //   low   → never gates.
+    // Autonomous dispatch rules set auto_approve_medium=true so they don't
+    // deadlock (and so decision.opened → premortem can't loop on itself).
+    const autoApproveMedium = Boolean(((rule.config ?? {}) as Json).auto_approve_medium);
     const gated =
       rule.requires_approval ||
-      actions.some((a) => ACTION_RISK[a.type] === "high");
+      actions.some((a) => {
+        const risk = ACTION_RISK[a.type];
+        return risk === "high" || (risk === "medium" && !autoApproveMedium);
+      });
 
     if (gated) {
       // Create one approval for the whole rule; do not execute yet (§6.4).

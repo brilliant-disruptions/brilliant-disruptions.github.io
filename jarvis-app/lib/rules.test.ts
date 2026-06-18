@@ -64,6 +64,25 @@ describe("isGated — high-risk actions must never auto-execute (safety net, §7
     expect(isGated(false, [{ type: "notify.push" }, { type: "gmail.send" }])).toBe(true);
     expect(isGated(false, [{ type: "deploy.trigger_production" }])).toBe(true);
   });
+
+  it("gates medium-risk actions by default (gmail.draft, agent.dispatch)", () => {
+    expect(isGated(false, [{ type: "gmail.draft" }])).toBe(true);
+    expect(isGated(false, [{ type: "agent.dispatch" }])).toBe(true);
+  });
+
+  it("auto_approve_medium lets medium run, but NEVER lets high through", () => {
+    expect(isGated(false, [{ type: "agent.dispatch" }], true)).toBe(false);
+    expect(isGated(false, [{ type: "gmail.draft" }], true)).toBe(false);
+    // high stays gated even with the opt-in — §7.3 is absolute for high.
+    expect(isGated(false, [{ type: "agent.dispatch" }, { type: "gmail.send" }], true)).toBe(true);
+  });
+
+  it("LOOP GUARD: a decision.opened → premortem dispatch must NOT gate", () => {
+    // If this gated, it would create an approval → emit a new decision.opened →
+    // match again → runaway. The seed sets auto_approve_medium=true for exactly
+    // this class of autonomous dispatch rule.
+    expect(isGated(false, [{ type: "agent.dispatch", params: { agent_slug: "premortem_analyst" } }], true)).toBe(false);
+  });
 });
 
 describe("computeHealth — deterministic score the AI can explain but not invent (§8.1)", () => {
