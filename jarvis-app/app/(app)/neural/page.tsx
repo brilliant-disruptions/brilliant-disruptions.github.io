@@ -55,11 +55,31 @@ export default function NeuralPage() {
     if (typeof window === "undefined" || !window.speechSynthesis) return null;
     const voices = window.speechSynthesis.getVoices();
     if (!voices.length) return null;
-    return (
-      voices.find((v) => /en-GB/i.test(v.lang)) ||
-      voices.find((v) => /^en/i.test(v.lang)) ||
-      voices[0]
-    );
+
+    // Refined British-male voices that read closest to JARVIS, best first.
+    // Names vary by OS/browser, so we match by exact name then substring.
+    const PREFERRED = [
+      "Microsoft Ryan Online (Natural) - English (United Kingdom)",
+      "Google UK English Male",
+      "Microsoft George - English (United Kingdom)",
+      "Microsoft Ryan",
+      "Microsoft George",
+      "Arthur", // macOS British male
+      "Daniel", // macOS / iOS British male
+      "Oliver",
+    ];
+    for (const name of PREFERRED) {
+      const lc = name.toLowerCase();
+      const v =
+        voices.find((vo) => vo.name === name) ||
+        voices.find((vo) => vo.name.toLowerCase().includes(lc));
+      if (v) return v;
+    }
+
+    // Fallbacks: a male-sounding en-GB voice, then any en-GB, then any English.
+    const enGB = voices.filter((v) => /en[-_]GB/i.test(v.lang));
+    const male = enGB.find((v) => /(male|daniel|george|ryan|arthur|oliver)/i.test(v.name));
+    return male || enGB[0] || voices.find((v) => /^en/i.test(v.lang)) || voices[0];
   }, []);
 
   const stopBoundaryFallback = useCallback(() => {
@@ -101,8 +121,10 @@ export default function NeuralPage() {
 
       synth.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.0;
-      u.pitch = 0.9;
+      // Calm, measured, slightly lowered — the JARVIS cadence.
+      u.rate = 0.94;
+      u.pitch = 0.88;
+      u.lang = "en-GB";
       if (!voiceRef.current) voiceRef.current = pickVoice();
       if (voiceRef.current) u.voice = voiceRef.current;
 
