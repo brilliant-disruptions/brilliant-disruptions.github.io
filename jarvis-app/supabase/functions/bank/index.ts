@@ -7,12 +7,12 @@
 // with no token it records last_sync_status and emits sync.failed, never throws.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { getSecret } from "../_shared/secrets.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
-const MERCURY_TOKEN = Deno.env.get("MERCURY_API_TOKEN") ?? "";
 
 type Json = Record<string, unknown>;
 type Txn = { id: string; counterparty: string; amount_cents: number; posted_on: string };
@@ -22,9 +22,9 @@ async function emit(event: Json): Promise<void> {
 }
 
 // ── Mercury: balances + recent transactions ───────────────────────
-async function mercuryGet(path: string): Promise<Json> {
+async function mercuryGet(token: string, path: string): Promise<Json> {
   const res = await fetch(`https://api.mercury.com/api/v1${path}`, {
-    headers: { Authorization: `Bearer ${MERCURY_TOKEN}`, Accept: "application/json" },
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
   });
   if (!res.ok) throw new Error(`Mercury ${path} → ${res.status}`);
   return res.json();
@@ -32,14 +32,14 @@ async function mercuryGet(path: string): Promise<Json> {
 
 // Outflows (negative amounts) become draft expenses; deposits are ignored here
 // (revenue flows through Stripe). Normalizes to the adapter-agnostic Txn shape.
-async function fetchMercury(): Promise<{ cashCents: number; txns: Txn[] }> {
-  const accounts = (await mercuryGet("/accounts")) as Json;
+async function fetchMercury(token: string): Promise<{ cashCents: number; txns: Txn[] }> {
+  const accounts = (await mercuryGet(token, "/accounts")) as Json;
   const list = (accounts.accounts as Json[]) ?? [];
   const cashCents = Math.round(list.reduce((s, a) => s + Number(a.availableBalance ?? 0) * 100, 0));
 
   const txns: Txn[] = [];
   for (const a of list) {
-    const tx = (await mercuryGet(`/account/${a.id}/transactions?limit=50`)) as Json;
+    const tx = (await mercuryGet(token, `/account/${a.id}/transactions?limit=50`)) as Json;
     for (const t of (tx.transactions as Json[]) ?? []) {
       const amt = Number(t.amount ?? 0);
       if (amt >= 0) continue; // outflow only
@@ -55,6 +55,7 @@ async function fetchMercury(): Promise<{ cashCents: number; txns: Txn[] }> {
 }
 
 async function runSync(): Promise<Json> {
+  const MERCURY_TOKEN = await getSecret("MERCURY_API_TOKEN");
   if (!MERCURY_TOKEN) {
     // No bank connected — record the modeled state honestly (§12 graceful).
     await supabase
@@ -69,7 +70,7 @@ async function runSync(): Promise<Json> {
   let status = "ok";
   let error: string | null = null;
   try {
-    const { cashCents, txns } = await fetchMercury();
+    const { cashCents, txns } = await fetchMercury(MERCURY_TOKEN);
 
     // Cash-on-hand snapshot (portfolio-wide) → feeds runway (§8.2).
     await supabase.from("metric_snapshots").upsert({
