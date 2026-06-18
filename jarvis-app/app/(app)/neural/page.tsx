@@ -36,11 +36,8 @@ export default function NeuralPage() {
   const synthUnlockedRef = useRef(false);
 
   const [state, setState] = useState<NeuralState>("idle");
-  const [transcript, setTranscript] = useState("");
-  const [response, setResponse] = useState("");
   const [listening, setListening] = useState(false);
   const [useTextInput, setUseTextInput] = useState(false);
-  const [hint, setHint] = useState('Tap the mic and speak — try "who are you?"');
   const [textValue, setTextValue] = useState("");
   const [webglOk, setWebglOk] = useState(true);
 
@@ -101,7 +98,6 @@ export default function NeuralPage() {
 
   const speak = useCallback(
     (text: string) => {
-      setResponse(text);
       speakingRef.current = true;
       drive("speaking");
 
@@ -157,10 +153,7 @@ export default function NeuralPage() {
         : undefined;
     if (!SR) {
       // Defer past the effect body so we don't setState synchronously on mount.
-      queueMicrotask(() => {
-        setUseTextInput(true);
-        setHint("Voice input isn't supported in this browser — type to JARVIS instead.");
-      });
+      queueMicrotask(() => setUseTextInput(true));
       return;
     }
 
@@ -182,22 +175,15 @@ export default function NeuralPage() {
       });
     };
     recognition.onresult = (e: SpeechRecognitionEvent) => {
-      let interim = "";
       let final = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
-        const txt = e.results[i][0].transcript;
-        if (e.results[i].isFinal) final += txt;
-        else interim += txt;
+        if (e.results[i].isFinal) final += e.results[i][0].transcript;
       }
-      setTranscript(final || interim);
       if (final) handleUtterance(final);
     };
     recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
         setUseTextInput(true);
-        setHint("Microphone access was blocked. You can type to JARVIS instead.");
-      } else if (e.error === "no-speech") {
-        setHint("I didn't hear anything — tap the mic and try again.");
       }
     };
     recognition.onend = () => {
@@ -256,7 +242,6 @@ export default function NeuralPage() {
     if (listening) {
       rec.stop();
     } else {
-      setTranscript("");
       try {
         rec.start();
       } catch {
@@ -270,7 +255,6 @@ export default function NeuralPage() {
     unlockSynthesis();
     const value = textValue.trim();
     if (!value) return;
-    setTranscript(value);
     setTextValue("");
     handleUtterance(value);
   };
@@ -307,23 +291,10 @@ export default function NeuralPage() {
           </div>
         </header>
 
-        <section className="flex flex-1 items-center justify-center">
-          <p
-            aria-live="polite"
-            className="mx-auto max-w-[680px] text-center font-display text-2xl font-medium leading-snug sm:text-[34px]"
-            style={{ textShadow: "0 0 40px rgba(0,229,255,0.35)" }}
-          >
-            {response}
-          </p>
-        </section>
+        {/* Voice-only: the brain carries the experience — no on-screen words. */}
+        <div className="flex-1" />
 
         <footer className="flex flex-col items-center gap-4">
-          <p
-            aria-live="polite"
-            className="min-h-[1.4em] text-center font-mono text-[13px] tracking-wide text-[var(--muted-hi)]"
-          >
-            {transcript}
-          </p>
           <div className="flex flex-col items-center gap-3">
             {!useTextInput && (
               <button
@@ -370,7 +341,6 @@ export default function NeuralPage() {
               </form>
             )}
           </div>
-          <p className="text-center font-mono text-xs tracking-wide text-[var(--muted-hi)]">{hint}</p>
         </footer>
       </div>
     </div>
