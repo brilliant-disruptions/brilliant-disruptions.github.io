@@ -18,13 +18,6 @@ import { NeuralScene, type NeuralState } from "@/lib/neural/scene";
 import { MicAnalyser } from "@/lib/neural/mic-analyser";
 import { matchIntent } from "@/lib/neural/intents";
 
-const STATE_COLOR: Record<NeuralState, string> = {
-  idle: "var(--cyan)",
-  listening: "var(--cyan)",
-  thinking: "var(--violet)",
-  speaking: "var(--magenta)",
-};
-
 export default function NeuralPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<NeuralScene | null>(null);
@@ -35,14 +28,12 @@ export default function NeuralPage() {
   const speakingRef = useRef(false);
   const synthUnlockedRef = useRef(false);
 
-  const [state, setState] = useState<NeuralState>("idle");
   const [listening, setListening] = useState(false);
   const [useTextInput, setUseTextInput] = useState(false);
   const [textValue, setTextValue] = useState("");
   const [webglOk, setWebglOk] = useState(true);
 
   const drive = useCallback((next: NeuralState) => {
-    setState(next);
     sceneRef.current?.setState(next);
   }, []);
 
@@ -283,12 +274,6 @@ export default function NeuralPage() {
           >
             ← CONSOLE
           </Link>
-          <div
-            className="font-mono text-xs uppercase tracking-[0.16em] transition-colors"
-            style={{ color: STATE_COLOR[state], textShadow: `0 0 12px ${STATE_COLOR[state]}` }}
-          >
-            ● {state}
-          </div>
         </header>
 
         {/* Voice-only: the brain carries the experience — no on-screen words. */}
