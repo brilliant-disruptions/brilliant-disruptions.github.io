@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useUIStore } from "@/lib/store";
@@ -13,9 +13,14 @@ const supabase = createClient();
  *  Drives the spec's <1s live updates without manual refresh. */
 export function useRealtime(table: string, queryKey: unknown[]) {
   const qc = useQueryClient();
+  // Per-instance suffix: supabase.channel() dedupes by topic and returns an
+  // already-subscribed channel, so two components subscribing to the same
+  // (table, queryKey) would collide — the 2nd .on() throws "cannot add
+  // postgres_changes callbacks after subscribe()". useId keeps topics unique.
+  const subscriberId = useId();
   useEffect(() => {
     const channel = supabase
-      .channel(`rt:${table}:${JSON.stringify(queryKey)}`)
+      .channel(`rt:${table}:${JSON.stringify(queryKey)}:${subscriberId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table },
@@ -26,7 +31,7 @@ export function useRealtime(table: string, queryKey: unknown[]) {
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, JSON.stringify(queryKey)]);
+  }, [table, JSON.stringify(queryKey), subscriberId]);
 }
 
 /** Apply the active-build scope (Zustand) to a query. "all" = no filter. */
