@@ -14,6 +14,12 @@
 alter table public.rules
   add column if not exists config jsonb not null default '{}';
 
+-- One decision per referenced thing (one premortem/postmortem per approval).
+-- Backstops the read-then-insert in runPremortem against a webhook+drain race.
+create unique index if not exists decisions_ref_uniq
+  on public.decisions(ref_type, ref_id)
+  where ref_type is not null and ref_id is not null;
+
 -- Autonomous dispatch rules: any non-gated rule that dispatches an agent runs
 -- the dispatch automatically. Identified structurally (not by name) so it stays
 -- correct if names change.

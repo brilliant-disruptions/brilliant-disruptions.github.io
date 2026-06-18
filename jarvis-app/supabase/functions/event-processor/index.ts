@@ -440,22 +440,24 @@ async function dispatchAgent(slug: string, input: Json, ctx: Ctx): Promise<{ sta
   if (!agent) return { status: "skipped", summary: `agent.dispatch: unknown agent '${slug}'` };
   if (!agent.is_enabled) return { status: "skipped", summary: `agent.dispatch: '${slug}' disabled` };
 
-  const { data: run } = await supabase
-    .from("agent_runs")
-    .insert({ agent_id: agent.id, trigger: "event", status: "running", input })
-    .select("id")
-    .single();
-  await supabase.from("agents").update({ status: "running", current_task: `dispatched by ${ctx.event.type}` }).eq("id", agent.id);
-  await supabase.from("events").insert({
-    type: "agent.run_started",
-    build_id: ctx.event.build_id,
-    actor: `agent:${slug}`,
-    entity_type: "agent_run",
-    entity_id: run?.id ?? null,
-    payload: { slug },
-  });
-
+  let runId: string | null = null;
   try {
+    const { data: run } = await supabase
+      .from("agent_runs")
+      .insert({ agent_id: agent.id, trigger: "event", status: "running", input })
+      .select("id")
+      .single();
+    runId = run?.id ?? null;
+    await supabase.from("agents").update({ status: "running", current_task: `dispatched by ${ctx.event.type}` }).eq("id", agent.id);
+    await supabase.from("events").insert({
+      type: "agent.run_started",
+      build_id: ctx.event.build_id,
+      actor: `agent:${slug}`,
+      entity_type: "agent_run",
+      entity_id: runId,
+      payload: { slug },
+    });
+
     let result: { summary: string; cost: number };
     if (slug === "premortem_analyst") result = await runPremortem(ctx);
     else if (slug === "postmortem_analyst") result = await runPostmortem(ctx);
@@ -464,7 +466,7 @@ async function dispatchAgent(slug: string, input: Json, ctx: Ctx): Promise<{ sta
     await supabase
       .from("agent_runs")
       .update({ status: "success", output: { summary: result.summary }, cost_cents: result.cost, finished_at: new Date().toISOString() })
-      .eq("id", run?.id);
+      .eq("id", runId);
     await supabase
       .from("agents")
       .update({ status: "ok", current_task: null, last_run_at: new Date().toISOString(), last_result: result.summary })
@@ -474,19 +476,20 @@ async function dispatchAgent(slug: string, input: Json, ctx: Ctx): Promise<{ sta
       build_id: ctx.event.build_id,
       actor: `agent:${slug}`,
       entity_type: "agent_run",
-      entity_id: run?.id ?? null,
+      entity_id: runId,
       payload: { slug, summary: result.summary },
     });
     return { status: "success", summary: `Dispatched ${slug}: ${result.summary}` };
   } catch (err) {
-    await supabase.from("agent_runs").update({ status: "error", error: String(err), finished_at: new Date().toISOString() }).eq("id", run?.id);
+    // Any throw resets the agent off 'running' so the fleet board never lies.
+    if (runId) await supabase.from("agent_runs").update({ status: "error", error: String(err), finished_at: new Date().toISOString() }).eq("id", runId);
     await supabase.from("agents").update({ status: "error", current_task: null, last_result: String(err) }).eq("id", agent.id);
     await supabase.from("events").insert({
       type: "agent.run_failed",
       build_id: ctx.event.build_id,
       actor: `agent:${slug}`,
       entity_type: "agent_run",
-      entity_id: run?.id ?? null,
+      entity_id: runId,
       payload: { slug, error: String(err) },
     });
     return { status: "failed", summary: `Agent ${slug} failed: ${String(err)}` };
@@ -742,25 +745,26 @@ async function processApprovalApproved(event: Json) {
   // decision.resolved so the seeded postmortem rule dispatches the analyst,
   // which writes durable learnings. Only if a premortem opened a decision for
   // this approval (so manual/un-analyzed gates don't spawn empty postmortems).
-  const { data: decision } = await supabase
+  // Atomic claim: flip outcome pending→resolved and emit decision.resolved ONLY
+  // if this call won the transition. A webhook+drain double-process (or any
+  // re-run) finds outcome already set → no second postmortem.
+  const outcome = anyFailed ? "failed" : "succeeded";
+  const { data: resolved } = await supabase
     .from("decisions")
-    .select("id")
+    .update({ outcome, outcome_at: new Date().toISOString() })
     .eq("ref_type", "approval")
     .eq("ref_id", approval.id)
+    .eq("outcome", "pending")
+    .select("id")
     .maybeSingle();
-  if (decision) {
-    const outcome = anyFailed ? "failed" : "succeeded";
-    await supabase
-      .from("decisions")
-      .update({ outcome, outcome_at: new Date().toISOString() })
-      .eq("id", decision.id);
+  if (resolved) {
     await supabase.from("events").insert({
       type: "decision.resolved",
       build_id: approval.build_id,
       actor,
       entity_type: "decision",
-      entity_id: decision.id,
-      payload: { decision_id: decision.id, outcome },
+      entity_id: resolved.id,
+      payload: { decision_id: resolved.id, outcome },
     });
   }
 }

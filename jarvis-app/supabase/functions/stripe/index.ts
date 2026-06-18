@@ -146,9 +146,21 @@ async function handleEvent(evt: Json): Promise<Json> {
       await emit({ type: "mrr.changed", build_id: build!.id, actor: "webhook:stripe", payload: { mrr_cents: mrr, subscription: obj.id } });
       return { result: "mrr.changed emitted" };
     }
+    case "customer.subscription.deleted": {
+      // Churn: the subscription's MRR drops to zero (§8.3 MRR must decrease).
+      const items = ((obj.items as Json)?.data as Json[]) ?? [];
+      const lost = items.reduce((s, it) => s + Number((it.price as Json)?.unit_amount ?? 0) * Number(it.quantity ?? 1), 0);
+      await emit({ type: "mrr.changed", build_id: build!.id, actor: "webhook:stripe", payload: { delta_cents: -lost, churned: true, subscription: obj.id } });
+      return { result: "churn mrr.changed emitted" };
+    }
     case "charge.refunded": {
       if (!build) return { ignored: "refund: unmappable" };
-      await emit({ type: "revenue.recorded", build_id: build.id, actor: "webhook:stripe", payload: { refunded: true, amount_cents: -Number(obj.amount_refunded ?? 0) } });
+      const refunded = Number(obj.amount_refunded ?? 0);
+      await emit({ type: "revenue.recorded", build_id: build.id, actor: "webhook:stripe", payload: { refunded: true, amount_cents: -refunded } });
+      // A refunded subscription invoice also drops recurring revenue.
+      if (obj.invoice) {
+        await emit({ type: "mrr.changed", build_id: build.id, actor: "webhook:stripe", payload: { delta_cents: -refunded, refund: true } });
+      }
       return { result: "refund recorded" };
     }
     default:

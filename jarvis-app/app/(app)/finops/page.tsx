@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useExpenses, useRevenue, useBuilds } from "@/lib/queries/hooks";
+import { useExpenses, useRevenue, useBuilds, useCashOnHand } from "@/lib/queries/hooks";
 import { useUIStore } from "@/lib/store";
 import { MetricCard, SectionTitle, Card, EmptyState, Badge } from "@/components/ui";
 import { NewExpenseModal } from "@/components/NewExpenseModal";
@@ -22,7 +22,10 @@ export default function FinOpsPage() {
   // Real burn: recurring + trailing-30-day one-offs (§8.2). Cash is unknown
   // until a bank is connected (Phase 3) → runway is bootstrapped/∞, not faked.
   const burn = monthlyBurnCents(expenses.data ?? [], asOfMs);
-  const cashCents: number | null = null; // wired to Mercury/Plaid once connected
+  // Cash is studio-level (from the bank sync). Pair it with burn only in the
+  // portfolio view; a single build's burn vs. portfolio cash would mislead.
+  const cash = useCashOnHand();
+  const cashCents = activeBuild === "all" ? (cash.data ?? null) : null;
   const runway = runwayMonths(cashCents, burn);
   const totalSpend = (expenses.data ?? []).reduce((s, e) => s + e.amount_cents, 0);
   const margin = mrr - burn;
