@@ -200,6 +200,27 @@ export function useApprovals() {
   });
 }
 
+/** Pending approvals across ALL builds — never scoped by activeBuild. The
+ *  top-bar bell is an always-on signal; a gate on a non-active build must
+ *  still surface (spec §10.1/§10.4). TriageInbox uses the scoped useApprovals;
+ *  the bell/tray use this. */
+export function usePendingApprovals() {
+  const key = ["approvals", "pending"];
+  useRealtime("approvals", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("approvals")
+        .select("*")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as Tables<"approvals">[];
+    },
+  });
+}
+
 export function useAgents() {
   const key = ["agents"];
   useRealtime("agents", key);

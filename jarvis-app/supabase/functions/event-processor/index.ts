@@ -89,7 +89,9 @@ const ACTION_RISK: Record<string, "low" | "medium" | "high"> = {
 
 // ── low-risk action handlers (Phase 1) ────────────────────────────
 // Returns a human-readable summary or throws on failure.
-type Ctx = { event: Json; ruleId: string | null; params: Json };
+// `approvalId` is set only when executing a gated action_spec that a human
+// approved (§7.4) — it's the credential the §7.3 safety net checks for.
+type Ctx = { event: Json; ruleId: string | null; params: Json; approvalId?: string | null };
 
 async function recomputeHealth(buildId: string): Promise<string> {
   // Simplified deterministic health (§8.1) from current tickets + revenue.
@@ -164,8 +166,29 @@ async function snapshotMetric(buildId: string | null, metric: string, value: num
   return `Snapshot ${metric} = ${value}`;
 }
 
+async function postWebhook(text: string): Promise<string> {
+  const url = Deno.env.get("SLACK_WEBHOOK_URL") ?? Deno.env.get("DISCORD_WEBHOOK_URL");
+  if (!url) return "notify.slack: no webhook configured (skipped)";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) throw new Error(`webhook responded ${res.status}`);
+  return `Posted to chat: ${text.slice(0, 80)}`;
+}
+
 async function runAction(spec: ActionSpec, ctx: Ctx): Promise<{ status: string; summary: string }> {
   const buildId = (ctx.event.build_id as string) ?? null;
+
+  // §7.3 final safety net: a high-risk action refuses to run unless it was
+  // invoked from an approved gate (carrying an approval_id). The rules engine
+  // already gates these before execution; this is defence-in-depth so a
+  // misconfigured rule can never fire an irreversible action unattended.
+  if (ACTION_RISK[spec.type] === "high" && !ctx.approvalId) {
+    return { status: "skipped", summary: `${spec.type}: refused — requires approval (§7.3)` };
+  }
+
   switch (spec.type) {
     case "health.recompute": {
       if (!buildId) return { status: "skipped", summary: "health.recompute: no build" };
@@ -186,6 +209,11 @@ async function runAction(spec: ActionSpec, ctx: Ctx): Promise<{ status: string; 
         summary: `🔔 ${p.title ?? "Notification"}${p.severity ? ` (${p.severity})` : ""}`,
       };
     }
+    case "notify.slack": {
+      const p = spec.params ?? {};
+      const text = String(p.text ?? p.title ?? "JARVIS notification");
+      return { status: "success", summary: await postWebhook(text) };
+    }
     default:
       // Phase 2+ actions (github.*, gmail.*, agent.dispatch, deploy.*, etc.)
       // are registered but not yet wired — log as skipped so the audit trail
@@ -194,10 +222,100 @@ async function runAction(spec: ActionSpec, ctx: Ctx): Promise<{ status: string; 
   }
 }
 
+// ── approved-gate execution (§7.4) ────────────────────────────────
+// A human approved a gated rule; run its stored action_spec now. Critically,
+// actions execute against the ORIGINAL event's context (build_id/payload via
+// approval.event_id) — runAction reads ctx.event.build_id, so passing this
+// approval.approved event instead would silently no-op. Idempotency is keyed
+// on the original event so re-approval or a drain pass can't double-fire.
+async function processApprovalApproved(event: Json) {
+  const payload = (event.payload ?? {}) as Json;
+  const approvalId = payload.approval_id as string | undefined;
+  if (!approvalId) return;
+
+  const { data: approval } = await supabase
+    .from("approvals")
+    .select("*")
+    .eq("id", approvalId)
+    .single();
+  if (!approval || approval.status !== "approved") return;
+
+  const { data: original } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", approval.event_id)
+    .single();
+  if (!original) return;
+
+  const actor = approval.decided_by ?? "system";
+  const actions = (approval.action_spec ?? []) as ActionSpec[];
+  for (const spec of actions) {
+    const { data: existing } = await supabase
+      .from("action_log")
+      .select("id")
+      .eq("event_id", approval.event_id)
+      .eq("action_type", spec.type)
+      .eq("status", "success")
+      .maybeSingle();
+    if (existing) {
+      await supabase.from("action_log").insert({
+        event_id: approval.event_id,
+        rule_id: approval.rule_id,
+        action_type: spec.type,
+        status: "skipped",
+        actor,
+        build_id: approval.build_id,
+        summary: `${spec.type}: already applied (idempotent)`,
+      });
+      continue;
+    }
+    try {
+      const result = await runAction(spec, {
+        event: original,
+        ruleId: approval.rule_id,
+        params: spec.params ?? {},
+        approvalId: approval.id,
+      });
+      await supabase.from("action_log").insert({
+        event_id: approval.event_id,
+        rule_id: approval.rule_id,
+        action_type: spec.type,
+        status: result.status,
+        actor,
+        build_id: approval.build_id,
+        summary: result.summary,
+      });
+    } catch (err) {
+      await supabase.from("action_log").insert({
+        event_id: approval.event_id,
+        rule_id: approval.rule_id,
+        action_type: spec.type,
+        status: "failed",
+        actor,
+        build_id: approval.build_id,
+        summary: `${spec.type} failed`,
+        error: String(err),
+      });
+    }
+  }
+}
+
 // ── process one event ─────────────────────────────────────────────
 async function processEvent(eventId: string) {
   const { data: event } = await supabase.from("events").select("*").eq("id", eventId).single();
   if (!event || event.processed) return;
+
+  // Approved gates don't match rules — they carry their own action_spec. Run
+  // it and return early so this never falls through to rule-matching (which
+  // would spawn a second approval).
+  if (event.type === "approval.approved") {
+    await processApprovalApproved(event as Json);
+    await supabase
+      .from("events")
+      .update({ processed: true, processed_at: new Date().toISOString() })
+      .eq("id", event.id);
+    return;
+  }
 
   const { data: build } = event.build_id
     ? await supabase.from("builds").select("slug").eq("id", event.build_id).maybeSingle()
