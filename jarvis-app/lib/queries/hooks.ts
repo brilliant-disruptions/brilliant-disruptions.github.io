@@ -221,6 +221,29 @@ export function usePendingApprovals() {
   });
 }
 
+/** Latest portfolio cash-on-hand (cents) from the bank sync's `cash`
+ *  metric_snapshot, or null when no bank is connected (→ bootstrapped runway).
+ *  Cash is studio-level (build_id null), so this is never build-scoped. */
+export function useCashOnHand() {
+  const key = ["metric_snapshots", "cash"];
+  useRealtime("metric_snapshots", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("metric_snapshots")
+        .select("value_num")
+        .eq("metric", "cash")
+        .is("build_id", null)
+        .order("captured_on", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? Number(data.value_num) : null;
+    },
+  });
+}
+
 export function useAgents() {
   const key = ["agents"];
   useRealtime("agents", key);

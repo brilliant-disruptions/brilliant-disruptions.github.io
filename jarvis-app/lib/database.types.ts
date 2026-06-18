@@ -826,6 +826,7 @@ export type Database = {
           actions: Json
           build_scope: string
           conditions: Json
+          config: Json
           created_at: string
           description: string | null
           id: string
@@ -840,6 +841,7 @@ export type Database = {
           actions?: Json
           build_scope?: string
           conditions?: Json
+          config?: Json
           created_at?: string
           description?: string | null
           id?: string
@@ -854,6 +856,7 @@ export type Database = {
           actions?: Json
           build_scope?: string
           conditions?: Json
+          config?: Json
           created_at?: string
           description?: string | null
           id?: string
@@ -948,6 +951,27 @@ export type Database = {
       }
       is_founder: { Args: Record<string, never>; Returns: boolean }
       is_member: { Args: Record<string, never>; Returns: boolean }
+      // ── Added by migration 0012 (regenerate after deploy) ──
+      upsert_rule: {
+        Args: {
+          p_id: string | null
+          p_name: string
+          p_description: string | null
+          p_trigger_event: string
+          p_build_scope: string
+          p_conditions: Json
+          p_actions: Json
+          p_requires_approval: boolean
+          p_auto_approve_medium: boolean
+          p_priority: number
+          p_is_enabled: boolean
+        }
+        Returns: Database["public"]["Tables"]["rules"]["Row"]
+      }
+      set_rule_enabled: {
+        Args: { p_id: string; p_enabled: boolean }
+        Returns: Database["public"]["Tables"]["rules"]["Row"]
+      }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }

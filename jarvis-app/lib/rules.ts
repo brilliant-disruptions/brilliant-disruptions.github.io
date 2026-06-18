@@ -59,9 +59,26 @@ export const ACTION_RISK: Record<string, "low" | "medium" | "high"> = {
   "gmail.send": "high", "deploy.trigger_production": "high",
 };
 
-/** A rule is gated if it requires approval OR contains any high-risk action (§7.3). */
-export function isGated(requiresApproval: boolean, actions: ActionSpec[]): boolean {
-  return requiresApproval || actions.some((a) => ACTION_RISK[a.type] === "high");
+/** A rule gates (§7.3) if it requires approval, OR contains any high-risk action
+ *  (always gated, regardless of config), OR contains a medium-risk action while
+ *  the rule has NOT opted into `auto_approve_medium`. Low-risk never gates.
+ *
+ *  `autoApproveMedium` lets autonomous dispatch rules (e.g. decision.opened →
+ *  premortem) run their medium dispatch automatically — gating that dispatch
+ *  would both deadlock the analyst fleet and create a decision.opened loop. The
+ *  high-risk *output* an agent proposes is still gated separately. */
+export function isGated(
+  requiresApproval: boolean,
+  actions: ActionSpec[],
+  autoApproveMedium = false,
+): boolean {
+  if (requiresApproval) return true;
+  return actions.some((a) => {
+    const risk = ACTION_RISK[a.type];
+    if (risk === "high") return true;
+    if (risk === "medium") return !autoApproveMedium;
+    return false;
+  });
 }
 
 export type HealthInput = {

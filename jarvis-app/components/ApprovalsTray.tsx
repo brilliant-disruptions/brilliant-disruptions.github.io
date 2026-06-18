@@ -124,6 +124,21 @@ function ApprovalCard({ approval, color }: { approval: Approval; color?: string 
 
   const actions = (Array.isArray(approval.action_spec) ? approval.action_spec : []) as ActionSpec[];
 
+  // Premortem analysis (§13.2) is attached to preview.premortem by the analyst —
+  // surface it so the human sees the risk BEFORE approving. The remaining preview
+  // (drafts, diffs) renders as JSON below.
+  const previewObj =
+    approval.preview && typeof approval.preview === "object" && !Array.isArray(approval.preview)
+      ? (approval.preview as Record<string, unknown>)
+      : null;
+  const premortem = previewObj?.premortem as
+    | { summary?: string; confidence?: number; failure_modes?: { mode: string; likelihood?: string }[]; stub?: boolean }
+    | undefined;
+  const restPreview = previewObj
+    ? Object.fromEntries(Object.entries(previewObj).filter(([k]) => k !== "premortem"))
+    : approval.preview;
+  const hasRest = restPreview != null && (typeof restPreview !== "object" || Object.keys(restPreview).length > 0);
+
   async function decide(decision: "approved" | "rejected") {
     setDeciding(true);
     // Optimistic: drop the card from every cached approvals query.
@@ -179,11 +194,30 @@ function ApprovalCard({ approval, color }: { approval: Approval; color?: string 
         </div>
       )}
 
-      {approval.preview != null && (
+      {premortem && (
+        <div className="mt-2 rounded border border-[var(--warn)]/30 bg-[var(--warn)]/5 p-2">
+          <p className="font-mono text-[10px] uppercase tracking-wide text-[var(--warn)]">
+            ⚠ Premortem{premortem.stub ? " (modeled)" : ""}
+          </p>
+          {premortem.summary && (
+            <p className="mt-1 text-[11px] text-[var(--muted-hi)]">{premortem.summary}</p>
+          )}
+          {Array.isArray(premortem.failure_modes) && premortem.failure_modes.length > 0 && (
+            <ul className="mt-1 space-y-0.5">
+              {premortem.failure_modes.slice(0, 4).map((fm, i) => (
+                <li key={i} className="text-[11px] text-[var(--muted-hi)]">
+                  <span className="text-[var(--warn)]">·</span> {fm.mode}
+                  {fm.likelihood && <span className="ml-1 font-mono text-[9px] text-[var(--muted)]">({fm.likelihood})</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {hasRest && (
         <pre className="mt-2 max-h-32 overflow-auto rounded bg-[var(--void-2)] p-2 font-mono text-[10px] text-[var(--muted-hi)]">
-          {typeof approval.preview === "string"
-            ? approval.preview
-            : JSON.stringify(approval.preview, null, 2)}
+          {typeof restPreview === "string" ? restPreview : JSON.stringify(restPreview, null, 2)}
         </pre>
       )}
 
