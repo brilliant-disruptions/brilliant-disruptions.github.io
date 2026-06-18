@@ -926,6 +926,9 @@ body.cursor-hidden #cursor-ring {
   align-items: center;
   gap: 8px;
 }
+.card-cta--secondary {
+  margin-left: 10px;
+}
 
 /* Classified card grid */
 .ops-grid {
