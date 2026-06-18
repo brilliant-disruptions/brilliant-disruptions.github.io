@@ -17,23 +17,28 @@ function admin(): SupabaseClient {
   return _client;
 }
 
-// Cache within a single function invocation/instance — secrets change rarely and
-// the read_secret round-trip shouldn't repeat per request.
-const _cache = new Map<string, string>();
+// Short TTL cache so the read_secret round-trip doesn't repeat per request, but
+// a key rotated in the UI takes effect within a minute on a warm instance.
+const TTL_MS = 60_000;
+const _cache = new Map<string, { value: string; ts: number }>();
 
 /** Resolve a secret by name (= its env var name = its Vault secret name).
  *  Returns "" when neither Vault nor env has it (callers already treat empty as
  *  "not configured" and degrade). */
 export async function getSecret(name: string): Promise<string> {
-  if (_cache.has(name)) return _cache.get(name)!;
+  const hit = _cache.get(name);
+  if (hit && Date.now() - hit.ts < TTL_MS) return hit.value;
   let value = "";
   try {
     const { data, error } = await admin().rpc("read_secret", { p_name: name });
-    if (!error && typeof data === "string" && data) value = data;
-  } catch {
-    // RPC missing/not-yet-deployed → fall through to env.
+    // Log a real failure: env fallback would otherwise mask a permission/deploy
+    // misconfig as "not configured" forever.
+    if (error) console.error(`read_secret(${name}) failed:`, error.message);
+    else if (typeof data === "string" && data) value = data;
+  } catch (err) {
+    console.error(`read_secret(${name}) threw:`, String(err));
   }
   if (!value) value = Deno.env.get(name) ?? "";
-  if (value) _cache.set(name, value);
+  if (value) _cache.set(name, { value, ts: Date.now() });
   return value;
 }
