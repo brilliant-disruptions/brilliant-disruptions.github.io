@@ -972,6 +972,19 @@ export type Database = {
         Args: { p_id: string; p_enabled: boolean }
         Returns: Database["public"]["Tables"]["rules"]["Row"]
       }
+      // ── Added by migration 0013 (regenerate after deploy) ──
+      set_connection_secret: {
+        Args: { p_provider: string; p_key_name: string; p_value: string }
+        Returns: undefined
+      }
+      delete_connection_secret: {
+        Args: { p_provider: string; p_key_name: string }
+        Returns: undefined
+      }
+      set_connection: {
+        Args: { p_provider: string; p_status: string | null; p_sync_frequency: string | null }
+        Returns: Database["public"]["Tables"]["connections"]["Row"]
+      }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }

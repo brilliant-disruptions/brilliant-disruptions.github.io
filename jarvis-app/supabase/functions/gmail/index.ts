@@ -11,30 +11,29 @@
 // refresh token → records sync state, emits sync.failed, never throws.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { getSecret } from "../_shared/secrets.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
-const CLIENT_ID = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID") ?? "";
-const CLIENT_SECRET = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET") ?? "";
-const REFRESH_TOKEN = Deno.env.get("GOOGLE_OAUTH_REFRESH_TOKEN") ?? "";
 const HIGH_INTENT_OPENS = 3; // §6.1 prospect.high_intent heuristic
 
 type Json = Record<string, unknown>;
+type GoogleCreds = { clientId: string; clientSecret: string; refreshToken: string };
 
 async function emit(event: Json): Promise<void> {
   await supabase.from("events").insert(event);
 }
 
-async function accessToken(): Promise<string> {
+async function accessToken(creds: GoogleCreds): Promise<string> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      refresh_token: REFRESH_TOKEN,
+      client_id: creds.clientId,
+      client_secret: creds.clientSecret,
+      refresh_token: creds.refreshToken,
       grant_type: "refresh_token",
     }),
   });
@@ -51,7 +50,12 @@ async function gmailGet(token: string, path: string): Promise<Json> {
 }
 
 async function runSync(): Promise<Json> {
-  if (!REFRESH_TOKEN) {
+  const creds: GoogleCreds = {
+    clientId: await getSecret("GOOGLE_OAUTH_CLIENT_ID"),
+    clientSecret: await getSecret("GOOGLE_OAUTH_CLIENT_SECRET"),
+    refreshToken: await getSecret("GOOGLE_OAUTH_REFRESH_TOKEN"),
+  };
+  if (!creds.refreshToken) {
     await supabase
       .from("connections")
       .update({ last_sync_at: new Date().toISOString(), last_sync_status: "error", status: "disconnected" })
@@ -64,7 +68,7 @@ async function runSync(): Promise<Json> {
   let status = "ok";
   let error: string | null = null;
   try {
-    const token = await accessToken();
+    const token = await accessToken(creds);
     const { data: prospects } = await supabase
       .from("prospects")
       .select("id, build_id, status, open_count, reply_count, contact_email, gmail_thread_id")
