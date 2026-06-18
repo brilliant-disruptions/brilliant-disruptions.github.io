@@ -9,18 +9,18 @@
 // requires a build). Nothing here moves money or creates Stripe objects (§19).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { getSecret } from "../_shared/secrets.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
-const WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
 
 type Json = Record<string, unknown>;
 
 // ── Stripe signature: header "t=<ts>,v1=<hmac>"; HMAC-SHA256(`${t}.${raw}`) ──
-async function verifyStripe(raw: string, header: string | null): Promise<boolean> {
-  if (!WEBHOOK_SECRET) return false; // fail-closed
+async function verifyStripe(raw: string, header: string | null, secret: string): Promise<boolean> {
+  if (!secret) return false; // fail-closed: no signing secret configured
   if (!header) return false;
   const parts = Object.fromEntries(header.split(",").map((kv) => kv.split("=")));
   const t = parts["t"];
@@ -28,7 +28,7 @@ async function verifyStripe(raw: string, header: string | null): Promise<boolean
   if (!t || !v1) return false;
   const key = await crypto.subtle.importKey(
     "raw",
-    new TextEncoder().encode(WEBHOOK_SECRET),
+    new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
@@ -171,7 +171,8 @@ async function handleEvent(evt: Json): Promise<Json> {
 Deno.serve(async (req) => {
   try {
     const raw = await req.text();
-    const ok = await verifyStripe(raw, req.headers.get("stripe-signature"));
+    const secret = await getSecret("STRIPE_WEBHOOK_SECRET");
+    const ok = await verifyStripe(raw, req.headers.get("stripe-signature"), secret);
     if (!ok) return Response.json({ error: "invalid signature" }, { status: 401 });
     const evt = raw ? (JSON.parse(raw) as Json) : {};
     return Response.json(await handleEvent(evt));
