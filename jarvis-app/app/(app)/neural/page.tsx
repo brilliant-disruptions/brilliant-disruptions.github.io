@@ -15,6 +15,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NeuralScene, type NeuralState } from "@/lib/neural/scene";
+import { MicAnalyser } from "@/lib/neural/mic-analyser";
 import { matchIntent } from "@/lib/neural/intents";
 
 const STATE_COLOR: Record<NeuralState, string> = {
@@ -28,9 +29,11 @@ export default function NeuralPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<NeuralScene | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const micRef = useRef<MicAnalyser | null>(null);
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const boundaryTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const speakingRef = useRef(false);
+  const synthUnlockedRef = useRef(false);
 
   const [state, setState] = useState<NeuralState>("idle");
   const [transcript, setTranscript] = useState("");
@@ -170,6 +173,13 @@ export default function NeuralPage() {
     recognition.onstart = () => {
       setListening(true);
       drive("listening");
+      // Tap the live mic so the brain pulses with the user's actual voice.
+      const mic = new MicAnalyser();
+      micRef.current = mic;
+      void mic.start((level, peak) => {
+        sceneRef.current?.setAmplitude(level);
+        if (peak) sceneRef.current?.pulse(2);
+      });
     };
     recognition.onresult = (e: SpeechRecognitionEvent) => {
       let interim = "";
@@ -192,6 +202,8 @@ export default function NeuralPage() {
     };
     recognition.onend = () => {
       setListening(false);
+      micRef.current?.stop();
+      micRef.current = null;
       if (!speakingRef.current) drive("idle");
     };
 
@@ -200,6 +212,8 @@ export default function NeuralPage() {
       recognition.onresult = null;
       recognition.onend = null;
       recognition.abort();
+      micRef.current?.stop();
+      micRef.current = null;
       recognitionRef.current = null;
     };
   }, [drive, handleUtterance]);
@@ -223,7 +237,20 @@ export default function NeuralPage() {
     };
   }, [pickVoice]);
 
+  // Browsers (esp. Safari/iOS) only allow speech synthesis after a user
+  // gesture. Prime it with a silent utterance on the first mic tap.
+  const unlockSynthesis = () => {
+    if (synthUnlockedRef.current) return;
+    const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+    if (!synth || typeof SpeechSynthesisUtterance === "undefined") return;
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    synth.speak(u);
+    synthUnlockedRef.current = true;
+  };
+
   const toggleListening = () => {
+    unlockSynthesis();
     const rec = recognitionRef.current;
     if (!rec) return;
     if (listening) {
@@ -240,6 +267,7 @@ export default function NeuralPage() {
 
   const onTextSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    unlockSynthesis();
     const value = textValue.trim();
     if (!value) return;
     setTranscript(value);
