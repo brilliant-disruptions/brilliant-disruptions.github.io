@@ -12,7 +12,7 @@
 
 import * as THREE from "three";
 
-export type NeuralState = "idle" | "listening" | "thinking" | "speaking";
+export type NeuralState = "idle" | "listening" | "thinking" | "speaking" | "greeting";
 
 type Vec3 = { x: number; y: number; z: number };
 type Node = { x: number; y: number; z: number; home: Vec3; activation: number; drift: Vec3 };
@@ -40,6 +40,7 @@ const STATE_PROFILES: Record<NeuralState, Profile> = {
   listening: { activity: 0.55, pulseSpeed: 1.3, seedRate: 2.5, propagation: 0.2, edgeOpacity: 0.28, tint: "cyan", tintAmount: 0.45 },
   thinking: { activity: 1.0, pulseSpeed: 2.6, seedRate: 8.0, propagation: 0.45, edgeOpacity: 0.5, tint: "violet", tintAmount: 0.7 },
   speaking: { activity: 0.75, pulseSpeed: 1.6, seedRate: 0.0, propagation: 0.25, edgeOpacity: 0.35, tint: "magenta", tintAmount: 0.65 },
+  greeting: { activity: 1.4, pulseSpeed: 3.2, seedRate: 16.0, propagation: 0.5, edgeOpacity: 0.65, tint: "magenta", tintAmount: 0.9 },
 };
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -74,6 +75,8 @@ export class NeuralScene {
   private seedAccumulator = 0;
   private mouse = { x: 0, y: 0 };
   private supported = true;
+  private colorCycle = false;
+  private greetTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly isMobile: boolean;
   private readonly NODE_COUNT: number;
@@ -424,11 +427,24 @@ export class NeuralScene {
     this.liveActivity = lerp(this.liveActivity, effectiveActivity, delta * 3);
     this.ampBump *= 0.9;
     this.edgeMat.opacity = lerp(this.edgeMat.opacity, this.target.edgeOpacity, delta * 3);
-    this.tintAmount = lerp(this.tintAmount, this.target.tintAmount, delta * 2);
-    const tt = TINTS[this.target.tint];
-    this.tintCurrent[0] = lerp(this.tintCurrent[0], tt[0], delta * 2);
-    this.tintCurrent[1] = lerp(this.tintCurrent[1], tt[1], delta * 2);
-    this.tintCurrent[2] = lerp(this.tintCurrent[2], tt[2], delta * 2);
+    if (this.colorCycle) {
+      // Sweep vividly through the three brand colors for the greeting burst.
+      const cols = [TINTS.cyan, TINTS.violet, TINTS.magenta];
+      const seg = (elapsed * 0.7) % 3;
+      const i0 = Math.floor(seg) % 3;
+      const i1 = (i0 + 1) % 3;
+      const f = seg - Math.floor(seg);
+      this.tintCurrent[0] = lerp(cols[i0][0], cols[i1][0], f);
+      this.tintCurrent[1] = lerp(cols[i0][1], cols[i1][1], f);
+      this.tintCurrent[2] = lerp(cols[i0][2], cols[i1][2], f);
+      this.tintAmount = lerp(this.tintAmount, 0.92, delta * 3);
+    } else {
+      this.tintAmount = lerp(this.tintAmount, this.target.tintAmount, delta * 2);
+      const tt = TINTS[this.target.tint];
+      this.tintCurrent[0] = lerp(this.tintCurrent[0], tt[0], delta * 2);
+      this.tintCurrent[1] = lerp(this.tintCurrent[1], tt[1], delta * 2);
+      this.tintCurrent[2] = lerp(this.tintCurrent[2], tt[2], delta * 2);
+    }
 
     this.nodeMat.uniforms.uTime.value = elapsed;
     this.nodeMat.uniforms.uGlobalActivity.value = this.liveActivity;
@@ -469,6 +485,9 @@ export class NeuralScene {
     const cam = this.camera.position;
     cam.x += (this.mouse.x * 0.4 - cam.x) * delta * 1.5;
     cam.y += (this.mouse.y * 0.4 - cam.y) * delta * 1.5;
+    // During the greeting, dolly the camera in/out for extra sense of movement.
+    const baseZ = this.colorCycle ? 7.4 + Math.sin(elapsed * 2.2) * 0.7 : 8;
+    cam.z += (baseZ - cam.z) * delta * 2;
     this.camera.lookAt(0, 0, 0);
 
     this.renderer.render(this.scene, this.camera);
@@ -484,6 +503,23 @@ export class NeuralScene {
 
   pulse(count = 1) {
     this.seedRandomPulses(count);
+  }
+
+  /**
+   * A bright, colorful "hello" burst: max energy, cascading pulses and a sweep
+   * through all three brand colors, easing back to idle after ~5s.
+   */
+  greet(durationMs = 5200) {
+    this.colorCycle = true;
+    this.currentState = "greeting";
+    this.target = STATE_PROFILES.greeting;
+    this.seedRandomPulses(this.isMobile ? 28 : 64);
+    if (this.greetTimer) clearTimeout(this.greetTimer);
+    this.greetTimer = setTimeout(() => {
+      this.colorCycle = false;
+      this.greetTimer = null;
+      this.setState("idle");
+    }, durationMs);
   }
 
   setAmplitude(level: number) {
@@ -504,6 +540,7 @@ export class NeuralScene {
 
   dispose() {
     if (this.rafId) cancelAnimationFrame(this.rafId);
+    if (this.greetTimer) clearTimeout(this.greetTimer);
     window.removeEventListener("resize", this.onResize);
     window.removeEventListener("mousemove", this.onMouseMove);
     if (this.renderer) this.renderer.dispose();
