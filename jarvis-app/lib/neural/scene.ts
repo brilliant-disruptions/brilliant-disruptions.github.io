@@ -11,6 +11,9 @@
  */
 
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 
 export type NeuralState = "idle" | "listening" | "thinking" | "speaking" | "greeting";
 
@@ -52,6 +55,10 @@ export class NeuralScene {
   private camera!: THREE.PerspectiveCamera;
   private clock!: THREE.Clock;
   private rafId = 0;
+
+  private composer: EffectComposer | null = null;
+  private bloomPass: UnrealBloomPass | null = null;
+  private useBloom = false;
 
   private nodeGeo!: THREE.BufferGeometry;
   private nodeMat!: THREE.ShaderMaterial;
@@ -127,9 +134,9 @@ export class NeuralScene {
       antialias: false,
       powerPreference: "high-performance",
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const dpr = Math.min(window.devicePixelRatio, 2);
+    this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setClearColor(0x000000, 0);
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -140,6 +147,26 @@ export class NeuralScene {
     this.buildNodeGeometry();
     this.buildEdgeGeometry();
     this.buildPulseGeometry();
+
+    // Cinematic bloom (desktop only). Renders opaque over the HUD's void so the
+    // glow reads cleanly; mobile keeps the cheaper transparent direct render.
+    this.useBloom = !this.isMobile && !this.reduceMotion;
+    if (this.useBloom) {
+      this.renderer.setClearColor(0x04060a, 1);
+      this.composer = new EffectComposer(this.renderer);
+      this.composer.setPixelRatio(dpr);
+      this.composer.setSize(window.innerWidth, window.innerHeight);
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+      this.bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.75, // strength (modulated by activity in animate)
+        0.5, // radius
+        0.0, // threshold
+      );
+      this.composer.addPass(this.bloomPass);
+    } else {
+      this.renderer.setClearColor(0x000000, 0);
+    }
 
     window.addEventListener("resize", this.onResize);
     window.addEventListener("mousemove", this.onMouseMove);
@@ -224,15 +251,23 @@ export class NeuralScene {
       positions[i * 3 + 1] = this.nodes[i].y;
       positions[i * 3 + 2] = this.nodes[i].z;
       const t = Math.random();
-      if (t < 0.65) {
+      if (t < 0.6) {
+        // cyan
         colors[i * 3] = 0.0 + Math.random() * 0.1;
         colors[i * 3 + 1] = 0.8 + Math.random() * 0.2;
         colors[i * 3 + 2] = 0.9 + Math.random() * 0.1;
-      } else if (t < 0.9) {
+      } else if (t < 0.82) {
+        // violet
         colors[i * 3] = 0.4 + Math.random() * 0.2;
         colors[i * 3 + 1] = 0.15 + Math.random() * 0.2;
         colors[i * 3 + 2] = 0.9 + Math.random() * 0.1;
+      } else if (t < 0.92) {
+        // gold accent
+        colors[i * 3] = 1.0;
+        colors[i * 3 + 1] = 0.72 + Math.random() * 0.12;
+        colors[i * 3 + 2] = 0.28 + Math.random() * 0.1;
       } else {
+        // white highlight
         colors[i * 3] = 0.85 + Math.random() * 0.15;
         colors[i * 3 + 1] = 0.85 + Math.random() * 0.15;
         colors[i * 3 + 2] = 1.0;
@@ -490,7 +525,13 @@ export class NeuralScene {
     cam.z += (baseZ - cam.z) * delta * 2;
     this.camera.lookAt(0, 0, 0);
 
-    this.renderer.render(this.scene, this.camera);
+    if (this.useBloom && this.composer && this.bloomPass) {
+      // Brighter bloom as the network energises (peaks during greeting).
+      this.bloomPass.strength = 0.6 + this.liveActivity * 0.7;
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   // ─── Public controls ──────────────────────────────────────────────────────
@@ -531,6 +572,8 @@ export class NeuralScene {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.composer?.setSize(window.innerWidth, window.innerHeight);
+    this.bloomPass?.setSize(window.innerWidth, window.innerHeight);
   }
 
   private onMouseMove(e: MouseEvent) {
@@ -543,6 +586,7 @@ export class NeuralScene {
     if (this.greetTimer) clearTimeout(this.greetTimer);
     window.removeEventListener("resize", this.onResize);
     window.removeEventListener("mousemove", this.onMouseMove);
+    this.composer?.dispose();
     if (this.renderer) this.renderer.dispose();
   }
 }
