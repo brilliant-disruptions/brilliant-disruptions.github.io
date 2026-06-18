@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>JARVIS — Neural Interface · Brilliant Disruptions</title>
+  <meta name="description" content="Talk to JARVIS — an interactive neural-network demo by Brilliant Disruptions. Speak and watch the brain respond." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/jarvis.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+  <script defer src="js/jarvis-neural.js"></script>
+  <script defer src="js/jarvis-voice.js"></script>
+</head>
+<body class="jarvis-body">
+  <canvas id="neural-canvas" aria-hidden="true"></canvas>
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+
+  <main id="hud">
+    <header class="hud-top">
+      <a class="hud-back mono" href="projects/jarvis/">← JARVIS</a>
+      <div id="state-indicator" class="mono" data-state="idle">● IDLE</div>
+    </header>
+
+    <section class="hud-center">
+      <p id="response-text" class="response" aria-live="polite"></p>
+    </section>
+
+    <footer class="hud-bottom">
+      <p id="transcript" class="transcript mono" aria-live="polite"></p>
+      <div class="controls">
+        <button id="mic-btn" class="mic-btn" aria-label="Activate microphone" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+        </button>
+        <form id="text-fallback" class="text-fallback" hidden>
+          <input id="text-input" type="text" placeholder="Type to JARVIS…" autocomplete="off" />
+        </form>
+      </div>
+      <p id="hint" class="hint mono">Tap the mic and speak — try “who are you?”</p>
+    </footer>
+  </main>
+</body>
+</html>
