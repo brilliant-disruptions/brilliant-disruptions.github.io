@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useUIStore } from "@/lib/store";
 import { signOut } from "@/app/(app)/actions";
 import { SyncDot } from "@/components/SyncDot";
+import { ApprovalsBell, ApprovalsTray } from "@/components/ApprovalsTray";
 
 type BuildLite = {
   id: string;
@@ -100,6 +101,7 @@ export function TopBar({
             </span>
           )}
           <SyncDot />
+          <ApprovalsBell />
           <Clock />
           <div className="flex items-center gap-2">
             <span
@@ -137,6 +139,8 @@ export function TopBar({
           );
         })}
       </nav>
+
+      <ApprovalsTray />
     </header>
   );
 }
