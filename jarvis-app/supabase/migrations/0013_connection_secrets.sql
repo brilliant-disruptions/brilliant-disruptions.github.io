@@ -55,7 +55,9 @@ begin
   if v_id is null then
     perform vault.create_secret(p_value, p_key_name, format('Integration secret for %s (set via Connections UI)', p_provider));
   else
-    perform vault.update_secret(v_id, p_value);
+    -- Pass the name explicitly so any vault version that assigns (not coalesces)
+    -- new_name can't null it and break read_secret's name lookup.
+    perform vault.update_secret(v_id, p_value, p_key_name);
   end if;
 
   -- Non-secret hint only (last 4) so the UI can show a key is configured.
@@ -69,6 +71,10 @@ begin
         status = 'connected',
         updated_at = now()
     where provider = p_provider;
+  -- Guard against a typo'd provider leaving a Vault secret with no UI hint.
+  if not found then
+    raise exception 'unknown connection provider: %', p_provider;
+  end if;
 
   select m.handle into handle from public.members m where m.id = auth.uid();
   -- Audit the act WITHOUT the value (§9 append-only audit).
