@@ -9,12 +9,7 @@
 
 import { useEffect, useState } from "react";
 
-const LINES = [
-  "BOOTING NEURAL CORE",
-  "CALIBRATING SYNAPTIC MESH",
-  "ENGAGING ARC REACTOR",
-  "J.A.R.V.I.S. ONLINE",
-];
+const LINES = ["BOOTING NEURAL CORE", "ENGAGING ARC REACTOR", "J.A.R.V.I.S. ONLINE"];
 
 function ringStyle(circ: number, delay: number): React.CSSProperties {
   return {
@@ -57,7 +52,7 @@ export function BootSequence({ onComplete }: { onComplete: () => void }) {
           <circle cx="200" cy="200" r="180" fill="none" stroke="var(--cyan)" strokeWidth="1.5" strokeOpacity="0.85" style={ringStyle(2 * Math.PI * 180, 0)} />
           <circle cx="200" cy="200" r="150" fill="none" stroke="var(--gold)" strokeWidth="2" strokeOpacity="0.9" style={ringStyle(2 * Math.PI * 150, 0.25)} />
           <circle cx="200" cy="200" r="120" fill="none" stroke="var(--violet)" strokeWidth="1.5" strokeOpacity="0.7" style={ringStyle(2 * Math.PI * 120, 0.5)} />
-          <circle cx="200" cy="200" r={70 + pct * 0.4} fill="var(--cyan)" opacity={pct / 600} />
+          <circle cx="200" cy="200" r={60 + pct * 0.3} fill="var(--cyan)" opacity={pct / 950} />
         </svg>
 
         <div className="relative z-10 text-center">

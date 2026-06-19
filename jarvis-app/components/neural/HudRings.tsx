@@ -31,8 +31,7 @@ function Reticle({ r, a, color }: { r: number; a: number; color: string }) {
 export function HudRings({ active = false }: { active?: boolean }) {
   const cyan = "var(--cyan)";
   const gold = "var(--gold)";
-  const ticks = Array.from({ length: 72 }, (_, i) => i * 5);
-  const microTicks = Array.from({ length: 120 }, (_, i) => i * 3);
+  const ticks = Array.from({ length: 60 }, (_, i) => i * 6);
 
   return (
     <div
@@ -51,38 +50,38 @@ export function HudRings({ active = false }: { active?: boolean }) {
         <defs>
           <radialGradient id="sweepGrad" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor={cyan} stopOpacity={0} />
-            <stop offset="100%" stopColor={cyan} stopOpacity={active ? 0.22 : 0.14} />
+            <stop offset="100%" stopColor={cyan} stopOpacity={active ? 0.16 : 0.08} />
           </radialGradient>
         </defs>
-        <g className="hud-rotate-fast" style={{ animationDuration: active ? "6s" : "14s" }}>
+        <g className="hud-rotate-fast" style={{ animationDuration: active ? "10s" : "26s" }}>
           <path d={`M${C} ${C} L${pol(250, -28)[0]} ${pol(250, -28)[1]} A250 250 0 0 1 ${pol(250, 0)[0]} ${pol(250, 0)[1]} Z`} fill="url(#sweepGrad)" />
         </g>
 
         {/* inner fast partial ring */}
-        <g className="hud-rotate-fast" style={{ animationDuration: active ? "8s" : "18s" }}>
-          <path d={arc(120, -90, 150)} fill="none" stroke={cyan} strokeWidth={2} strokeOpacity={0.95} strokeLinecap="round" />
-          <circle cx={pol(120, -90)[0]} cy={pol(120, -90)[1]} r={3.5} fill={cyan} />
+        <g className="hud-rotate-fast" style={{ animationDuration: active ? "16s" : "34s" }}>
+          <path d={arc(120, -90, 150)} fill="none" stroke={cyan} strokeWidth={1.5} strokeOpacity={0.9} strokeLinecap="round" />
+          <circle cx={pol(120, -90)[0]} cy={pol(120, -90)[1]} r={3} fill={cyan} />
         </g>
 
         {/* tick ring */}
-        <g stroke={cyan} strokeOpacity={0.45} strokeWidth={1} className="hud-rotate" style={{ animationDuration: active ? "30s" : "60s" }}>
+        <g stroke={cyan} strokeOpacity={0.32} strokeWidth={1} className="hud-rotate" style={{ animationDuration: active ? "55s" : "100s" }}>
           {ticks.map((a) => {
             const [x0, y0] = pol(150, a);
-            const [x1, y1] = pol(156, a);
+            const [x1, y1] = pol(155, a);
             return <line key={a} x1={x0} y1={y0} x2={x1} y2={y1} />;
           })}
         </g>
 
         {/* gold segmented arcs (counter-rotating) */}
-        <g className="hud-rotate-rev" style={{ animationDuration: active ? "40s" : "90s" }}>
-          <path d={arc(178, 10, 100)} fill="none" stroke={gold} strokeWidth={3} strokeOpacity={0.9} strokeLinecap="round" />
-          <path d={arc(178, 190, 280)} fill="none" stroke={gold} strokeWidth={3} strokeOpacity={0.9} strokeLinecap="round" />
+        <g className="hud-rotate-rev" style={{ animationDuration: active ? "70s" : "150s" }}>
+          <path d={arc(178, 10, 100)} fill="none" stroke={gold} strokeWidth={2.5} strokeOpacity={0.85} strokeLinecap="round" />
+          <path d={arc(178, 190, 280)} fill="none" stroke={gold} strokeWidth={2.5} strokeOpacity={0.85} strokeLinecap="round" />
         </g>
 
         {/* violet / magenta secondary arcs (brand) */}
-        <g className="hud-rotate" style={{ animationDuration: active ? "26s" : "70s" }}>
-          <path d={arc(196, 120, 200)} fill="none" stroke="var(--violet)" strokeWidth={2} strokeOpacity={0.6} strokeLinecap="round" />
-          <path d={arc(196, 250, 320)} fill="none" stroke="var(--magenta)" strokeWidth={2} strokeOpacity={0.6} strokeLinecap="round" />
+        <g className="hud-rotate" style={{ animationDuration: active ? "50s" : "110s" }}>
+          <path d={arc(196, 120, 200)} fill="none" stroke="var(--violet)" strokeWidth={1.5} strokeOpacity={0.4} strokeLinecap="round" />
+          <path d={arc(196, 250, 320)} fill="none" stroke="var(--magenta)" strokeWidth={1.5} strokeOpacity={0.4} strokeLinecap="round" />
         </g>
 
         {/* dashed outer ring + reticles */}
@@ -90,15 +89,6 @@ export function HudRings({ active = false }: { active?: boolean }) {
         {[0, 90, 180, 270].map((a) => (
           <Reticle key={a} r={216} a={a} color={gold} />
         ))}
-
-        {/* micro tick ring */}
-        <g stroke={cyan} strokeOpacity={0.22} strokeWidth={1} className="hud-rotate-rev" style={{ animationDuration: "120s" }}>
-          {microTicks.map((a) => {
-            const [x0, y0] = pol(236, a);
-            const [x1, y1] = pol(240, a);
-            return <line key={a} x1={x0} y1={y0} x2={x1} y2={y1} />;
-          })}
-        </g>
       </svg>
     </div>
   );

@@ -187,7 +187,7 @@ export default function NeuralPage() {
     soundRef.current?.powerUp();
     sceneRef.current?.greet();
     speak(GREETING);
-    window.setTimeout(() => setActive(false), 5200);
+    window.setTimeout(() => setActive(false), 4500);
   };
 
   return (
@@ -206,14 +206,14 @@ export default function NeuralPage() {
       )}
 
       {/* scanline veil */}
-      <div aria-hidden className="hud-scanlines pointer-events-none absolute inset-0 opacity-60" />
+      <div aria-hidden className="hud-scanlines pointer-events-none absolute inset-0 opacity-30" />
 
       {/* gold frame */}
       <div aria-hidden className="pointer-events-none absolute inset-3 sm:inset-5">
         <div className="absolute inset-0 border" style={{ borderColor: "rgba(0,229,255,0.16)" }} />
-        {(["left-0 top-0 border-l-2 border-t-2", "right-0 top-0 border-r-2 border-t-2", "left-0 bottom-0 border-l-2 border-b-2", "right-0 bottom-0 border-r-2 border-b-2"] as const).map(
+        {(["left-0 top-0 border-l border-t", "right-0 top-0 border-r border-t", "left-0 bottom-0 border-l border-b", "right-0 bottom-0 border-r border-b"] as const).map(
           (c, i) => (
-            <div key={i} className={`absolute h-8 w-8 ${c}`} style={{ borderColor: "var(--gold)" }} />
+            <div key={i} className={`absolute h-6 w-6 ${c}`} style={{ borderColor: "var(--gold)" }} />
           ),
         )}
       </div>

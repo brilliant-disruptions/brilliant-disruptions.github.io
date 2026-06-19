@@ -35,15 +35,15 @@ type Profile = {
 const TINTS: Record<Profile["tint"], [number, number, number]> = {
   cyan: [0.0, 0.9, 1.0],
   violet: [0.49, 0.23, 0.93],
-  magenta: [1.0, 0.0, 0.43],
+  magenta: [0.96, 0.12, 0.48],
 };
 
 const STATE_PROFILES: Record<NeuralState, Profile> = {
-  idle: { activity: 0.15, pulseSpeed: 0.8, seedRate: 0.7, propagation: 0.12, edgeOpacity: 0.12, tint: "cyan", tintAmount: 0.25 },
+  idle: { activity: 0.15, pulseSpeed: 0.8, seedRate: 0.45, propagation: 0.12, edgeOpacity: 0.12, tint: "cyan", tintAmount: 0.25 },
   listening: { activity: 0.55, pulseSpeed: 1.3, seedRate: 2.5, propagation: 0.2, edgeOpacity: 0.28, tint: "cyan", tintAmount: 0.45 },
   thinking: { activity: 1.0, pulseSpeed: 2.6, seedRate: 8.0, propagation: 0.45, edgeOpacity: 0.5, tint: "violet", tintAmount: 0.7 },
   speaking: { activity: 0.75, pulseSpeed: 1.6, seedRate: 0.0, propagation: 0.25, edgeOpacity: 0.35, tint: "magenta", tintAmount: 0.65 },
-  greeting: { activity: 1.4, pulseSpeed: 3.2, seedRate: 16.0, propagation: 0.5, edgeOpacity: 0.65, tint: "magenta", tintAmount: 0.9 },
+  greeting: { activity: 1.15, pulseSpeed: 2.6, seedRate: 10.0, propagation: 0.4, edgeOpacity: 0.6, tint: "magenta", tintAmount: 0.85 },
 };
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -140,7 +140,9 @@ export class NeuralScene {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.camera.position.z = 8;
+    // Pulled back so the neuron cluster reads as a compact "little brain" that
+    // sits inside the HUD's inner ring rather than filling the viewport.
+    this.camera.position.z = 10;
 
     this.nodes = this.generateNodes(this.NODE_COUNT);
     this.edges = this.buildEdges(this.nodes);
@@ -159,9 +161,9 @@ export class NeuralScene {
       this.composer.addPass(new RenderPass(this.scene, this.camera));
       this.bloomPass = new UnrealBloomPass(
         new THREE.Vector2(window.innerWidth, window.innerHeight),
-        0.75, // strength (modulated by activity in animate)
-        0.5, // radius
-        0.0, // threshold
+        0.5, // strength (modulated by activity in animate)
+        0.42, // radius
+        0.05, // threshold
       );
       this.composer.addPass(this.bloomPass);
     } else {
@@ -272,7 +274,7 @@ export class NeuralScene {
         colors[i * 3 + 1] = 0.85 + Math.random() * 0.15;
         colors[i * 3 + 2] = 1.0;
       }
-      sizes[i] = Math.random() * 2.6 + 1.4;
+      sizes[i] = Math.random() * 2.0 + 1.1;
     }
 
     this.nodeGeo = new THREE.BufferGeometry();
@@ -465,7 +467,7 @@ export class NeuralScene {
     if (this.colorCycle) {
       // Sweep vividly through the three brand colors for the greeting burst.
       const cols = [TINTS.cyan, TINTS.violet, TINTS.magenta];
-      const seg = (elapsed * 0.7) % 3;
+      const seg = (elapsed * 0.45) % 3;
       const i0 = Math.floor(seg) % 3;
       const i1 = (i0 + 1) % 3;
       const f = seg - Math.floor(seg);
@@ -521,13 +523,13 @@ export class NeuralScene {
     cam.x += (this.mouse.x * 0.4 - cam.x) * delta * 1.5;
     cam.y += (this.mouse.y * 0.4 - cam.y) * delta * 1.5;
     // During the greeting, dolly the camera in/out for extra sense of movement.
-    const baseZ = this.colorCycle ? 7.4 + Math.sin(elapsed * 2.2) * 0.7 : 8;
+    const baseZ = this.colorCycle ? 9.4 + Math.sin(elapsed * 2.2) * 0.4 : 10;
     cam.z += (baseZ - cam.z) * delta * 2;
     this.camera.lookAt(0, 0, 0);
 
     if (this.useBloom && this.composer && this.bloomPass) {
       // Brighter bloom as the network energises (peaks during greeting).
-      this.bloomPass.strength = 0.6 + this.liveActivity * 0.7;
+      this.bloomPass.strength = 0.42 + this.liveActivity * 0.42;
       this.composer.render();
     } else {
       this.renderer.render(this.scene, this.camera);
@@ -550,11 +552,11 @@ export class NeuralScene {
    * A bright, colorful "hello" burst: max energy, cascading pulses and a sweep
    * through all three brand colors, easing back to idle after ~5s.
    */
-  greet(durationMs = 5200) {
+  greet(durationMs = 4500) {
     this.colorCycle = true;
     this.currentState = "greeting";
     this.target = STATE_PROFILES.greeting;
-    this.seedRandomPulses(this.isMobile ? 28 : 64);
+    this.seedRandomPulses(this.isMobile ? 18 : 40);
     if (this.greetTimer) clearTimeout(this.greetTimer);
     this.greetTimer = setTimeout(() => {
       this.colorCycle = false;

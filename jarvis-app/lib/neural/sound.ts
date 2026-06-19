@@ -25,7 +25,7 @@ export class HudSound {
       if (!AC) return;
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.45;
+      this.master.gain.value = 0.7;
       this.master.connect(this.ctx.destination);
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
@@ -87,22 +87,22 @@ export class HudSound {
 
   /** Short high tick — UI confirmation. */
   blip() {
-    this.tone({ freq: 1320, dur: 0.06, type: "triangle", gain: 0.1 });
+    this.tone({ freq: 1320, dur: 0.06, type: "triangle", gain: 0.16 });
   }
 
   /** Cinematic power-on: low hum sweep + rising tone + airy noise swell. */
   boot() {
-    this.tone({ freq: 48, to: 120, dur: 2.0, type: "sine", gain: 0.22 });
-    this.tone({ freq: 180, to: 720, dur: 1.6, type: "triangle", gain: 0.12, delay: 0.15 });
-    this.noiseBurst({ dur: 1.8, gain: 0.06, cutoffFrom: 200, cutoffTo: 4000 });
-    this.tone({ freq: 880, to: 1320, dur: 0.5, type: "sine", gain: 0.1, delay: 1.7 });
+    this.tone({ freq: 48, to: 120, dur: 2.0, type: "sine", gain: 0.3 });
+    this.tone({ freq: 180, to: 720, dur: 1.6, type: "triangle", gain: 0.16, delay: 0.15 });
+    this.noiseBurst({ dur: 1.8, gain: 0.09, cutoffFrom: 200, cutoffTo: 4000 });
+    this.tone({ freq: 880, to: 1320, dur: 0.5, type: "sine", gain: 0.14, delay: 1.7 });
   }
 
   /** Greeting flare: rising saw + shimmer + whoosh. */
   powerUp() {
-    this.tone({ freq: 160, to: 1200, dur: 0.55, type: "sawtooth", gain: 0.14 });
-    this.tone({ freq: 520, to: 1568, dur: 0.6, type: "sine", gain: 0.1, delay: 0.05 });
-    this.noiseBurst({ dur: 0.5, gain: 0.16, cutoffFrom: 800, cutoffTo: 8000 });
+    this.tone({ freq: 160, to: 1200, dur: 0.55, type: "triangle", gain: 0.2 });
+    this.tone({ freq: 520, to: 1568, dur: 0.6, type: "sine", gain: 0.14, delay: 0.05 });
+    this.noiseBurst({ dur: 0.5, gain: 0.18, cutoffFrom: 800, cutoffTo: 8000 });
   }
 
   /** A soft, low holographic drone for the live HUD. */
@@ -110,7 +110,7 @@ export class HudSound {
     if (!this.ctx || !this.master || this.ambientGain) return;
     this.ambientGain = this.ctx.createGain();
     this.ambientGain.gain.setValueAtTime(0.0001, this.t);
-    this.ambientGain.gain.exponentialRampToValueAtTime(0.05, this.t + 2);
+    this.ambientGain.gain.exponentialRampToValueAtTime(0.06, this.t + 2);
     const filter = this.ctx.createBiquadFilter();
     filter.type = "lowpass";
     filter.frequency.value = 320;
