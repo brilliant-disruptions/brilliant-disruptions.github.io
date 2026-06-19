@@ -14,23 +14,26 @@
 // the round trip terminates instead of ping-ponging.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { getSecret } from "../_shared/secrets.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
-const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN") ?? "";
-const WEBHOOK_SECRET = Deno.env.get("GITHUB_WEBHOOK_SECRET") ?? "";
 
 type Json = Record<string, unknown>;
 
+// Secrets resolve from the Vault (UI-managed) with an env fallback, so a token
+// set in the Connections tab actually controls this adapter (spec §9).
+
 // ── HMAC verification (§9: webhook endpoints verify signatures) ───
 async function verifySignature(raw: string, header: string | null): Promise<boolean> {
-  if (!WEBHOOK_SECRET) return false; // fail closed: no secret configured = reject
+  const webhookSecret = await getSecret("GITHUB_WEBHOOK_SECRET");
+  if (!webhookSecret) return false; // fail closed: no secret configured = reject
   if (!header || !header.startsWith("sha256=")) return false;
   const key = await crypto.subtle.importKey(
     "raw",
-    new TextEncoder().encode(WEBHOOK_SECRET),
+    new TextEncoder().encode(webhookSecret),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
@@ -48,9 +51,10 @@ async function verifySignature(raw: string, header: string | null): Promise<bool
 
 // ── GitHub REST helper (sync reads) ───────────────────────────────
 async function gh(path: string): Promise<unknown> {
+  const token = await getSecret("GITHUB_TOKEN"); // cached ~60s in getSecret
   const res = await fetch(`https://api.github.com${path}`, {
     headers: {
-      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
       "User-Agent": "jarvis-adapter",
@@ -164,6 +168,51 @@ async function reconcileIssue(
   return "noop";
 }
 
+// ── repo_activity: recent commits + PRs for the Overview matrix (§12.1) ──
+// Upsert by external_id so a webhook and a later ?sync= backfill don't dup, and
+// a PR row updates (open → merged) instead of inserting twice.
+async function upsertActivity(rows: Json[]): Promise<void> {
+  if (rows.length === 0) return;
+  await supabase.from("repo_activity").upsert(rows, { onConflict: "external_id" });
+}
+
+// Handles BOTH shapes: the push-webhook commit ({id, message, timestamp,
+// author:{name}, url}) and the REST /commits item ({sha, html_url, commit:{...}}).
+function commitRow(buildId: string, c: Json): Json {
+  const commit = (c.commit as Json) ?? {};
+  const sha = (c.id ?? c.sha) as string;
+  const msg = (((c.message as string) ?? (commit.message as string)) ?? "").split("\n")[0];
+  const author =
+    ((c.author as Json)?.name as string) ?? ((commit.author as Json)?.name as string) ?? null;
+  const when = (c.timestamp as string) ?? ((commit.author as Json)?.date as string) ?? null;
+  return {
+    build_id: buildId,
+    kind: "commit",
+    external_id: sha,
+    ref: sha ? sha.slice(0, 7) : null,
+    title: msg || "(no message)",
+    author,
+    url: (c.html_url as string) ?? (c.url as string) ?? null,
+    status: null,
+    occurred_at: when ?? new Date().toISOString(),
+  };
+}
+
+function prRow(buildId: string, pr: Json): Json {
+  const merged = Boolean(pr.merged_at ?? pr.merged);
+  return {
+    build_id: buildId,
+    kind: "pull_request",
+    external_id: pr.node_id as string,
+    ref: `#${pr.number}`,
+    title: (pr.title as string) ?? "(untitled PR)",
+    author: ((pr.user as Json)?.login as string) ?? null,
+    url: (pr.html_url as string) ?? null,
+    status: merged ? "merged" : ((pr.state as string) ?? null),
+    occurred_at: (pr.updated_at as string) ?? new Date().toISOString(),
+  };
+}
+
 // ── deployment_status → deploy.* (§12.1 maps deploy events) ───────
 async function handleDeploymentStatus(buildId: string | null, body: Json): Promise<void> {
   const state = ((body.deployment_status as Json)?.state as string) ?? "";
@@ -214,9 +263,19 @@ async function handleWebhook(ghEvent: string, body: Json): Promise<Json> {
     case "deployment_status":
       await handleDeploymentStatus(build.id, body);
       return { result: "deploy event emitted" };
+    case "push": {
+      const commits = (body.commits as Json[]) ?? [];
+      await upsertActivity(commits.map((c) => commitRow(build.id, c)));
+      return { result: `recorded ${commits.length} commits` };
+    }
+    case "pull_request": {
+      const pr = body.pull_request as Json | undefined;
+      if (pr) await upsertActivity([prRow(build.id, pr)]);
+      return { result: "pr recorded" };
+    }
     default:
-      // push, pull_request, workflow_run, issue_comment, … — accepted but
-      // not yet mapped. Returning 200 stops GitHub retrying.
+      // workflow_run, issue_comment, … — accepted but not yet mapped.
+      // Returning 200 stops GitHub retrying.
       return { ignored: ghEvent };
   }
 }
@@ -232,6 +291,7 @@ async function runSync(): Promise<Json> {
   let synced = 0;
   let status = "ok";
   let error: string | null = null;
+  let activityWarn: string | null = null; // non-fatal backfill failure (degrades to 'partial')
   try {
     for (const b of builds ?? []) {
       // Pull recently-updated issues (open + closed) to catch missed webhooks.
@@ -248,15 +308,40 @@ async function runSync(): Promise<Json> {
         });
         synced++;
       }
+
+      // Backfill the commit/PR feed (best-effort: an empty repo 409s on /commits,
+      // which must not abort issue reconciliation for other builds).
+      try {
+        const commits = (await gh(`/repos/${b.github_repo}/commits?per_page=20`)) as Json[];
+        await upsertActivity(commits.map((c) => commitRow(b.id, c)));
+        const pulls = (await gh(
+          `/repos/${b.github_repo}/pulls?state=all&sort=updated&direction=desc&per_page=20`,
+        )) as Json[];
+        await upsertActivity(pulls.map((p) => prRow(b.id, p)));
+        synced += commits.length + pulls.length;
+      } catch (e) {
+        // Empty repos legitimately 409 on /commits; record it but don't claim a
+        // clean sync (Rule 12: don't report 'ok' when a backfill actually failed).
+        activityWarn = `${b.github_repo}: ${String(e)}`;
+        console.error(`repo_activity sync for ${b.github_repo} failed:`, String(e));
+      }
     }
   } catch (err) {
     status = "error";
     error = String(err);
   }
 
+  // A backfill warning degrades an otherwise-clean run to 'partial' so the
+  // Connections tab shows it wasn't fully successful.
+  if (status === "ok" && activityWarn) status = "partial";
+
   await supabase
     .from("connections")
-    .update({ last_sync_at: new Date().toISOString(), last_sync_status: status, status: status === "ok" ? "connected" : "error" })
+    .update({
+      last_sync_at: new Date().toISOString(),
+      last_sync_status: status,
+      status: status === "error" ? "error" : "connected",
+    })
     .eq("provider", "github");
 
   if (status === "error") {

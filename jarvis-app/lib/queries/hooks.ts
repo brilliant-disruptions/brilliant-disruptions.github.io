@@ -257,6 +257,25 @@ export function useAgents() {
   });
 }
 
+/** Recent agent runs (fleet history). Joined to agent name/slug in the page via
+ *  useAgents; kept flat here so the generated FK types stay simple. */
+export function useAgentRuns(limit = 20) {
+  const key = ["agent_runs", limit];
+  useRealtime("agent_runs", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("agent_runs")
+        .select("*")
+        .order("started_at", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return data as Tables<"agent_runs">[];
+    },
+  });
+}
+
 export function useConnections() {
   const key = ["connections"];
   useRealtime("connections", key);
@@ -279,6 +298,25 @@ export function useMilestones() {
       const { data, error } = await supabase.from("milestones").select("*").order("sort_order");
       if (error) throw error;
       return data as Tables<"milestones">[];
+    },
+  });
+}
+
+/** Recent commits + PRs per build (GitHub adapter feed). Never build-scoped —
+ *  the Overview matrix groups by build itself. Dark until GitHub is connected. */
+export function useRepoActivity(limit = 60) {
+  const key = ["repo_activity", limit];
+  useRealtime("repo_activity", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("repo_activity")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return data as Tables<"repo_activity">[];
     },
   });
 }

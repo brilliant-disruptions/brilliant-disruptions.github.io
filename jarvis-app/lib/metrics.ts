@@ -4,7 +4,12 @@
 //
 // Cents in, cents out. Dates are ISO 'YYYY-MM-DD' strings (expenses.spent_on).
 
-export type ExpenseLite = { amount_cents: number; is_recurring: boolean; spent_on: string };
+export type ExpenseLite = {
+  amount_cents: number;
+  is_recurring: boolean;
+  spent_on: string;
+  recurrence?: string | null;
+};
 export type RevenueLite = { mrr_cents: number };
 export type ProspectLite = { status: string };
 
@@ -23,13 +28,18 @@ const DAY_MS = 86_400_000;
 
 /** Monthly burn (§8.2): recurring expenses + trailing-30-day non-recurring
  *  spend (a one-month average proxy). `asOf` is an ISO date; defaults caller-
- *  supplied to keep this pure (no Date.now() baked in). */
+ *  supplied to keep this pure (no Date.now() baked in).
+ *
+ *  Annual recurring is amortized to its monthly equivalent (÷12): a $1,200/yr
+ *  tool costs $100/mo of burn, not $1,200 — otherwise a single annual line item
+ *  would overstate monthly runway pressure by 12×. Unset recurrence is treated
+ *  as monthly (the historical default). */
 export function monthlyBurnCents(expenses: ExpenseLite[], asOfMs: number): number {
   let recurring = 0;
   let recentOneOff = 0;
   for (const e of expenses) {
     if (e.is_recurring) {
-      recurring += e.amount_cents;
+      recurring += e.recurrence === "annual" ? Math.round(e.amount_cents / 12) : e.amount_cents;
     } else {
       const spentMs = new Date(e.spent_on).getTime();
       if (Number.isFinite(spentMs) && asOfMs - spentMs <= 30 * DAY_MS && spentMs <= asOfMs) {

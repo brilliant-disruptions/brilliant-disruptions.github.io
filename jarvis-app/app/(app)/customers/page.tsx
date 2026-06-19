@@ -1,7 +1,11 @@
 "use client";
 
-import { useFeedback } from "@/lib/queries/hooks";
+import { useState } from "react";
+import { useFeedback, useBuilds } from "@/lib/queries/hooks";
+import { useUIStore } from "@/lib/store";
 import { Card, SectionTitle, Badge, EmptyState } from "@/components/ui";
+import { NewFeedbackModal } from "@/components/NewFeedbackModal";
+import { primaryBtn } from "@/components/Modal";
 
 const SENTIMENT_TONE: Record<string, "green" | "amber" | "red" | "muted"> = {
   positive: "green",
@@ -11,15 +15,32 @@ const SENTIMENT_TONE: Record<string, "green" | "amber" | "red" | "muted"> = {
 
 export default function CustomersPage() {
   const feedback = useFeedback();
+  const builds = useBuilds();
+  const activeBuild = useUIStore((s) => s.activeBuild);
+  const [open, setOpen] = useState(false);
   const rows = feedback.data ?? [];
 
   return (
     <div className="space-y-4">
-      <SectionTitle>Feedback</SectionTitle>
+      <div className="flex items-center justify-between">
+        <SectionTitle>Feedback</SectionTitle>
+        <button className={primaryBtn} onClick={() => setOpen(true)}>
+          + Add feedback
+        </button>
+      </div>
+      <p className="text-xs text-[var(--muted)]">
+        Add feedback by hand here. Once connected, App Store reviews and support email sync into the same
+        list — each item is AI-tagged for sentiment and severity.
+      </p>
       {rows.length === 0 ? (
         <EmptyState
           title="No feedback yet"
           hint="Customer feedback, beta reports, and app-store reviews land here, AI-tagged for sentiment and severity."
+          action={
+            <button className={primaryBtn} onClick={() => setOpen(true)}>
+              + Add feedback
+            </button>
+          }
         />
       ) : (
         <Card className="divide-y divide-[var(--glass-border)] p-0">
@@ -34,6 +55,13 @@ export default function CustomersPage() {
           ))}
         </Card>
       )}
+
+      <NewFeedbackModal
+        open={open}
+        onClose={() => setOpen(false)}
+        builds={builds.data ?? []}
+        defaultBuild={activeBuild}
+      />
     </div>
   );
 }

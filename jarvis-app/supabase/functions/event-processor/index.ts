@@ -143,26 +143,32 @@ async function recomputeHealth(buildId: string): Promise<string> {
   );
 
   await supabase.from("builds").update({ health_score: health }).eq("id", buildId);
-  await supabase.from("metric_snapshots").upsert(
-    {
-      build_id: buildId,
-      metric: "health",
-      value_num: health,
-      captured_on: new Date().toISOString().slice(0, 10),
-      meta: { delivery, quality, momentum, techDebt, revenueSig },
-    },
-    { onConflict: "" }, // unique index handles dedupe per (build, metric, day)
-  );
+  await writeSnapshot(buildId, "health", health, { delivery, quality, momentum, techDebt, revenueSig });
   return `Recomputed health for build → ${health}`;
 }
 
-async function snapshotMetric(buildId: string | null, metric: string, value: number): Promise<string> {
-  await supabase.from("metric_snapshots").upsert({
+// Write one daily metric point, replacing any existing point for the same
+// (build, metric, day). The dedupe index is an EXPRESSION index
+// (coalesce(build_id,'portfolio'), metric, captured_on) that PostgREST's
+// onConflict cannot target, so a plain .upsert() silently became an INSERT and
+// 23505'd on the second same-day write. Delete-then-insert keeps the
+// once-per-day semantics, including portfolio rows (build_id null).
+async function writeSnapshot(buildId: string | null, metric: string, value: number, meta?: Json): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  let del = supabase.from("metric_snapshots").delete().eq("metric", metric).eq("captured_on", today);
+  del = buildId === null ? del.is("build_id", null) : del.eq("build_id", buildId);
+  await del;
+  await supabase.from("metric_snapshots").insert({
     build_id: buildId,
     metric,
     value_num: value,
-    captured_on: new Date().toISOString().slice(0, 10),
+    captured_on: today,
+    ...(meta ? { meta } : {}),
   });
+}
+
+async function snapshotMetric(buildId: string | null, metric: string, value: number): Promise<string> {
+  await writeSnapshot(buildId, metric, value);
   return `Snapshot ${metric} = ${value}`;
 }
 
@@ -429,11 +435,131 @@ async function runPostmortem(ctx: Ctx): Promise<{ summary: string; cost: number 
   return { summary: `Postmortem on "${decision.title}" → ${lessons.length} lesson(s)`, cost };
 }
 
+// ── briefing (§13.1): synthesize recent state into a briefings row ────────
+// Deterministic rollup always works; Claude enriches the narrative when keyed.
+async function runBriefing(): Promise<{ summary: string; cost: number }> {
+  const today = new Date().toISOString().slice(0, 10);
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const [{ data: builds }, { data: openTix }, { data: rev }, { data: recentLog }] = await Promise.all([
+    supabase.from("builds").select("name, health_score").eq("is_active", true),
+    supabase.from("tickets").select("id").not("stage", "in", "(done,archived)"),
+    supabase.from("revenue_entries").select("mrr_cents"),
+    supabase.from("action_log").select("summary").gte("created_at", since).order("created_at", { ascending: false }).limit(20),
+  ]);
+  const mrr = (rev ?? []).reduce((s: number, r: Json) => s + ((r.mrr_cents as number) ?? 0), 0);
+  const openCount = (openTix ?? []).length;
+  const buildCount = (builds ?? []).length;
+  const recent = (recentLog ?? []).map((r: Json) => r.summary as string).filter(Boolean);
+
+  let headline = `${buildCount} build${buildCount === 1 ? "" : "s"} · ${openCount} open issue${openCount === 1 ? "" : "s"} · $${(mrr / 100).toFixed(0)} MRR`;
+  let body = [
+    `## Daily briefing — ${today}`,
+    `- Active builds: ${buildCount}`,
+    `- Open issues: ${openCount}`,
+    `- Portfolio MRR: $${(mrr / 100).toFixed(2)}`,
+    recent.length ? `\n### Last 24h\n${recent.slice(0, 10).map((s) => `- ${s}`).join("\n")}` : `\nNo logged activity in the last 24h.`,
+  ].join("\n");
+  let priorities: Json = recent.slice(0, 3);
+  let cost = 0;
+
+  const ai = await claudeJson(
+    "You are JARVIS, a direct co-founder. Return ONLY JSON {headline:string, body:string (markdown), priorities:string[]}. Answer-first, concise.",
+    `Synthesize an operational morning briefing.\nbuilds=${JSON.stringify(builds ?? [])}\nopen_issues=${openCount}\nmrr_cents=${mrr}\nrecent=${JSON.stringify(recent.slice(0, 12))}`,
+    false,
+  );
+  if (ai?.data && typeof ai.data === "object") {
+    const d = ai.data as Json;
+    if (typeof d.headline === "string") headline = d.headline;
+    if (typeof d.body === "string") body = d.body;
+    if (Array.isArray(d.priorities)) priorities = d.priorities as Json;
+    cost = ai.cost_cents;
+  }
+
+  await supabase.from("briefings").insert({
+    kind: "daily",
+    headline,
+    body,
+    priorities,
+    generated_for: today,
+    model: ai ? MODEL_DEFAULT : null,
+  });
+  return { summary: headline, cost };
+}
+
+// ── financial_modeler (§8.2): recompute burn/MRR/runway → metric_snapshots ──
+// Mirrors lib/metrics.monthlyBurnCents (annual recurring amortized ÷12) — the app
+// can't be imported here, so the math is duplicated and must stay in sync.
+async function runFinancialModeler(): Promise<{ summary: string; cost: number }> {
+  const nowMs = Date.now();
+  const DAY = 86_400_000;
+  const [{ data: expenses }, { data: rev }, { data: cashSnap }] = await Promise.all([
+    supabase.from("expenses").select("amount_cents, is_recurring, recurrence, spent_on"),
+    supabase.from("revenue_entries").select("mrr_cents"),
+    supabase.from("metric_snapshots").select("value_num").eq("metric", "cash").is("build_id", null).order("captured_on", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  let burn = 0;
+  for (const e of (expenses ?? []) as Json[]) {
+    const cents = (e.amount_cents as number) ?? 0;
+    if (e.is_recurring) burn += e.recurrence === "annual" ? Math.round(cents / 12) : cents;
+    else {
+      const t = new Date(e.spent_on as string).getTime();
+      if (Number.isFinite(t) && nowMs - t <= 30 * DAY && t <= nowMs) burn += cents;
+    }
+  }
+  const mrr = (rev ?? []).reduce((s: number, r: Json) => s + ((r.mrr_cents as number) ?? 0), 0);
+  const cash = cashSnap ? Number(cashSnap.value_num) : null;
+  const runway = cash === null ? null : burn <= 0 ? Infinity : cash / burn;
+
+  await snapshotMetric(null, "monthly_burn", burn);
+  await snapshotMetric(null, "mrr", mrr);
+  if (runway !== null && Number.isFinite(runway)) await snapshotMetric(null, "runway_months", Math.round(runway * 10) / 10);
+
+  // Low-runway alert, de-duped to once per 12h so repeated runs don't spam.
+  if (runway !== null && Number.isFinite(runway) && runway < 3) {
+    const { data: recentAlert } = await supabase
+      .from("events").select("id").eq("type", "cash.low_runway")
+      .gte("created_at", new Date(nowMs - 12 * 3600 * 1000).toISOString()).limit(1).maybeSingle();
+    if (!recentAlert) {
+      await supabase.from("events").insert({
+        type: "cash.low_runway",
+        actor: "agent:financial_modeler",
+        entity_type: "metric",
+        payload: { runway_months: runway, burn_cents: burn },
+      });
+    }
+  }
+  const runwayLabel = runway === null ? "bootstrapped" : !Number.isFinite(runway) ? "∞" : `${Math.round(runway * 10) / 10}mo`;
+  return { summary: `Burn $${(burn / 100).toFixed(0)}/mo · MRR $${(mrr / 100).toFixed(0)} · runway ${runwayLabel}`, cost: 0 };
+}
+
+// ── feedback_monitor (§13.1): triage open feedback, tag missing sentiment ──
+// Heuristic sentiment is deterministic and safe; it does NOT emit cascade events
+// (no duplicate ticket creation), it just makes the queue honest.
+async function runFeedbackMonitor(): Promise<{ summary: string; cost: number }> {
+  const { data: open } = await supabase
+    .from("feedback").select("id, kind, severity, sentiment").eq("status", "open");
+  const rows = (open ?? []) as Json[];
+  const sentimentFor = (kind: string): string =>
+    kind === "praise" ? "positive" : kind === "complaint" || kind === "bug" ? "negative" : "neutral";
+  let tagged = 0;
+  for (const f of rows) {
+    if (!f.sentiment) {
+      await supabase.from("feedback").update({ sentiment: sentimentFor((f.kind as string) ?? "") }).eq("id", f.id);
+      tagged++;
+    }
+  }
+  const critical = rows.filter((f) => f.severity === "critical").length;
+  return {
+    summary: `Triaged ${rows.length} open item(s); tagged ${tagged} sentiment; ${critical} critical need attention.`,
+    cost: 0,
+  };
+}
+
 // ── agent.dispatch (§7.2): wrap a run — agent_runs + status + events ──────
-// The fleet linchpin: a rule's agent.dispatch records the run and invokes the
-// worker. Analysts are implemented above; other agents acknowledge the dispatch
-// and degrade safely until their workers land. agent.* events match no rule, so
-// dispatch never loops.
+// The fleet linchpin: a rule's agent.dispatch (or the request_agent_run RPC)
+// records the run and invokes the worker. Implemented workers run for real;
+// unimplemented ones FAIL LOUD (error run + run_failed) rather than faking
+// success. agent.* events match no rule, so dispatch never loops.
 async function dispatchAgent(slug: string, input: Json, ctx: Ctx): Promise<{ status: string; summary: string }> {
   if (!slug) return { status: "skipped", summary: "agent.dispatch: no agent_slug" };
   const { data: agent } = await supabase.from("agents").select("*").eq("slug", slug).maybeSingle();
@@ -458,10 +584,29 @@ async function dispatchAgent(slug: string, input: Json, ctx: Ctx): Promise<{ sta
       payload: { slug },
     });
 
-    let result: { summary: string; cost: number };
+    let result: { summary: string; cost: number } | null = null;
     if (slug === "premortem_analyst") result = await runPremortem(ctx);
     else if (slug === "postmortem_analyst") result = await runPostmortem(ctx);
-    else result = { summary: `Agent '${slug}' acknowledged dispatch (worker not yet implemented; degrades safely).`, cost: 0 };
+    else if (slug === "briefing") result = await runBriefing();
+    else if (slug === "financial_modeler") result = await runFinancialModeler();
+    else if (slug === "feedback_monitor") result = await runFeedbackMonitor();
+
+    if (!result) {
+      // Fail loud (Rule 12 / §12): an unimplemented worker records an ERROR run
+      // and a run_failed event — never a silent success that fakes progress. The
+      // agent returns to 'idle' (not 'error') since it isn't broken, just absent.
+      if (runId) await supabase.from("agent_runs").update({ status: "error", error: "worker not yet implemented", finished_at: new Date().toISOString() }).eq("id", runId);
+      await supabase.from("agents").update({ status: "idle", current_task: null, last_run_at: new Date().toISOString(), last_result: "worker not yet implemented" }).eq("id", agent.id);
+      await supabase.from("events").insert({
+        type: "agent.run_failed",
+        build_id: ctx.event.build_id,
+        actor: `agent:${slug}`,
+        entity_type: "agent_run",
+        entity_id: runId,
+        payload: { slug, error: "not yet implemented" },
+      });
+      return { status: "skipped", summary: `Agent '${slug}' has no worker yet (not implemented).` };
+    }
 
     await supabase
       .from("agent_runs")
@@ -779,6 +924,28 @@ async function processEvent(eventId: string) {
   // would spawn a second approval).
   if (event.type === "approval.approved") {
     await processApprovalApproved(event as Json);
+    await supabase
+      .from("events")
+      .update({ processed: true, processed_at: new Date().toISOString() })
+      .eq("id", event.id);
+    return;
+  }
+
+  // Manual agent dispatch from the UI: the request_agent_run RPC emits this
+  // (clients can't insert events directly — RLS). This is the audited entry
+  // point, so it logs to action_log and never falls through to rule-matching.
+  if (event.type === "agent.dispatch_requested") {
+    const p = (event.payload ?? {}) as Json;
+    const ctx: Ctx = { event: event as Json, ruleId: null, params: p, approvalId: null };
+    const r = await dispatchAgent(String(p.agent_slug ?? ""), (p.input as Json) ?? {}, ctx);
+    await supabase.from("action_log").insert({
+      event_id: event.id,
+      action_type: "agent.dispatch",
+      status: r.status === "success" ? "success" : r.status === "failed" ? "failed" : "skipped",
+      actor: (event.actor as string) ?? "system",
+      build_id: event.build_id,
+      summary: r.summary,
+    });
     await supabase
       .from("events")
       .update({ processed: true, processed_at: new Date().toISOString() })

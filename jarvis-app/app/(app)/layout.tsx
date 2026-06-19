@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
 import { ToastProvider } from "@/components/Toast";
 import { CommandBar } from "@/components/CommandBar";
+import { LoginLogger } from "@/components/LoginLogger";
 
 // The real admin-only gate (spec §9): a signed-in user must have an active
 // `members` row. RLS would already hide all data from non-members, but we
@@ -45,6 +46,7 @@ export default async function AppLayout({
 
   return (
     <ToastProvider>
+      <LoginLogger />
       <div className="min-h-screen">
         <TopBar
           member={member}

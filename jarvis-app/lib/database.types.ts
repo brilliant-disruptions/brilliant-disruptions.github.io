@@ -659,6 +659,49 @@ export type Database = {
         }
         Relationships: []
       }
+      // ── Added by migration 0016 (regenerate after deploy) ──
+      repo_activity: {
+        Row: {
+          author: string | null
+          build_id: string
+          created_at: string
+          external_id: string
+          id: string
+          kind: string
+          occurred_at: string
+          ref: string | null
+          status: string | null
+          title: string
+          url: string | null
+        }
+        Insert: {
+          author?: string | null
+          build_id: string
+          created_at?: string
+          external_id: string
+          id?: string
+          kind: string
+          occurred_at?: string
+          ref?: string | null
+          status?: string | null
+          title: string
+          url?: string | null
+        }
+        Update: {
+          author?: string | null
+          build_id?: string
+          created_at?: string
+          external_id?: string
+          id?: string
+          kind?: string
+          occurred_at?: string
+          ref?: string | null
+          status?: string | null
+          title?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
       milestones: {
         Row: {
           build_id: string | null
@@ -972,6 +1015,23 @@ export type Database = {
         Args: { p_id: string; p_enabled: boolean }
         Returns: Database["public"]["Tables"]["rules"]["Row"]
       }
+      // ── Added by migration 0013 (regenerate after deploy) ──
+      set_connection_secret: {
+        Args: { p_provider: string; p_key_name: string; p_value: string }
+        Returns: undefined
+      }
+      delete_connection_secret: {
+        Args: { p_provider: string; p_key_name: string }
+        Returns: undefined
+      }
+      set_connection: {
+        Args: { p_provider: string; p_status: string | null; p_sync_frequency: string | null }
+        Returns: Database["public"]["Tables"]["connections"]["Row"]
+      }
+      // ── Added by migration 0015 (regenerate after deploy) ──
+      log_login: { Args: Record<string, never>; Returns: undefined }
+      // ── Added by migration 0017 (regenerate after deploy) ──
+      request_agent_run: { Args: { p_slug: string; p_input: Json }; Returns: undefined }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }

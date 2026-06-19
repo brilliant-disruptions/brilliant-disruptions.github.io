@@ -4,84 +4,79 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
+import { Badge } from "@/components/ui";
 import type { Tables } from "@/lib/database.types";
 
 const TYPES = ["bug", "feature", "perf", "security", "ux", "infra", "chore"];
 const PRIORITIES = ["critical", "high", "medium", "low"];
 
-export function NewIssueModal({
-  open,
-  onClose,
-  builds,
-  defaultBuild,
-}: {
-  open: boolean;
-  onClose: () => void;
-  builds: Tables<"builds">[];
-  defaultBuild: string; // build id | "all"
-}) {
+const PRIORITY_TONE: Record<string, "red" | "amber" | "cyan" | "muted"> = {
+  critical: "red",
+  high: "amber",
+  medium: "cyan",
+  low: "muted",
+};
+
+/** View + edit a ticket's description, type, priority, and blocker flag. Stage
+ *  is read-only here — it advances through the Kanban (advance_ticket RPC), which
+ *  is the audited action surface. Edits are direct updates (RLS allows members). */
+export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; onClose: () => void }) {
   const qc = useQueryClient();
-  const initialBuild = defaultBuild !== "all" ? defaultBuild : (builds[0]?.id ?? "");
-  const [buildId, setBuildId] = useState(initialBuild);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [type, setType] = useState("feature");
-  const [priority, setPriority] = useState("medium");
-  const [isBlocker, setIsBlocker] = useState(false);
+  const [description, setDescription] = useState(ticket.description ?? "");
+  const [type, setType] = useState(ticket.type ?? "feature");
+  const [priority, setPriority] = useState(ticket.priority ?? "medium");
+  const [isBlocker, setIsBlocker] = useState(ticket.is_blocker ?? false);
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  async function submit() {
-    if (!buildId) return setErr("Select a build.");
-    if (!title.trim()) return setErr("Title is required.");
+  async function save() {
     setSaving(true);
     setErr(null);
-    const { error } = await supabase.from("tickets").insert({
-      build_id: buildId,
-      title: title.trim(),
-      description: description.trim() || null,
-      type,
-      priority,
-      is_blocker: isBlocker,
-      stage: "backlog",
-      source: "manual",
-    });
+    const { error } = await supabase
+      .from("tickets")
+      .update({
+        description: description.trim() || null,
+        type,
+        priority,
+        is_blocker: isBlocker,
+      })
+      .eq("id", ticket.id);
     setSaving(false);
     if (error) return setErr(error.message);
     qc.invalidateQueries({ queryKey: ["tickets"] });
-    setTitle("");
-    setDescription("");
-    setIsBlocker(false);
     onClose();
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="New issue">
+    <Modal open onClose={onClose} title={ticket.title}>
       <div className="space-y-3">
-        <div>
-          <label className={labelClass}>Build</label>
-          <select className={inputClass} value={buildId} onChange={(e) => setBuildId(e.target.value)}>
-            <option value="">— select —</option>
-            {builds.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone={PRIORITY_TONE[priority] ?? "muted"}>{priority}</Badge>
+          <Badge tone="muted">{ticket.stage}</Badge>
+          {ticket.ref && <Badge tone="cyan">{ticket.ref}</Badge>}
+          {ticket.external_url && (
+            <a
+              href={ticket.external_url}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-[10px] text-[var(--cyan)] hover:underline"
+            >
+              GitHub ↗
+            </a>
+          )}
         </div>
+
         <div>
-          <label className={labelClass}>Title</label>
-          <input className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
-        </div>
-        <div>
-          <label className={labelClass}>Description (optional)</label>
+          <label className={labelClass}>Description</label>
           <textarea
-            className={inputClass + " min-h-[80px] resize-y"}
+            className={inputClass + " min-h-[120px] resize-y"}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Context, repro steps, acceptance criteria…"
+            autoFocus
           />
         </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>Type</label>
@@ -104,17 +99,19 @@ export function NewIssueModal({
             </select>
           </div>
         </div>
+
         <label className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
           <input type="checkbox" checked={isBlocker} onChange={(e) => setIsBlocker(e.target.checked)} />
           Launch blocker
         </label>
+
         {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <button className={ghostBtn} onClick={onClose}>
             Cancel
           </button>
-          <button className={primaryBtn} onClick={submit} disabled={saving}>
-            {saving ? "Creating…" : "Create issue"}
+          <button className={primaryBtn} onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </div>
