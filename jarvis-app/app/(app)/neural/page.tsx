@@ -55,26 +55,25 @@ export default function NeuralPage() {
     if (typeof window === "undefined" || !window.speechSynthesis) return null;
     const voices = window.speechSynthesis.getVoices();
     if (!voices.length) return null;
-    const PREFERRED = [
-      "Microsoft Ryan Online (Natural) - English (United Kingdom)",
-      "Google UK English Male",
-      "Microsoft George - English (United Kingdom)",
-      "Microsoft Ryan",
-      "Microsoft George",
-      "Arthur",
-      "Daniel",
-      "Oliver",
-    ];
-    for (const name of PREFERRED) {
-      const lc = name.toLowerCase();
-      const v =
-        voices.find((vo) => vo.name === name) ||
-        voices.find((vo) => vo.name.toLowerCase().includes(lc));
-      if (v) return v;
-    }
-    const enGB = voices.filter((v) => /en[-_]GB/i.test(v.lang));
-    const male = enGB.find((v) => /(male|daniel|george|ryan|arthur|oliver)/i.test(v.name));
-    return male || enGB[0] || voices.find((v) => /^en/i.test(v.lang)) || voices[0];
+    // Score voices toward the most human-sounding option a device exposes:
+    // neural / "Online (Natural)" voices read far more realistically than the
+    // older local ones. Prefer a British male neural voice, degrade gracefully.
+    const pool = voices.filter((v) => /^en/i.test(v.lang));
+    const candidates = pool.length ? pool : voices;
+    const score = (v: SpeechSynthesisVoice) => {
+      const n = v.name.toLowerCase();
+      let s = 0;
+      if (/natural|neural/.test(n)) s += 100; // neural engine = realistic
+      if (/online/.test(n)) s += 40; // online neural voices
+      if (!v.localService) s += 8; // remote voices are usually the neural ones
+      if (/en[-_]gb/i.test(v.lang)) s += 30; // British
+      else if (/^en/i.test(v.lang)) s += 10;
+      if (/(ryan|george|thomas|arthur|daniel|oliver|brian|guy)\b/.test(n) || /\bmale\b/.test(n)) s += 20;
+      if (/google uk english male/.test(n)) s += 25;
+      if (/google/.test(n)) s += 6;
+      return s;
+    };
+    return [...candidates].sort((a, b) => score(b) - score(a))[0] ?? voices[0];
   }, []);
 
   const stopBoundaryFallback = useCallback(() => {
@@ -116,8 +115,10 @@ export default function NeuralPage() {
       }
       synth.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.rate = 0.94;
-      u.pitch = 0.88;
+      // Light touch: neural voices sound most human near their natural pitch, so
+      // we only nudge slightly for a calm, measured delivery.
+      u.rate = 0.97;
+      u.pitch = 0.96;
       u.lang = "en-GB";
       if (!voiceRef.current) voiceRef.current = pickVoice();
       if (voiceRef.current) u.voice = voiceRef.current;
