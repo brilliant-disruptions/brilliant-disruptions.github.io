@@ -28,6 +28,8 @@ export default function NeuralPage() {
   const boundaryTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const speakingRef = useRef(false);
   const synthUnlockedRef = useRef(false);
+  const voiceRaf = useRef(0);
+  const voiceSpike = useRef(0);
 
   const [phase, setPhase] = useState<Phase>("engage");
   const [active, setActive] = useState(false);
@@ -43,6 +45,7 @@ export default function NeuralPage() {
     setWebglOk(ok);
     soundRef.current = new HudSound();
     return () => {
+      if (voiceRaf.current) cancelAnimationFrame(voiceRaf.current);
       scene.dispose();
       sceneRef.current = null;
       soundRef.current?.dispose();
@@ -91,22 +94,46 @@ export default function NeuralPage() {
       boundaryTimer.current = setInterval(() => {
         elapsed += perPulse;
         sceneRef.current?.pulse(2);
-        sceneRef.current?.setAmplitude(0.5 + Math.random() * 0.4);
+        voiceSpike.current = 0.55 + Math.random() * 0.3;
         if (elapsed >= est) stopBoundaryFallback();
       }, perPulse);
     },
     [stopBoundaryFallback],
   );
 
+  // While speaking, feed the brain a continuous voice envelope (a smooth shimmer
+  // plus a punch on every word) so the whole neuron cluster ripples like it's
+  // the one talking. The browser won't expose the real TTS waveform, so this is
+  // a believable synthesized envelope synced to the speech timing.
+  const startVoiceEnvelope = useCallback(() => {
+    if (voiceRaf.current) return;
+    const loop = () => {
+      voiceRaf.current = requestAnimationFrame(loop);
+      voiceSpike.current *= 0.86; // per-word punches decay
+      const t = performance.now() / 1000;
+      const shimmer = 0.3 + 0.16 * Math.sin(t * 11) + 0.1 * Math.sin(t * 17.3 + 1);
+      sceneRef.current?.setVoiceLevel(Math.min(1, shimmer * 0.55 + voiceSpike.current));
+    };
+    loop();
+  }, []);
+  const stopVoiceEnvelope = useCallback(() => {
+    if (voiceRaf.current) cancelAnimationFrame(voiceRaf.current);
+    voiceRaf.current = 0;
+    voiceSpike.current = 0;
+    sceneRef.current?.setVoiceLevel(0);
+  }, []);
+
   const speak = useCallback(
     (text: string) => {
       speakingRef.current = true;
       setSpeaking(true);
+      startVoiceEnvelope();
       const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
       const done = () => {
         speakingRef.current = false;
         setSpeaking(false);
         stopBoundaryFallback();
+        stopVoiceEnvelope();
       };
       if (!synth || typeof SpeechSynthesisUtterance === "undefined") {
         startBoundaryFallback(text);
@@ -132,13 +159,13 @@ export default function NeuralPage() {
       u.onboundary = () => {
         gotBoundary = true;
         sceneRef.current?.pulse(2);
-        sceneRef.current?.setAmplitude(0.6 + Math.random() * 0.4);
+        voiceSpike.current = 0.65 + Math.random() * 0.35;
       };
       u.onend = done;
       u.onerror = done;
       synth.speak(u);
     },
-    [pickVoice, startBoundaryFallback, stopBoundaryFallback],
+    [pickVoice, startBoundaryFallback, stopBoundaryFallback, startVoiceEnvelope, stopVoiceEnvelope],
   );
 
   useEffect(() => {

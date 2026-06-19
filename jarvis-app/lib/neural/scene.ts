@@ -79,6 +79,8 @@ export class NeuralScene {
   private tintCurrent: [number, number, number] = [...TINTS.cyan];
   private tintAmount = 0.25;
   private ampBump = 0;
+  private voiceLevel = 0;
+  private voiceTarget = 0;
   private seedAccumulator = 0;
   private mouse = { x: 0, y: 0 };
   private supported = true;
@@ -289,6 +291,7 @@ export class NeuralScene {
         uGlobalActivity: { value: this.liveActivity },
         uTint: { value: new THREE.Color(...this.tintCurrent) },
         uTintAmount: { value: this.tintAmount },
+        uVoice: { value: 0 },
       },
       vertexShader: `
         attribute float size;
@@ -298,13 +301,19 @@ export class NeuralScene {
         varying float vGlow;
         uniform float uTime;
         uniform float uGlobalActivity;
+        uniform float uVoice;
         void main() {
           vColor = color;
-          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          // Voice ripple: while JARVIS speaks, the whole cluster breathes outward
+          // and each neuron shimmers, so the brain looks like it is vocalizing.
+          float hash = sin(position.x * 12.9 + position.y * 7.3 + position.z * 3.1);
+          float ripple = 1.0 + uVoice * (0.08 + 0.07 * sin(uTime * 9.0 + hash * 6.2832));
+          vec3 vpos = position * ripple;
+          vec4 mvPosition = modelViewMatrix * vec4(vpos, 1.0);
           float idle = sin(uTime * 1.5 + position.x * 3.7 + position.y * 2.1) * 0.3 + 0.7;
           float fire = aActivation;
-          vGlow = idle * 0.5 + fire + uGlobalActivity * 0.4;
-          float boost = 1.0 + fire * 2.2 + uGlobalActivity * 0.6;
+          vGlow = idle * 0.5 + fire + uGlobalActivity * 0.4 + uVoice * 0.5;
+          float boost = 1.0 + fire * 2.2 + uGlobalActivity * 0.6 + uVoice * 1.1;
           gl_PointSize = size * boost * (300.0 / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
         }
@@ -483,8 +492,10 @@ export class NeuralScene {
       this.tintCurrent[2] = lerp(this.tintCurrent[2], tt[2], delta * 2);
     }
 
+    this.voiceLevel = lerp(this.voiceLevel, this.voiceTarget, delta * 14);
     this.nodeMat.uniforms.uTime.value = elapsed;
     this.nodeMat.uniforms.uGlobalActivity.value = this.liveActivity;
+    this.nodeMat.uniforms.uVoice.value = this.voiceLevel;
     this.nodeMat.uniforms.uTintAmount.value = this.tintAmount;
     (this.nodeMat.uniforms.uTint.value as THREE.Color).setRGB(
       this.tintCurrent[0],
@@ -567,6 +578,11 @@ export class NeuralScene {
 
   setAmplitude(level: number) {
     this.ampBump = Math.max(0, Math.min(1, level || 0));
+  }
+
+  /** Drive the brain's voice ripple (0..1). Page feeds a speech envelope here. */
+  setVoiceLevel(level: number) {
+    this.voiceTarget = Math.max(0, Math.min(1, level || 0));
   }
 
   private onResize() {
