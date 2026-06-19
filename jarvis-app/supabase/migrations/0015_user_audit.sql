@@ -37,9 +37,23 @@ begin
   v_actor := 'human:' || coalesce(v_handle, 'unknown');
 
   if TG_TABLE_NAME = 'builds' then
-    v_build := NEW.id;
-    v_action := 'build.created';
-    v_summary := format('Created build "%s"', NEW.name);
+    if TG_OP = 'DELETE' then
+      -- build_id must stay NULL here: action_log.build_id FKs builds(id), and the
+      -- build row is already gone in an AFTER DELETE trigger, so referencing
+      -- OLD.id would FK-violate and abort the delete. The name lives in the
+      -- summary + after_state instead.
+      v_build := null;
+      v_action := 'build.deleted';
+      v_summary := format('Deleted build "%s"', OLD.name);
+    elsif TG_OP = 'UPDATE' then
+      v_build := NEW.id;
+      v_action := 'build.edited';
+      v_summary := format('Edited build "%s"', NEW.name);
+    else
+      v_build := NEW.id;
+      v_action := 'build.created';
+      v_summary := format('Created build "%s"', NEW.name);
+    end if;
   elsif TG_TABLE_NAME = 'tickets' then
     v_build := NEW.build_id;
     if TG_OP = 'INSERT' then
@@ -65,13 +79,13 @@ begin
     v_action := 'prospect.added';
     v_summary := format('Added prospect: %s', NEW.company);
   else
-    return NEW;
+    return coalesce(NEW, OLD);
   end if;
 
   insert into public.action_log (action_type, status, actor, build_id, summary, after_state)
-  values (v_action, 'success', v_actor, v_build, v_summary, to_jsonb(NEW));
+  values (v_action, 'success', v_actor, v_build, v_summary, coalesce(to_jsonb(NEW), to_jsonb(OLD)));
 
-  return NEW;
+  return coalesce(NEW, OLD);
 end;
 $$;
 
@@ -79,6 +93,11 @@ $$;
 -- trigger is the only logger — no duplication risk.
 create trigger log_build_insert    after insert on public.builds    for each row execute function public.log_user_action();
 create trigger log_ticket_insert   after insert on public.tickets   for each row execute function public.log_user_action();
+
+-- Build edits + deletes are significant and worth auditing. The auth.uid() guard
+-- excludes service-role writes (e.g. health_score recompute) automatically.
+create trigger log_build_update    after update on public.builds    for each row execute function public.log_user_action();
+create trigger log_build_delete    after delete on public.builds    for each row execute function public.log_user_action();
 create trigger log_expense_insert  after insert on public.expenses  for each row execute function public.log_user_action();
 create trigger log_feedback_insert after insert on public.feedback  for each row execute function public.log_user_action();
 create trigger log_prospect_insert after insert on public.prospects for each row execute function public.log_user_action();

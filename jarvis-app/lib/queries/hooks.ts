@@ -321,6 +321,30 @@ export function useRepoActivity(limit = 60) {
   });
 }
 
+export type GithubRepo = {
+  full_name: string;
+  description: string | null;
+  private: boolean;
+  language: string | null;
+  pushed_at: string | null;
+};
+
+/** The org's real GitHub repos (via the connected token) for linking/importing
+ *  builds. Lazy: only fetched when `enabled` (a picker is open), and cached so a
+ *  re-open doesn't re-hit GitHub. Returns [] when GitHub isn't connected. */
+export function useGithubRepos(enabled: boolean) {
+  return useQuery({
+    queryKey: ["github_repos"],
+    enabled,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("github", { body: { list_repos: true } });
+      if (error) throw error;
+      return (data?.repos ?? []) as GithubRepo[];
+    },
+  });
+}
+
 export function useRules() {
   const key = ["rules"];
   useRealtime("rules", key);
