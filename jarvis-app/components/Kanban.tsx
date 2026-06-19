@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/queries/hooks";
 import { useToast } from "@/components/Toast";
 import { Badge, Tag } from "@/components/ui";
+import { TicketDrawer } from "@/components/TicketDrawer";
 import type { Tables } from "@/lib/database.types";
 
 type Ticket = Tables<"tickets">;
@@ -28,6 +29,7 @@ export function Kanban({ tickets }: { tickets: Ticket[] }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [acting, setActing] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Ticket | null>(null);
   const watchRef = useRef<Set<string>>(new Set());
 
   // Subscribe to action_log so the cascade trail surfaces as toasts after a drag.
@@ -91,6 +93,7 @@ export function Kanban({ tickets }: { tickets: Ticket[] }) {
   }
 
   return (
+    <>
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {COLUMNS.map((col) => {
         const items = tickets.filter((t) => t.stage === col.key);
@@ -116,7 +119,8 @@ export function Kanban({ tickets }: { tickets: Ticket[] }) {
                 key={t.id}
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData("text/plain", t.id)}
-                className="group cursor-grab rounded-lg border border-[var(--glass-border-2)] bg-[var(--elevated)] p-2.5 active:cursor-grabbing"
+                onClick={() => setSelected(t)}
+                className="group cursor-pointer rounded-lg border border-[var(--glass-border-2)] bg-[var(--elevated)] p-2.5 hover:border-[var(--cyan)]/50 active:cursor-grabbing"
               >
                 <div className="flex items-center gap-2">
                   <Badge tone={PRIORITY_TONE[t.priority] ?? "muted"}>{t.priority}</Badge>
@@ -133,6 +137,7 @@ export function Kanban({ tickets }: { tickets: Ticket[] }) {
                   <select
                     aria-label={`Move ${t.title} to another stage`}
                     value={t.stage}
+                    onClick={(e) => e.stopPropagation()}
                     onChange={(e) => move(t, e.target.value)}
                     className="ml-auto rounded border border-[var(--glass-border-2)] bg-[var(--void-2)] px-1 py-0.5 font-mono text-[10px] text-[var(--muted-hi)]"
                   >
@@ -149,5 +154,7 @@ export function Kanban({ tickets }: { tickets: Ticket[] }) {
         );
       })}
     </div>
+    {selected && <TicketDrawer ticket={selected} onClose={() => setSelected(null)} />}
+    </>
   );
 }

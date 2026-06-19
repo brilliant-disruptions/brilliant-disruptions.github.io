@@ -31,6 +31,24 @@ describe("monthlyBurnCents — recurring + recent one-off, so burn reflects this
     const burn = monthlyBurnCents([{ amount_cents: 5000, is_recurring: false, spent_on: "2026-12-01" }], ASOF);
     expect(burn).toBe(0);
   });
+
+  it("amortizes annual recurring to its monthly cost (÷12), so one yearly bill doesn't read as 12× the burn", () => {
+    // A $1,200/yr tool is $100/mo of burn; a $300/mo tool is $300/mo. Treating
+    // the annual line as $1,200/mo would overstate monthly runway pressure 12×.
+    const burn = monthlyBurnCents(
+      [
+        { amount_cents: 120000, is_recurring: true, recurrence: "annual", spent_on: "2026-01-01" },
+        { amount_cents: 30000, is_recurring: true, recurrence: "monthly", spent_on: "2026-06-01" },
+      ],
+      ASOF,
+    );
+    expect(burn).toBe(10000 + 30000);
+  });
+
+  it("treats unset recurrence as monthly (historical default — no silent reduction)", () => {
+    const burn = monthlyBurnCents([{ amount_cents: 5000, is_recurring: true, spent_on: "2025-01-01" }], ASOF);
+    expect(burn).toBe(5000);
+  });
 });
 
 describe("runwayMonths — bootstrapped vs real cash, so the UI tells the truth", () => {

@@ -25,6 +25,7 @@ const PROVIDER_KEYS: Record<string, { name: string; label: string }[]> = {
     { name: "GOOGLE_OAUTH_CLIENT_SECRET", label: "OAuth client secret" },
     { name: "GOOGLE_OAUTH_REFRESH_TOKEN", label: "OAuth refresh token" },
   ],
+  maps: [{ name: "GOOGLE_MAPS_API_KEY", label: "API key" }],
   anthropic: [{ name: "ANTHROPIC_API_KEY", label: "API key" }],
   slack: [{ name: "SLACK_WEBHOOK_URL", label: "Incoming webhook URL" }],
   expo: [{ name: "EXPO_TOKEN", label: "Access token" }],

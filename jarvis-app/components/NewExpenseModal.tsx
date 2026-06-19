@@ -35,6 +35,7 @@ export function NewExpenseModal({
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("software_tools");
   const [recurring, setRecurring] = useState(false);
+  const [cadence, setCadence] = useState<"monthly" | "annual">("monthly");
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -50,7 +51,7 @@ export function NewExpenseModal({
       amount_cents: cents,
       category,
       is_recurring: recurring,
-      recurrence: recurring ? "monthly" : null,
+      recurrence: recurring ? cadence : null,
       source: "manual",
     });
     setSaving(false);
@@ -101,10 +102,23 @@ export function NewExpenseModal({
             ))}
           </select>
         </div>
-        <label className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
-          <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
-          Recurring (monthly)
-        </label>
+        <div className="flex items-center justify-between gap-3">
+          <label className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
+            <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
+            Recurring
+          </label>
+          {recurring && (
+            <select
+              className={inputClass + " mt-0 w-32"}
+              value={cadence}
+              onChange={(e) => setCadence(e.target.value as "monthly" | "annual")}
+              aria-label="Recurrence cadence"
+            >
+              <option value="monthly">monthly</option>
+              <option value="annual">annual</option>
+            </select>
+          )}
+        </div>
         {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <button className={ghostBtn} onClick={onClose}>

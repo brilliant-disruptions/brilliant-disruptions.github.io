@@ -9,6 +9,8 @@ import {
   useAgents,
   useActionLog,
   useMilestones,
+  useRepoActivity,
+  useConnections,
 } from "@/lib/queries/hooks";
 import { Card, MetricCard, SectionTitle, HealthRing, Badge, EmptyState } from "@/components/ui";
 import { NewBuildModal } from "@/components/NewBuildModal";
@@ -24,8 +26,22 @@ export default function OverviewPage() {
   const expenses = useExpenses();
   const agents = useAgents();
   const milestones = useMilestones();
+  const repoActivity = useRepoActivity();
+  const connections = useConnections();
   const log = useActionLog(25);
   const [addOpen, setAddOpen] = useState(false);
+
+  const githubConnected =
+    (connections.data ?? []).find((c) => c.provider === "github")?.status === "connected";
+
+  // Recent commits/PRs grouped by build (the GitHub adapter populates this).
+  const activityByBuild = (repoActivity.data ?? []).reduce<Record<string, typeof repoActivity.data>>(
+    (acc, a) => {
+      (acc[a.build_id] ??= []).push(a);
+      return acc;
+    },
+    {},
+  );
 
   // Per-build milestone progress (the chosen "progress" metric). Company-wide
   // milestones (build_id null) belong to no single build, so they're excluded.
@@ -82,7 +98,13 @@ export default function OverviewPage() {
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {builds.data?.map((b) => (
-              <BuildMatrixCard key={b.id} build={b} milestones={milestonesByBuild[b.id] ?? []} />
+              <BuildMatrixCard
+                key={b.id}
+                build={b}
+                milestones={milestonesByBuild[b.id] ?? []}
+                activity={activityByBuild[b.id] ?? []}
+                githubConnected={githubConnected}
+              />
             ))}
           </div>
         </section>
@@ -127,15 +149,20 @@ export default function OverviewPage() {
 function BuildMatrixCard({
   build: b,
   milestones,
+  activity,
+  githubConnected,
 }: {
   build: Tables<"builds">;
   milestones: Tables<"milestones">[];
+  activity: Tables<"repo_activity">[];
+  githubConnected: boolean;
 }) {
   const total = milestones.length;
   const done = milestones.filter((m) => m.status === "done").length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   // Next = first not-done milestone in sort order (the data arrives sorted).
   const next = milestones.find((m) => m.status !== "done" && m.status !== "missed");
+  const recent = activity.slice(0, 4);
 
   return (
     <Card className="flex flex-col gap-3">
@@ -188,6 +215,46 @@ function BuildMatrixCard({
           <p className="font-mono text-[10px] text-[var(--success)]">all milestones complete</p>
         ) : (
           <p className="font-mono text-[10px] text-[var(--muted)]">add milestones to track progress</p>
+        )}
+      </div>
+
+      {/* Recent GitHub changes (commits/PRs) — dark until GitHub is connected */}
+      <div className="space-y-1 border-t border-[var(--glass-border)] pt-2">
+        <span className="font-mono text-[10px] uppercase tracking-wide text-[var(--muted-hi)]">
+          Recent changes
+        </span>
+        {recent.length > 0 ? (
+          <ul className="space-y-0.5">
+            {recent.map((a) => (
+              <li key={a.id} className="flex items-center gap-1.5">
+                <span className="font-mono text-[9px] text-[var(--muted)]">
+                  {a.kind === "pull_request" ? "PR" : "·"}
+                </span>
+                {a.url ? (
+                  <a
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="truncate text-[11px] text-[var(--muted-hi)] hover:text-[var(--cyan)]"
+                  >
+                    {a.ref ? `${a.ref} ` : ""}
+                    {a.title}
+                  </a>
+                ) : (
+                  <span className="truncate text-[11px] text-[var(--muted-hi)]">{a.title}</span>
+                )}
+                <span className="ml-auto shrink-0 font-mono text-[9px] text-[var(--muted)]">
+                  {timeAgo(a.occurred_at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : !b.github_repo ? (
+          <p className="font-mono text-[10px] text-[var(--muted)]">no repo linked</p>
+        ) : githubConnected ? (
+          <p className="font-mono text-[10px] text-[var(--muted)]">no recent commits or PRs</p>
+        ) : (
+          <p className="font-mono text-[10px] text-[var(--muted)]">connect GitHub to see commits &amp; PRs</p>
         )}
       </div>
     </Card>
