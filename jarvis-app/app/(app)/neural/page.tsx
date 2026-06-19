@@ -250,7 +250,7 @@ export default function NeuralPage() {
       {phase === "live" && (
         <>
           <HudRings active={active} />
-          <HudPanels speaking={speaking} active={active} />
+          <HudPanels speaking={speaking} />
 
           <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-5 sm:p-10">
             <header className="flex items-center justify-between">
