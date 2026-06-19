@@ -50,11 +50,30 @@ export function ConnectionModal({
   const qc = useQueryClient();
   const toast = useToast();
   const fields = PROVIDER_KEYS[connection.provider] ?? [];
-  const hints = ((connection.config as { secrets?: SecretHints } | null)?.secrets ?? {}) as SecretHints;
+  const config = (connection.config ?? {}) as Record<string, unknown>;
+  const hints = ((config as { secrets?: SecretHints }).secrets ?? {}) as SecretHints;
 
   const [values, setValues] = useState<Record<string, string>>({});
   const [freq, setFreq] = useState(connection.sync_frequency ?? "");
+  const [appsRepo, setAppsRepo] = useState((config.apps_repo as string) ?? "");
   const [busy, setBusy] = useState<string | null>(null);
+
+  // The monorepo whose top-level folders each surface as a build. Non-secret, so
+  // it's written straight to connections.config (members have RLS write) rather
+  // than the Vault path the secret keys use.
+  async function saveAppsRepo() {
+    const repo = appsRepo.trim();
+    if (repo === ((config.apps_repo as string) ?? "")) return;
+    setBusy("apps_repo");
+    const { error } = await supabase
+      .from("connections")
+      .update({ config: { ...config, apps_repo: repo || null } })
+      .eq("provider", connection.provider);
+    setBusy(null);
+    if (error) return toast.push(error.message, "error");
+    qc.invalidateQueries({ queryKey: ["connections"] });
+    toast.push(repo ? "Apps repo saved" : "Apps repo cleared", "success");
+  }
 
   async function saveKey(keyName: string) {
     const value = (values[keyName] ?? "").trim();
@@ -148,6 +167,31 @@ export function ConnectionModal({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {connection.provider === "github" && (
+          <div>
+            <label className={labelClass}>Apps repo (monorepo)</label>
+            <div className="mt-1 flex gap-2">
+              <input
+                className={inputClass + " mt-0"}
+                autoComplete="off"
+                placeholder="owner/repo"
+                value={appsRepo}
+                onChange={(e) => setAppsRepo(e.target.value)}
+              />
+              <button
+                className={primaryBtn + " shrink-0"}
+                disabled={busy === "apps_repo" || appsRepo.trim() === ((config.apps_repo as string) ?? "")}
+                onClick={saveAppsRepo}
+              >
+                Save
+              </button>
+            </div>
+            <p className="mt-1 text-[10px] text-[var(--muted)]">
+              Each top-level folder in this repo surfaces as a build, and folder renames sync in.
+            </p>
           </div>
         )}
 

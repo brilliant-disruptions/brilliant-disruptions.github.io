@@ -15,6 +15,7 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { getSecret } from "../_shared/secrets.ts";
+import { detectFolderRenames, planReconcile, type ExistingBuild, type GhFile } from "./monorepo.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -68,12 +69,15 @@ async function emit(event: Json): Promise<void> {
   await supabase.from("events").insert(event);
 }
 
-// Resolve the JARVIS build that owns a repo ("owner/repo"). Null if untracked.
+// Resolve the JARVIS build that owns a WHOLE repo ("owner/repo"). Null if
+// untracked. github_path IS NULL excludes monorepo folder-builds: many share one
+// github_repo, so without this guard .maybeSingle() would error on the apps repo.
 async function buildForRepo(fullName: string): Promise<{ id: string } | null> {
   const { data } = await supabase
     .from("builds")
     .select("id")
     .eq("github_repo", fullName)
+    .is("github_path", null)
     .eq("is_active", true)
     .maybeSingle();
   return data ?? null;
@@ -280,19 +284,193 @@ async function handleWebhook(ghEvent: string, body: Json): Promise<Json> {
   }
 }
 
+// ── monorepo discovery: surface each top-level folder of the apps repo as a
+//    build, and follow folder renames (§12.1 "build discovery") ──────────────
+// Folder color cycle — mirrors lib/format BUILD_PALETTE (can't import client lib
+// into the Deno runtime, so it's duplicated here).
+const FOLDER_PALETTE = ["#00e5ff", "#7c3aed", "#00ff88", "#ff006e", "#06b6d4", "#fbbf24"];
+
+function slugify(name: string): string {
+  return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+// A folder name may slugify into one that's already taken; append -2, -3, …
+function uniqueSlug(base: string, taken: Set<string>): string {
+  let slug = slugify(base) || "build";
+  let n = 2;
+  while (taken.has(slug)) slug = `${slugify(base) || "build"}-${n++}`;
+  taken.add(slug);
+  return slug;
+}
+
+type MonorepoResult = { created: number; renamed: number; archived: number; restored: number; warn: string | null };
+
+async function runMonorepoSync(): Promise<MonorepoResult> {
+  const result: MonorepoResult = { created: 0, renamed: 0, archived: 0, restored: 0, warn: null };
+
+  const { data: conn } = await supabase
+    .from("connections")
+    .select("config")
+    .eq("provider", "github")
+    .maybeSingle();
+  const config = (conn?.config ?? {}) as Json;
+  const appsRepo = config.apps_repo as string | undefined;
+  if (!appsRepo) return result; // no apps repo configured → nothing to discover
+
+  const lastSha = (config.apps_repo_synced_sha as string | undefined) ?? null;
+
+  // Current top-level folders + HEAD sha of the default branch.
+  const head = (await gh(`/repos/${appsRepo}/commits?per_page=1`)) as Json[];
+  const headSha = (head[0]?.sha as string) ?? null;
+  const contents = (await gh(`/repos/${appsRepo}/contents`)) as Json[];
+  const currentFolders = contents.filter((c) => c.type === "dir").map((c) => c.name as string);
+
+  // Folder renames since the last sync (force-push/missing-base 404s → skip,
+  // discovery still reconciles by folder set; renames just aren't followed).
+  let folderRenames = new Map<string, string>();
+  if (lastSha && headSha && lastSha !== headSha) {
+    try {
+      const cmp = (await gh(`/repos/${appsRepo}/compare/${lastSha}...${headSha}`)) as Json;
+      folderRenames = detectFolderRenames(((cmp.files as GhFile[]) ?? []));
+    } catch (e) {
+      result.warn = `compare ${appsRepo} ${lastSha}..${headSha}: ${String(e)}`;
+    }
+  }
+
+  const { data: existing } = await supabase
+    .from("builds")
+    .select("id, github_path, name, is_active")
+    .eq("github_repo", appsRepo)
+    .not("github_path", "is", null);
+  const builds = (existing ?? []) as ExistingBuild[];
+
+  const plan = planReconcile(currentFolders, builds, folderRenames);
+
+  // Slugs already in use (any build) so new/renamed folder slugs stay unique.
+  const { data: slugRows } = await supabase.from("builds").select("slug");
+  const taken = new Set((slugRows ?? []).map((r) => r.slug as string));
+
+  // Renames: keep the same build id (tickets/expenses intact); follow the folder
+  // name only when it was never customized in Jarvis (renameName).
+  for (const r of plan.renames) {
+    const patch: Json = { github_path: r.to };
+    if (r.renameName) {
+      patch.name = r.to;
+      patch.slug = uniqueSlug(r.to, taken);
+    }
+    await supabase.from("builds").update(patch).eq("id", r.id);
+    await emit({
+      type: "build.renamed",
+      build_id: r.id,
+      actor: "sync:github",
+      entity_type: "build",
+      entity_id: r.id,
+      payload: { from: r.from, to: r.to, repo: appsRepo },
+    });
+    result.renamed++;
+  }
+
+  // Resurrect soft-deleted builds whose folder came back.
+  for (const r of plan.resurrects) {
+    await supabase.from("builds").update({ is_active: true }).eq("id", r.id);
+    await emit({
+      type: "build.restored",
+      build_id: r.id,
+      actor: "sync:github",
+      entity_type: "build",
+      entity_id: r.id,
+      payload: { path: r.path, repo: appsRepo },
+    });
+    result.restored++;
+  }
+
+  // New folders → new builds. sort_order continues after the current count.
+  const { count: buildCount } = await supabase
+    .from("builds")
+    .select("id", { count: "exact", head: true });
+  let order = buildCount ?? 0;
+  for (const folder of plan.creates) {
+    const { data: inserted } = await supabase
+      .from("builds")
+      .insert({
+        name: folder,
+        slug: uniqueSlug(folder, taken),
+        github_repo: appsRepo,
+        github_path: folder,
+        color: FOLDER_PALETTE[order % FOLDER_PALETTE.length],
+        sort_order: order++,
+      })
+      .select("id")
+      .single();
+    if (inserted) {
+      await emit({
+        type: "build.created",
+        build_id: inserted.id,
+        actor: "sync:github",
+        entity_type: "build",
+        entity_id: inserted.id,
+        payload: { path: folder, repo: appsRepo },
+      });
+      result.created++;
+    }
+  }
+
+  // Vanished folders → soft-delete (never hard-delete: could be a transient API
+  // blip, and tickets/expenses must survive a folder briefly disappearing).
+  for (const a of plan.archives) {
+    await supabase.from("builds").update({ is_active: false }).eq("id", a.id);
+    await emit({
+      type: "build.archived",
+      build_id: a.id,
+      actor: "sync:github",
+      entity_type: "build",
+      entity_id: a.id,
+      payload: { path: a.path, repo: appsRepo, reason: "folder removed upstream" },
+    });
+    result.archived++;
+  }
+
+  // Advance the cursor so the next run's compare starts from here. Merge, don't
+  // clobber, the rest of config (secret hints live there too).
+  if (headSha && headSha !== lastSha) {
+    await supabase
+      .from("connections")
+      .update({ config: { ...config, apps_repo_synced_sha: headSha } })
+      .eq("provider", "github");
+  }
+
+  return result;
+}
+
 // ── sync: reconcile open issues per tracked repo (§12.1) ──────────
 async function runSync(): Promise<Json> {
+  // Whole-repo builds only (github_path IS NULL). Folder-builds share one repo
+  // and are reconciled separately by runMonorepoSync — syncing them here would
+  // fetch the apps repo N times and duplicate every issue across all folders.
   const { data: builds } = await supabase
     .from("builds")
     .select("id, github_repo")
     .eq("is_active", true)
+    .is("github_path", null)
     .not("github_repo", "is", null);
 
   let synced = 0;
   let status = "ok";
   let error: string | null = null;
   let activityWarn: string | null = null; // non-fatal backfill failure (degrades to 'partial')
+  let monorepo: MonorepoResult | null = null;
   try {
+    // Discover/reconcile monorepo folder-builds first (best-effort: a failure
+    // here must not abort whole-repo issue sync, so it's caught and degraded).
+    try {
+      monorepo = await runMonorepoSync();
+      synced += monorepo.created + monorepo.renamed + monorepo.archived + monorepo.restored;
+      if (monorepo.warn) activityWarn = monorepo.warn;
+    } catch (e) {
+      activityWarn = `monorepo discovery: ${String(e)}`;
+      console.error("monorepo discovery failed:", String(e));
+    }
+
     for (const b of builds ?? []) {
       // Pull recently-updated issues (open + closed) to catch missed webhooks.
       const issues = (await gh(`/repos/${b.github_repo}/issues?state=all&sort=updated&per_page=50`)) as Json[];
@@ -348,8 +526,12 @@ async function runSync(): Promise<Json> {
     await emit({ type: "sync.failed", actor: "webhook:github", payload: { provider: "github", error } });
     return { synced, status, error };
   }
-  await emit({ type: "sync.completed", actor: "webhook:github", payload: { provider: "github", changes: synced } });
-  return { synced, status };
+  await emit({
+    type: "sync.completed",
+    actor: "webhook:github",
+    payload: { provider: "github", changes: synced, monorepo },
+  });
+  return { synced, status, monorepo };
 }
 
 function corsHeaders() {
