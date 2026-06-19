@@ -352,7 +352,44 @@ async function runSync(): Promise<Json> {
   return { synced, status };
 }
 
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
+
+// Verify the caller is an active member (for the UI repo picker). This endpoint
+// returns repo names from a private org, so it must not be open like the webhook.
+async function verifyMember(req: Request): Promise<boolean> {
+  const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+  if (!token) return false;
+  const { data } = await supabase.auth.getUser(token);
+  const uid = data?.user?.id;
+  if (!uid) return false;
+  const { data: m } = await supabase.from("members").select("is_active").eq("id", uid).maybeSingle();
+  return Boolean(m?.is_active);
+}
+
+// List repos the configured token can see, trimmed to what the UI needs.
+async function listRepos(): Promise<Json[]> {
+  const token = await getSecret("GITHUB_TOKEN");
+  if (!token) return []; // not connected → empty list (UI shows a connect hint)
+  const repos = (await gh(
+    "/user/repos?per_page=100&sort=pushed&affiliation=owner,organization_member",
+  )) as Json[];
+  return repos.map((r) => ({
+    full_name: r.full_name,
+    description: r.description ?? null,
+    private: r.private ?? false,
+    language: r.language ?? null,
+    pushed_at: r.pushed_at ?? null,
+  }));
+}
+
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders() });
   try {
     const url = new URL(req.url);
 
@@ -362,8 +399,23 @@ Deno.serve(async (req) => {
       return Response.json(await runSync());
     }
 
-    // Webhook path: verify HMAC over the raw body.
     const raw = await req.text();
+
+    // UI repo picker: POST { list_repos: true } from an authenticated member.
+    let parsed: Json = {};
+    try {
+      parsed = raw ? (JSON.parse(raw) as Json) : {};
+    } catch {
+      /* not JSON → fall through to the webhook (HMAC) path */
+    }
+    if (parsed.list_repos === true) {
+      if (!(await verifyMember(req))) {
+        return Response.json({ error: "unauthorized" }, { status: 401, headers: corsHeaders() });
+      }
+      return Response.json({ repos: await listRepos() }, { headers: corsHeaders() });
+    }
+
+    // Webhook path: verify HMAC over the raw body.
     const ok = await verifySignature(raw, req.headers.get("x-hub-signature-256"));
     if (!ok) return Response.json({ error: "invalid signature" }, { status: 401 });
 
@@ -371,6 +423,6 @@ Deno.serve(async (req) => {
     const body = raw ? (JSON.parse(raw) as Json) : {};
     return Response.json(await handleWebhook(ghEvent, body));
   } catch (err) {
-    return Response.json({ error: String(err) }, { status: 500 });
+    return Response.json({ error: String(err) }, { status: 500, headers: corsHeaders() });
   }
 });

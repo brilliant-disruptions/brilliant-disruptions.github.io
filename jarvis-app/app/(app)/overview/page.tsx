@@ -14,9 +14,11 @@ import {
 } from "@/lib/queries/hooks";
 import { Card, MetricCard, SectionTitle, HealthRing, Badge, EmptyState } from "@/components/ui";
 import { NewBuildModal } from "@/components/NewBuildModal";
+import { BuildSettingsModal } from "@/components/BuildSettingsModal";
+import { ImportFromGitHubModal } from "@/components/ImportFromGitHubModal";
 import { TriageInbox } from "@/components/TriageInbox";
 import { money, timeAgo } from "@/lib/format";
-import { primaryBtn } from "@/components/Modal";
+import { primaryBtn, ghostBtn } from "@/components/Modal";
 import type { Tables } from "@/lib/database.types";
 
 export default function OverviewPage() {
@@ -30,6 +32,8 @@ export default function OverviewPage() {
   const connections = useConnections();
   const log = useActionLog(25);
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [manage, setManage] = useState<Tables<"builds"> | null>(null);
 
   const githubConnected =
     (connections.data ?? []).find((c) => c.provider === "github")?.status === "connected";
@@ -92,9 +96,14 @@ export default function OverviewPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <SectionTitle>Build Matrix</SectionTitle>
-            <button className={primaryBtn} onClick={() => setAddOpen(true)}>
-              + Add build
-            </button>
+            <div className="flex gap-2">
+              <button className={ghostBtn} onClick={() => setImportOpen(true)}>
+                Import from GitHub
+              </button>
+              <button className={primaryBtn} onClick={() => setAddOpen(true)}>
+                + Add build
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {builds.data?.map((b) => (
@@ -104,6 +113,7 @@ export default function OverviewPage() {
                 milestones={milestonesByBuild[b.id] ?? []}
                 activity={activityByBuild[b.id] ?? []}
                 githubConnected={githubConnected}
+                onManage={() => setManage(b)}
               />
             ))}
           </div>
@@ -142,6 +152,8 @@ export default function OverviewPage() {
         onClose={() => setAddOpen(false)}
         existingCount={builds.data?.length ?? 0}
       />
+      {importOpen && <ImportFromGitHubModal onClose={() => setImportOpen(false)} />}
+      {manage && <BuildSettingsModal build={manage} onClose={() => setManage(null)} />}
     </div>
   );
 }
@@ -151,11 +163,13 @@ function BuildMatrixCard({
   milestones,
   activity,
   githubConnected,
+  onManage,
 }: {
   build: Tables<"builds">;
   milestones: Tables<"milestones">[];
   activity: Tables<"repo_activity">[];
   githubConnected: boolean;
+  onManage: () => void;
 }) {
   const total = milestones.length;
   const done = milestones.filter((m) => m.status === "done").length;
@@ -191,6 +205,13 @@ function BuildMatrixCard({
             )}
           </div>
         </div>
+        <button
+          onClick={onManage}
+          title="Manage build (edit, link GitHub, delete)"
+          className="shrink-0 self-start rounded-md border border-[var(--glass-border-2)] px-2 py-1 font-mono text-[11px] text-[var(--muted-hi)] transition hover:border-[var(--cyan)] hover:text-[var(--white)]"
+        >
+          ⚙
+        </button>
       </div>
 
       {/* Milestone progress (the build's spec/delivery progress) */}
