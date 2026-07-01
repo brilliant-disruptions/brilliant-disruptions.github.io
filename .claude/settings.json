@@ -5,10 +5,14 @@
     },
     "ponytail": {
       "source": { "source": "github", "repo": "DietrichGebert/ponytail" }
+    },
+    "caveman": {
+      "source": { "source": "github", "repo": "JuliusBrussee/caveman" }
     }
   },
   "enabledPlugins": {
     "marketing-team@brilliant-disruptions-teams": true,
-    "ponytail@ponytail": true
+    "ponytail@ponytail": true,
+    "caveman@caveman": true
   }
 }
