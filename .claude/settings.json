@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "brilliant-disruptions-teams": {
+      "source": { "source": "github", "repo": "brilliant-disruptions/agent-teams" }
+    },
+    "ponytail": {
+      "source": { "source": "github", "repo": "DietrichGebert/ponytail" }
+    }
+  },
+  "enabledPlugins": {
+    "marketing-team@brilliant-disruptions-teams": true,
+    "ponytail@ponytail": true
+  }
+}
