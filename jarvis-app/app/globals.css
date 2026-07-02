@@ -162,3 +162,59 @@ body {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ── Neural theme switcher (magma core) ────────────────────────────────── */
+.theme-switcher {
+  position: relative;
+  padding: 2px;
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+.theme-switcher-border {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(transparent, transparent, transparent, var(--theme-color, #00d2ff));
+  animation: theme-rotate-border 4s linear infinite;
+}
+@keyframes theme-rotate-border {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.theme-switcher-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(10, 12, 18, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.theme-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  transition:
+    transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.theme-thumb:hover {
+  transform: scale(1.15);
+}
+.theme-thumb.active {
+  border-color: #ffffff;
+  box-shadow: 0 0 10px var(--theme-color, #ffffff);
+  transform: scale(1.15);
+}
