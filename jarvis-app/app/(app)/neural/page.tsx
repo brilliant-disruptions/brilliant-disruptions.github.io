@@ -1,24 +1,21 @@
 "use client";
 
 /**
- * JARVIS Neural Interface — a member-gated, full-screen Iron Man HUD.
+ * JARVIS Neural Interface — a member-gated, full-screen magma core.
  *
- * Flow: ENGAGE (unlocks audio) → cinematic boot → live HUD. The neuron brain is
- * an arc-reactor core (Three.js + bloom) wrapped in rotating reticle rings, a
- * radar sweep, a gold frame and live telemetry panels. The "Hi, I'm JARVIS"
- * button fires a color-cycling burst with a power-up sound while JARVIS speaks.
+ * A molten noise-displaced core wrapped in energy veins that pulse inward from
+ * an Earth-outline globe (Three.js + bloom + orbit controls). The "Hi, I'm
+ * JARVIS" button unlocks audio, fires a power-up cue and speaks a greeting
+ * while the core swells with each word. Theme switcher bottom-left.
  */
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NeuralScene } from "@/lib/neural/scene";
 import { HudSound } from "@/lib/neural/sound";
-import { HudRings } from "@/components/neural/HudRings";
-import { HudPanels } from "@/components/neural/HudPanels";
-import { BootSequence } from "@/components/neural/BootSequence";
+import { ThemeSwitcher } from "@/components/neural/ThemeSwitcher";
 
 const GREETING = "Hello. I'm JARVIS — the Brilliant Disruptions neural interface. All systems online.";
-type Phase = "engage" | "booting" | "live";
 
 export default function NeuralPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -31,10 +28,9 @@ export default function NeuralPage() {
   const voiceRaf = useRef(0);
   const voiceSpike = useRef(0);
 
-  const [phase, setPhase] = useState<Phase>("engage");
   const [active, setActive] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
   const [webglOk, setWebglOk] = useState(true);
+  const [theme, setTheme] = useState(0);
 
   // ─── Scene + sound lifecycle ───────────────────────────────────────────────
   useEffect(() => {
@@ -101,10 +97,10 @@ export default function NeuralPage() {
     [stopBoundaryFallback],
   );
 
-  // While speaking, feed the brain a continuous voice envelope (a smooth shimmer
-  // plus a punch on every word) so the whole neuron cluster ripples like it's
-  // the one talking. The browser won't expose the real TTS waveform, so this is
-  // a believable synthesized envelope synced to the speech timing.
+  // While speaking, feed the core a continuous voice envelope (a smooth shimmer
+  // plus a punch on every word) so the magma surface swells like it's the one
+  // talking. The browser won't expose the real TTS waveform, so this is a
+  // believable synthesized envelope synced to the speech timing.
   const startVoiceEnvelope = useCallback(() => {
     if (voiceRaf.current) return;
     const loop = () => {
@@ -126,12 +122,10 @@ export default function NeuralPage() {
   const speak = useCallback(
     (text: string) => {
       speakingRef.current = true;
-      setSpeaking(true);
       startVoiceEnvelope();
       const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
       const done = () => {
         speakingRef.current = false;
-        setSpeaking(false);
         stopBoundaryFallback();
         stopVoiceEnvelope();
       };
@@ -196,23 +190,18 @@ export default function NeuralPage() {
     synthUnlockedRef.current = true;
   };
 
-  // ─── Flow ──────────────────────────────────────────────────────────────────
-  const onEngage = () => {
-    soundRef.current?.unlock();
-    soundRef.current?.boot();
-    unlockSynthesis();
-    setPhase("booting");
+  // ─── Interactions ──────────────────────────────────────────────────────────
+  const onThemeChange = (i: number) => {
+    setTheme(i);
+    sceneRef.current?.setTheme(i);
   };
-
-  const onBootComplete = useCallback(() => {
-    setPhase("live");
-    soundRef.current?.startAmbient();
-  }, []);
 
   const onGreet = () => {
     if (active) return;
     setActive(true);
+    soundRef.current?.unlock(); // first user gesture unlocks audio
     soundRef.current?.powerUp();
+    unlockSynthesis();
     sceneRef.current?.greet();
     speak(GREETING);
     window.setTimeout(() => setActive(false), 4500);
@@ -220,6 +209,7 @@ export default function NeuralPage() {
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-[#04060a] text-[var(--white)]">
+      {/* Canvas keeps pointer events — OrbitControls listens on it. */}
       <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" />
       {!webglOk && (
         <div
@@ -233,82 +223,38 @@ export default function NeuralPage() {
         />
       )}
 
-      {/* scanline veil */}
-      <div aria-hidden className="hud-scanlines pointer-events-none absolute inset-0 opacity-30" />
-
-      {/* gold frame */}
-      <div aria-hidden className="pointer-events-none absolute inset-3 sm:inset-5">
-        <div className="absolute inset-0 border" style={{ borderColor: "rgba(0,229,255,0.16)" }} />
-        {(["left-0 top-0 border-l border-t", "right-0 top-0 border-r border-t", "left-0 bottom-0 border-l border-b", "right-0 bottom-0 border-r border-b"] as const).map(
-          (c, i) => (
-            <div key={i} className={`absolute h-6 w-6 ${c}`} style={{ borderColor: "var(--gold)" }} />
-          ),
-        )}
-      </div>
-
-      {/* live HUD chrome */}
-      {phase === "live" && (
-        <>
-          <HudRings active={active} />
-          <HudPanels speaking={speaking} />
-
-          <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-5 sm:p-10">
-            <header className="flex items-center justify-between">
-              <Link
-                href="/overview"
-                className="pointer-events-auto font-mono text-xs tracking-widest text-[var(--muted-hi)] transition hover:text-[var(--cyan)]"
-              >
-                ← CONSOLE
-              </Link>
-              <div className="hidden font-mono text-[11px] tracking-[0.2em] text-[var(--gold)] sm:block">
-                MK XLII · {active ? "ACTIVE" : "IDLE"}
-              </div>
-            </header>
-
-            <div className="flex-1" />
-
-            <footer className="flex flex-col items-center gap-4">
-              <button
-                onClick={onGreet}
-                disabled={active}
-                className="pointer-events-auto px-9 py-4 font-display text-base font-semibold tracking-wide backdrop-blur transition disabled:opacity-80"
-                style={{
-                  clipPath: "polygon(0 14px, 14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px))",
-                  background: active ? "rgba(255,179,71,0.14)" : "rgba(0,229,255,0.1)",
-                  border: `1.5px solid ${active ? "var(--gold)" : "var(--cyan)"}`,
-                  color: active ? "var(--gold-bright)" : "var(--white)",
-                  boxShadow: active ? "0 0 36px rgba(255,179,71,0.45)" : "0 0 24px rgba(0,229,255,0.3)",
-                }}
-              >
-                {active ? "JARVIS ONLINE…" : "Hi, I'm JARVIS"}
-              </button>
-            </footer>
-          </div>
-        </>
-      )}
-
-      {/* boot sequence */}
-      {phase === "booting" && <BootSequence onComplete={onBootComplete} />}
-
-      {/* engage gate */}
-      {phase === "engage" && (
-        <div className="absolute inset-0 z-30 grid place-items-center">
-          <button
-            onClick={onEngage}
-            className="pointer-events-auto grid place-items-center rounded-full font-display text-lg font-semibold tracking-[0.3em] text-[var(--cyan)] transition hover:text-[var(--white)]"
-            style={{
-              width: "180px",
-              height: "180px",
-              background: "rgba(0,229,255,0.06)",
-              border: "1.5px solid var(--cyan)",
-              boxShadow: "0 0 50px rgba(0,229,255,0.3), inset 0 0 40px rgba(0,229,255,0.08)",
-              animation: "hud-pulse 2.4s ease-in-out infinite",
-            }}
+      {/* UI overlay — transparent to drags except its own controls. */}
+      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-5 sm:p-8">
+        <header className="flex items-center justify-between">
+          <Link
+            href="/overview"
+            className="pointer-events-auto font-mono text-xs tracking-widest text-[var(--muted-hi)] transition hover:text-[var(--cyan)]"
           >
-            ENGAGE
-          </button>
-        </div>
-      )}
+            ← CONSOLE
+          </Link>
+        </header>
+
+        <footer className="relative flex items-end">
+          <ThemeSwitcher active={theme} onChange={onThemeChange} />
+          <div className="absolute left-1/2 -translate-x-1/2">
+            <button
+              onClick={onGreet}
+              disabled={active}
+              className="pointer-events-auto px-9 py-4 font-display text-base font-semibold tracking-wide backdrop-blur transition disabled:opacity-80"
+              style={{
+                clipPath:
+                  "polygon(0 14px, 14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px))",
+                background: active ? "rgba(255,179,71,0.14)" : "rgba(0,229,255,0.1)",
+                border: `1.5px solid ${active ? "var(--gold)" : "var(--cyan)"}`,
+                color: active ? "var(--gold-bright)" : "var(--white)",
+                boxShadow: active ? "0 0 36px rgba(255,179,71,0.45)" : "0 0 24px rgba(0,229,255,0.3)",
+              }}
+            >
+              {active ? "JARVIS ONLINE…" : "Hi, I'm JARVIS"}
+            </button>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
