@@ -139,6 +139,15 @@ export function TopBar({
             </Link>
           );
         })}
+        {/* Woven demo app — a proxied Flutter web build (next.config.ts
+            rewrites), so a plain <a> for a full document load rather than
+            client navigation. */}
+        <a
+          href="/woven-together"
+          className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-[var(--muted-hi)] transition hover:text-[var(--white)]"
+        >
+          Woven
+        </a>
       </nav>
 
       <ApprovalsTray />
