@@ -56,6 +56,7 @@ export default function NeuralPage() {
     micRef.current = new MicAnalyser();
     setMicSupported(JarvisListener.isSupported());
     return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- counter ref, not a DOM node: the live value must be bumped so a getUserMedia still pending at unmount resolves into an already-dead session
       listenSession.current++;
       listenerRef.current?.stop();
       listenerRef.current = null;
