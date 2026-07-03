@@ -2,7 +2,7 @@
  * Theme palettes for the JARVIS magma-core scene.
  *
  * Each palette drives every color channel in the scene (core gradient, vein
- * pulses, dust, fog/background) plus the CSS
+ * pulses, dust) plus the CSS
  * bits the ThemeSwitcher needs (thumb gradient + glow accent). The scene lerps
  * all channels toward the active palette each frame, so switching cross-fades.
  */
@@ -19,7 +19,6 @@ export type NeuralTheme = {
   core: [Color, Color, Color, Color];
   vein: { surface: Color; coreA: Color; coreB: Color };
   dust: Color;
-  bg: Color;
 };
 
 export const THEMES: NeuralTheme[] = [
@@ -39,7 +38,6 @@ export const THEMES: NeuralTheme[] = [
       coreB: new Color(1.0, 0.6, 0.0),
     },
     dust: new Color(0x223355),
-    bg: new Color(0x010102),
   },
   {
     name: "Hot Rod & Gold",
@@ -57,7 +55,6 @@ export const THEMES: NeuralTheme[] = [
       coreB: new Color(1.0, 0.75, 0.2),
     },
     dust: new Color(0x332211),
-    bg: new Color(0x050102),
   },
   {
     name: "Arc Reactor",
@@ -75,7 +72,6 @@ export const THEMES: NeuralTheme[] = [
       coreB: new Color(0.6, 0.9, 1.0),
     },
     dust: new Color(0x112a44),
-    bg: new Color(0x000208),
   },
   {
     name: "Falcon",
@@ -93,7 +89,6 @@ export const THEMES: NeuralTheme[] = [
       coreB: new Color(1.0, 1.0, 1.0),
     },
     dust: new Color(0x2a3340),
-    bg: new Color(0x02040a),
   },
   {
     name: "Solar Flare",
@@ -111,6 +106,5 @@ export const THEMES: NeuralTheme[] = [
       coreB: new Color(1.0, 0.3, 0.0),
     },
     dust: new Color(0x443311),
-    bg: new Color(0x000103),
   },
 ];

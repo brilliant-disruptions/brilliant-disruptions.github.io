@@ -22,7 +22,6 @@ describe("THEMES", () => {
       expect(t.vein.coreA).toBeInstanceOf(Color);
       expect(t.vein.coreB).toBeInstanceOf(Color);
       expect(t.dust).toBeInstanceOf(Color);
-      expect(t.bg).toBeInstanceOf(Color);
       expect(t.swatch).toContain("linear-gradient");
       expect(t.accent).toMatch(/^#[0-9a-f]{6}$/i);
     }

@@ -25,6 +25,7 @@ const CORE_RADIUS = 2.2;
 const OUTER_RADIUS = 10.0;
 const POINTS_PER_VEIN = 45;
 const THEME_LERP = 0.05; // per-frame color convergence, as in the pen
+const SPACE_BG = 0x010102; // fixed deep-space background — themes never touch it
 
 // Ashima simplex noise, verbatim from the pen.
 const snoise3GLSL = `
@@ -173,7 +174,7 @@ export class NeuralScene {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
 
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(THEMES[0].bg.getHex(), 0.012);
+    this.scene.fog = new THREE.FogExp2(SPACE_BG, 0.012);
     this.renderer.setClearColor(this.scene.fog.color);
 
     this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -503,14 +504,13 @@ export class NeuralScene {
       `,
       fragmentShader: `
         uniform float time;
-        uniform vec3 cSurface;
         varying vec3 vDir;
         ${snoise3GLSL}
         void main() {
           float n = snoise(vDir * 2.0 + time * 0.01) * 0.6
                   + snoise(vDir * 5.0 - time * 0.01) * 0.4;
           n = max(0.0, n);
-          vec3 color = cSurface * n * 0.16;
+          vec3 color = vec3(0.0, 0.8, 1.0) * n * 0.16;
           gl_FragColor = vec4(color, n * 0.14);
         }
       `,
@@ -550,8 +550,6 @@ export class NeuralScene {
     this.uniforms.cCoreA.value.lerp(tgt.vein.coreA, THEME_LERP);
     this.uniforms.cCoreB.value.lerp(tgt.vein.coreB, THEME_LERP);
     this.dustMat.color.lerp(tgt.dust, THEME_LERP);
-    (this.scene.fog as THREE.FogExp2).color.lerp(tgt.bg, THEME_LERP);
-    this.renderer.setClearColor((this.scene.fog as THREE.FogExp2).color);
 
     this.bloomPass.strength = 2.0 + this.greetLevel * 1.2 + this.uniforms.uVoice.value * 1.4;
     if (!this.reduceMotion) this.controls.autoRotateSpeed = 0.8 + this.greetLevel * 2.0;
