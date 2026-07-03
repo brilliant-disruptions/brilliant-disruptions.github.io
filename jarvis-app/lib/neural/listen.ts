@@ -17,7 +17,7 @@ export type ListenHandlers = {
 
 export class JarvisListener {
   private recognition: SpeechRecognition | null = null;
-  private endedNotified = false;
+  private finishActive: (() => void) | null = null;
 
   static isSupported(): boolean {
     return (
@@ -39,19 +39,21 @@ export class JarvisListener {
       return;
     }
 
-    this.endedNotified = false;
     const rec = new Ctor();
     rec.lang = "en-US";
     rec.continuous = false;
     rec.interimResults = false;
     rec.maxAlternatives = 1;
 
+    let ended = false;
     const finish = () => {
-      if (this.endedNotified) return;
-      this.endedNotified = true;
-      this.recognition = null;
+      if (ended) return;
+      ended = true;
+      if (this.recognition === rec) this.recognition = null;
+      if (this.finishActive === finish) this.finishActive = null;
       handlers.onEnd();
     };
+    this.finishActive = finish;
 
     rec.onresult = (ev) => {
       const last = ev.results[ev.results.length - 1];
@@ -78,10 +80,11 @@ export class JarvisListener {
   stop(): void {
     const rec = this.recognition;
     if (!rec) return;
+    const finish = this.finishActive;
     try {
       rec.abort(); // fires onend → finish() clears state and notifies
     } catch {
-      this.recognition = null;
+      finish?.();
     }
   }
 }
