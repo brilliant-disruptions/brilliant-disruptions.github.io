@@ -63,7 +63,7 @@ Public API (kept from current scene, so page wiring survives):
 - A `voiceLevel` uniform feeds the core shader: scales vertex displacement from
   the pen's base 0.15 up to ~0.45 and adds a glow boost, so the core swells
   word by word.
-- `pulse()` briefly accelerates vein flow speed and brightens pulse heads;
+- `pulse()` briefly brightens the traveling vein pulse heads;
   `greet()` fires a stronger, longer version of the same surge.
 - Decay back to baseline happens inside the scene's render loop; the page's
   existing voice-envelope code (`startVoiceEnvelope`, boundary fallback) is unchanged.

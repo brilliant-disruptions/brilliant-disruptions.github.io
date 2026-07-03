@@ -111,6 +111,7 @@ export class NeuralScene {
   private readonly isMobile: boolean;
   private readonly NUM_VEINS: number;
   private readonly DUST_COUNT: number;
+  private readonly reduceMotion: boolean;
 
   // Shared across core / vein / globe materials; volcano shares time + uPulse.
   private uniforms = {
@@ -133,6 +134,10 @@ export class NeuralScene {
     this.isMobile = typeof window !== "undefined" && window.innerWidth < 768;
     this.NUM_VEINS = this.isMobile ? 600 : 1200;
     this.DUST_COUNT = this.isMobile ? 1000 : 2000;
+    this.reduceMotion =
+      typeof window !== "undefined" &&
+      !!window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.onResize = this.onResize.bind(this);
     this.animate = this.animate.bind(this);
   }
@@ -144,9 +149,10 @@ export class NeuralScene {
   init(): boolean {
     const hasWebGL = (() => {
       try {
+        const probe = document.createElement("canvas");
         return !!(
           window.WebGLRenderingContext &&
-          (this.canvas.getContext("webgl") || this.canvas.getContext("experimental-webgl"))
+          (probe.getContext("webgl") || probe.getContext("experimental-webgl"))
         );
       } catch {
         return false;
@@ -175,7 +181,12 @@ export class NeuralScene {
     this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(15, 10, 25);
 
-    this.earthTex = new THREE.TextureLoader().load("/textures/earth_specular_2048.jpg");
+    this.earthTex = new THREE.TextureLoader().load(
+      "/textures/earth_specular_2048.jpg",
+      undefined,
+      undefined,
+      () => console.warn("NeuralScene: failed to load Earth texture; globe outlines will be dark"),
+    );
     this.uniforms.tEarth.value = this.earthTex;
 
     this.composer = new EffectComposer(this.renderer);
@@ -196,6 +207,7 @@ export class NeuralScene {
     this.controls.autoRotateSpeed = 0.8;
     this.controls.maxDistance = 50;
     this.controls.minDistance = 12;
+    if (this.reduceMotion) this.controls.autoRotate = false;
 
     this.mainGroup = new THREE.Group();
     this.scene.add(this.mainGroup);
@@ -497,7 +509,7 @@ export class NeuralScene {
     this.renderer.setClearColor((this.scene.fog as THREE.FogExp2).color);
 
     this.bloomPass.strength = 2.0 + this.greetLevel * 1.2;
-    this.controls.autoRotateSpeed = 0.8 + this.greetLevel * 2.0;
+    if (!this.reduceMotion) this.controls.autoRotateSpeed = 0.8 + this.greetLevel * 2.0;
 
     this.dustMesh.rotation.y += 0.02 * delta;
     this.controls.update();
@@ -538,13 +550,16 @@ export class NeuralScene {
     window.removeEventListener("resize", this.onResize);
     this.controls?.dispose();
     this.scene?.traverse((obj) => {
-      const mesh = obj as THREE.Mesh;
-      if (mesh.geometry) mesh.geometry.dispose();
-      const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
-      if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-      else mat?.dispose();
+      const o = obj as THREE.Object3D & {
+        geometry?: THREE.BufferGeometry;
+        material?: THREE.Material | THREE.Material[];
+      };
+      o.geometry?.dispose();
+      if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+      else o.material?.dispose();
     });
     this.earthTex?.dispose();
+    this.bloomPass?.dispose();
     this.composer?.dispose();
     if (this.renderer) this.renderer.dispose();
   }

@@ -41,6 +41,11 @@ export default function NeuralPage() {
     setWebglOk(ok);
     soundRef.current = new HudSound();
     return () => {
+      if (boundaryTimer.current) {
+        clearInterval(boundaryTimer.current);
+        boundaryTimer.current = null;
+      }
+      window.speechSynthesis?.cancel();
       if (voiceRaf.current) cancelAnimationFrame(voiceRaf.current);
       scene.dispose();
       sceneRef.current = null;

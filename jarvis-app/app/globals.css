@@ -113,10 +113,6 @@ body {
 @keyframes hud-spin-rev {
   to { transform: rotate(-360deg); }
 }
-@keyframes hud-flicker {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.72; }
-}
 @keyframes hud-blink {
   0%, 60% { opacity: 1; }
   61%, 100% { opacity: 0.25; }
@@ -124,36 +120,6 @@ body {
 @keyframes hud-scan {
   0% { transform: translateY(-100%); }
   100% { transform: translateY(100vh); }
-}
-@keyframes hud-fade-up {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes hud-ring-draw {
-  from { stroke-dashoffset: var(--dash, 1000); }
-  to { stroke-dashoffset: 0; }
-}
-@keyframes hud-pulse {
-  0%, 100% { opacity: 0.5; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.04); }
-}
-@keyframes hud-wave {
-  0%, 100% { transform: scaleY(0.25); }
-  50% { transform: scaleY(1); }
-}
-
-.hud-rotate { transform-box: fill-box; transform-origin: center; animation: hud-spin 60s linear infinite; }
-.hud-rotate-rev { transform-box: fill-box; transform-origin: center; animation: hud-spin-rev 90s linear infinite; }
-.hud-rotate-fast { transform-box: fill-box; transform-origin: center; animation: hud-spin 18s linear infinite; }
-.hud-flicker { animation: hud-flicker 3.5s ease-in-out infinite; }
-.hud-scanlines {
-  background-image: repeating-linear-gradient(
-    0deg,
-    rgba(0, 229, 255, 0.04) 0px,
-    rgba(0, 229, 255, 0.04) 1px,
-    transparent 1px,
-    transparent 3px
-  );
 }
 
 @media (prefers-reduced-motion: reduce) {
