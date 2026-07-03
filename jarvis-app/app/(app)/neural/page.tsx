@@ -3,8 +3,8 @@
 /**
  * JARVIS Neural Interface — a member-gated, full-screen magma core.
  *
- * A molten noise-displaced core wrapped in energy veins that pulse inward from
- * an Earth-outline globe (Three.js + bloom + orbit controls). The "Hi, I'm
+ * A molten noise-displaced core wrapped in energy veins that pulse inward toward
+ * the core (Three.js + bloom + orbit controls). The "Hi, I'm
  * JARVIS" button speaks a greeting; the mic button listens (tap-to-talk,
  * scripted-intent replies) — the core ripples with the user's voice while
  * listening and swells with JARVIS's words while he speaks. Voice-only: no
@@ -116,6 +116,7 @@ export default function NeuralPage() {
 
   const startBoundaryFallback = useCallback(
     (text: string) => {
+      if (boundaryTimer.current) return; // idempotent: keep the earlier interval, whose est clock is already running
       const perPulse = 180;
       const est = Math.max(1200, (text.length / 12) * 1000);
       let elapsed = 0;
@@ -224,7 +225,7 @@ export default function NeuralPage() {
       startWatchdog.current = setTimeout(() => {
         if (speakSession.current !== turn) return;
         startWatchdog.current = null;
-        if (speakSession.current === turn && !started && speakingRef.current) startBoundaryFallback(text);
+        if (!started && speakingRef.current) startBoundaryFallback(text);
       }, 1200);
       // Failsafe: even if onend never arrives, the turn always ends and the
       // buttons re-enable.
@@ -317,7 +318,6 @@ export default function NeuralPage() {
     setActive(true);
     soundRef.current?.unlock(); // first user gesture unlocks audio
     soundRef.current?.powerUp();
-    unlockSynthesis();
     sceneRef.current?.greet();
     if (!greetingBag.current) greetingBag.current = createGreetingBag();
     speak(greetingBag.current());

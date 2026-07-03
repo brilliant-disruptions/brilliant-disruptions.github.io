@@ -5,6 +5,7 @@ describe("GREETINGS", () => {
   it("has 8 lines including the Jimmy greeting verbatim", () => {
     expect(GREETINGS).toHaveLength(8);
     expect(GREETINGS).toContain("Hi Jimmy, I love that for you.");
+    expect(new Set(GREETINGS).size).toBe(GREETINGS.length);
   });
 });
 
