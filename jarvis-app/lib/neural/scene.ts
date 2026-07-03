@@ -203,6 +203,7 @@ export class NeuralScene {
     this.buildDust();
     this.buildCore();
     this.buildVeins();
+    this.buildHalo();
 
     window.addEventListener("resize", this.onResize);
     this.animate();
@@ -378,6 +379,38 @@ export class NeuralScene {
       depthWrite: false,
     });
     this.mainGroup.add(new THREE.LineSegments(geo, mat));
+  }
+
+  // ─── Boundary halo ─────────────────────────────────────────────────────────
+  // A fresnel-rim sphere at the vein-origin radius: invisible face-on, a soft
+  // luminous limb at the edges, so the veins read as born from an energy field.
+  // Tinted by cSurface, so theme switches cross-fade it for free.
+  private buildHalo() {
+    const geo = new THREE.SphereGeometry(OUTER_RADIUS * 0.995, 64, 64);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 cSurface;
+        varying vec3 vNormal;
+        void main() {
+          float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 3.5);
+          vec3 color = cSurface * fresnel * 1.6;
+          float alpha = fresnel * 0.35;
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.mainGroup.add(new THREE.Mesh(geo, mat));
   }
 
   // ─── Animate ──────────────────────────────────────────────────────────────
