@@ -3,9 +3,15 @@ import { Color } from "three";
 import { THEMES } from "./themes";
 
 describe("THEMES", () => {
-  it("defines exactly three palettes", () => {
-    expect(THEMES).toHaveLength(3);
-    expect(THEMES.map((t) => t.name)).toEqual(["Magma & Cyan", "Neon Void", "Solar Flare"]);
+  it("defines exactly five palettes", () => {
+    expect(THEMES).toHaveLength(5);
+    expect(THEMES.map((t) => t.name)).toEqual([
+      "Magma & Cyan",
+      "Hot Rod & Gold",
+      "Arc Reactor",
+      "Falcon",
+      "Solar Flare",
+    ]);
   });
 
   it("every palette is complete", () => {
