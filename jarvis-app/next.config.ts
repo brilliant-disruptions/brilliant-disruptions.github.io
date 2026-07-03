@@ -23,6 +23,9 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Dev-only: lets phones/tablets on the LAN load dev assets (Next blocks
+  // cross-origin /_next requests by default). Harmless in production builds.
+  allowedDevOrigins: ["192.168.1.228"],
 };
 
 export default nextConfig;

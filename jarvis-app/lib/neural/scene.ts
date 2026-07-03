@@ -1,52 +1,91 @@
 /**
- * NeuralScene — a Three.js neuron-network "brain" for the JARVIS interface.
+ * NeuralScene — the JARVIS "magma core" for the Neural tab.
  *
- * Renders a two-lobe field of glowing neurons connected by synapse edges, with
- * signal pulses that travel node-to-node and cascade. The network reacts to
- * interaction states (idle / listening / thinking / speaking).
+ * A molten noise-displaced core sphere wrapped in ~1200 bezier energy veins
+ * that pulse inward toward the core, with a dust field, bloom
+ * post-processing and orbit controls. Ported from
+ * https://codepen.io/VoXelo/pen/RNGRQBo and made voice-reactive: the page
+ * feeds a speech envelope via setVoiceLevel()/pulse() and the core visibly
+ * swells with each word JARVIS speaks.
  *
  * Framework-agnostic: construct with a <canvas>, call init(), drive with
- * setState()/pulse(), and dispose() on unmount. Used by the React page at
- * app/(app)/neural/page.tsx.
+ * setVoiceLevel()/pulse()/greet()/setTheme(), and dispose() on unmount.
+ * Used by the React page at app/(app)/neural/page.tsx.
  */
 
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { THEMES } from "./themes";
+import { FlareField } from "./flares";
 
-export type NeuralState = "idle" | "listening" | "thinking" | "speaking" | "greeting";
+const CORE_RADIUS = 2.2;
+const OUTER_RADIUS = 10.0;
+const POINTS_PER_VEIN = 45;
+const THEME_LERP = 0.05; // per-frame color convergence, as in the pen
+const SPACE_BG = 0x010102; // fixed deep-space background — themes never touch it
 
-type Vec3 = { x: number; y: number; z: number };
-type Node = { x: number; y: number; z: number; home: Vec3; activation: number; drift: Vec3 };
-type Edge = { a: number; b: number; len: number };
-type Pulse = { edge: number; dir: number; t: number; speed: number };
+// Ashima simplex noise, verbatim from the pen.
+const snoise3GLSL = `
+  vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+  vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
 
-type Profile = {
-  activity: number;
-  pulseSpeed: number;
-  seedRate: number;
-  propagation: number;
-  edgeOpacity: number;
-  tint: "cyan" | "violet" | "magenta";
-  tintAmount: number;
-};
+  float snoise(vec3 v) {
+    const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
+    const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
+    vec3 i  = floor(v + dot(v, C.yyy) );
+    vec3 x0 = v - i + dot(i, C.xxx) ;
+    vec3 g = step(x0.yzx, x0.xyz);
+    vec3 l = 1.0 - g;
+    vec3 i1 = min( g.xyz, l.zxy );
+    vec3 i2 = max( g.xyz, l.zxy );
+    vec3 x1 = x0 - i1 + C.xxx;
+    vec3 x2 = x0 - i2 + C.yyy;
+    vec3 x3 = x0 - D.yyy;
+    i = mod289(i);
+    vec4 p = permute( permute( permute( i.z + vec4(0.0, i1.z, i2.z, 1.0 )) + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+    float n_ = 0.142857142857;
+    vec3  ns = n_ * D.wyz - D.xzx;
+    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+    vec4 x_ = floor(j * ns.z);
+    vec4 y_ = floor(j - 7.0 * x_ );
+    vec4 x = x_ *ns.x + ns.yyyy;
+    vec4 y = y_ *ns.x + ns.yyyy;
+    vec4 h = 1.0 - abs(x) - abs(y);
+    vec4 b0 = vec4( x.xy, y.xy );
+    vec4 b1 = vec4( x.zw, y.zw );
+    vec4 s0 = floor(b0)*2.0 + 1.0;
+    vec4 s1 = floor(b1)*2.0 + 1.0;
+    vec4 sh = -step(h, vec4(0.0));
+    vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+    vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+    vec3 p0 = vec3(a0.xy,h.x);
+    vec3 p1 = vec3(a0.zw,h.y);
+    vec3 p2 = vec3(a1.xy,h.z);
+    vec3 p3 = vec3(a1.zw,h.w);
+    vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+    p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+    vec4 m = max(0.5 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+    m = m * m;
+    return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3) ) );
+  }
+`;
 
-const TINTS: Record<Profile["tint"], [number, number, number]> = {
-  cyan: [0.0, 0.9, 1.0],
-  violet: [0.49, 0.23, 0.93],
-  magenta: [0.96, 0.12, 0.48],
-};
-
-const STATE_PROFILES: Record<NeuralState, Profile> = {
-  idle: { activity: 0.15, pulseSpeed: 0.8, seedRate: 0.45, propagation: 0.12, edgeOpacity: 0.12, tint: "cyan", tintAmount: 0.25 },
-  listening: { activity: 0.55, pulseSpeed: 1.3, seedRate: 2.5, propagation: 0.2, edgeOpacity: 0.28, tint: "cyan", tintAmount: 0.45 },
-  thinking: { activity: 1.0, pulseSpeed: 2.6, seedRate: 8.0, propagation: 0.45, edgeOpacity: 0.5, tint: "violet", tintAmount: 0.7 },
-  speaking: { activity: 0.75, pulseSpeed: 1.6, seedRate: 0.0, propagation: 0.25, edgeOpacity: 0.35, tint: "magenta", tintAmount: 0.65 },
-  greeting: { activity: 1.15, pulseSpeed: 2.6, seedRate: 10.0, propagation: 0.4, edgeOpacity: 0.6, tint: "magenta", tintAmount: 0.85 },
-};
-
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+function randomPointOnSphere(radius: number): THREE.Vector3 {
+  const u = Math.random();
+  const v = Math.random();
+  const theta = 2 * Math.PI * u;
+  const phi = Math.acos(2 * v - 1);
+  return new THREE.Vector3(
+    radius * Math.sin(phi) * Math.cos(theta),
+    radius * Math.sin(phi) * Math.sin(theta),
+    radius * Math.cos(phi),
+  );
+}
 
 export class NeuralScene {
   private canvas: HTMLCanvasElement;
@@ -54,58 +93,51 @@ export class NeuralScene {
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
   private clock!: THREE.Clock;
+  private composer!: EffectComposer;
+  private bloomPass!: UnrealBloomPass;
+  private controls!: OrbitControls;
+  private mainGroup!: THREE.Group;
+  private dustMesh!: THREE.Points;
+  private dustMat!: THREE.PointsMaterial;
   private rafId = 0;
+  private supported = true;
+  private flares: FlareField | null = null;
 
-  private composer: EffectComposer | null = null;
-  private bloomPass: UnrealBloomPass | null = null;
-  private useBloom = false;
-
-  private nodeGeo!: THREE.BufferGeometry;
-  private nodeMat!: THREE.ShaderMaterial;
-  private pulseGeo!: THREE.BufferGeometry;
-  private edgeMat!: THREE.LineBasicMaterial;
-
-  private nodes: Node[] = [];
-  private edges: Edge[] = [];
-  private adj: number[][] = [];
-  private livePulses: Pulse[] = [];
-  private nodeActivations!: Float32Array;
-  private pulsePositions!: Float32Array;
-  private pulseSizes!: Float32Array;
-
-  private currentState: NeuralState = "idle";
-  private target: Profile = STATE_PROFILES.idle;
-  private liveActivity = 0.15;
-  private tintCurrent: [number, number, number] = [...TINTS.cyan];
-  private tintAmount = 0.25;
-  private ampBump = 0;
+  private themeIndex = 0;
   private voiceLevel = 0;
   private voiceTarget = 0;
-  private seedAccumulator = 0;
-  private mouse = { x: 0, y: 0 };
-  private supported = true;
-  private colorCycle = false;
-  private greetTimer: ReturnType<typeof setTimeout> | null = null;
+  private pulseLevel = 0;
+  private greetLevel = 0;
 
   private readonly isMobile: boolean;
-  private readonly NODE_COUNT: number;
-  private readonly NEIGHBORS: number;
-  private readonly MAX_PULSES: number;
-  private readonly MAX_EDGE_DIST = 1.6;
+  private readonly NUM_VEINS: number;
+  private readonly DUST_COUNT: number;
   private readonly reduceMotion: boolean;
+
+  // Shared across core / vein materials.
+  private uniforms = {
+    time: { value: 0 },
+    uVoice: { value: 0 },
+    uPulse: { value: 0 },
+    cDark: { value: THEMES[0].core[0].clone() },
+    cRed: { value: THEMES[0].core[1].clone() },
+    cOrange: { value: THEMES[0].core[2].clone() },
+    cYellow: { value: THEMES[0].core[3].clone() },
+    cSurface: { value: THEMES[0].vein.surface.clone() },
+    cCoreA: { value: THEMES[0].vein.coreA.clone() },
+    cCoreB: { value: THEMES[0].vein.coreB.clone() },
+  };
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-    this.NODE_COUNT = this.isMobile ? 140 : 320;
-    this.NEIGHBORS = this.isMobile ? 3 : 4;
-    this.MAX_PULSES = this.isMobile ? 50 : 120;
+    this.NUM_VEINS = this.isMobile ? 600 : 1200;
+    this.DUST_COUNT = this.isMobile ? 1000 : 2000;
     this.reduceMotion =
       typeof window !== "undefined" &&
       !!window.matchMedia &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.onResize = this.onResize.bind(this);
-    this.onMouseMove = this.onMouseMove.bind(this);
     this.animate = this.animate.bind(this);
   }
 
@@ -116,9 +148,10 @@ export class NeuralScene {
   init(): boolean {
     const hasWebGL = (() => {
       try {
+        const probe = document.createElement("canvas");
         return !!(
           window.WebGLRenderingContext &&
-          (this.canvas.getContext("webgl") || this.canvas.getContext("experimental-webgl"))
+          (probe.getContext("webgl") || probe.getContext("experimental-webgl"))
         );
       } catch {
         return false;
@@ -132,8 +165,8 @@ export class NeuralScene {
     this.clock = new THREE.Clock();
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
-      alpha: true,
-      antialias: false,
+      antialias: true,
+      alpha: false,
       powerPreference: "high-performance",
     });
     const dpr = Math.min(window.devicePixelRatio, 2);
@@ -141,325 +174,355 @@ export class NeuralScene {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // Pulled back so the neuron cluster reads as a compact "little brain" that
-    // sits inside the HUD's inner ring rather than filling the viewport.
-    this.camera.position.z = 10;
+    this.scene.fog = new THREE.FogExp2(SPACE_BG, 0.012);
+    this.renderer.setClearColor(this.scene.fog.color);
 
-    this.nodes = this.generateNodes(this.NODE_COUNT);
-    this.edges = this.buildEdges(this.nodes);
-    this.buildNodeGeometry();
-    this.buildEdgeGeometry();
-    this.buildPulseGeometry();
+    this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    this.camera.position.set(15, 10, 25);
 
-    // Cinematic bloom (desktop only). Renders opaque over the HUD's void so the
-    // glow reads cleanly; mobile keeps the cheaper transparent direct render.
-    this.useBloom = !this.isMobile && !this.reduceMotion;
-    if (this.useBloom) {
-      this.renderer.setClearColor(0x04060a, 1);
-      this.composer = new EffectComposer(this.renderer);
-      this.composer.setPixelRatio(dpr);
-      this.composer.setSize(window.innerWidth, window.innerHeight);
-      this.composer.addPass(new RenderPass(this.scene, this.camera));
-      this.bloomPass = new UnrealBloomPass(
-        new THREE.Vector2(window.innerWidth, window.innerHeight),
-        0.5, // strength (modulated by activity in animate)
-        0.42, // radius
-        0.05, // threshold
-      );
-      this.composer.addPass(this.bloomPass);
-    } else {
-      this.renderer.setClearColor(0x000000, 0);
-    }
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.setPixelRatio(dpr);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      2.0, // strength
+      0.5, // radius
+      0.85, // threshold
+    );
+    this.composer.addPass(this.bloomPass);
+
+    this.controls = new OrbitControls(this.camera, this.canvas);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.05;
+    this.controls.autoRotate = true;
+    this.controls.autoRotateSpeed = 0.8;
+    this.controls.maxDistance = 50;
+    this.controls.minDistance = 12;
+    if (this.reduceMotion) this.controls.autoRotate = false;
+
+    this.mainGroup = new THREE.Group();
+    this.scene.add(this.mainGroup);
+
+    this.buildDust();
+    this.buildCore();
+    this.buildVeins();
+    this.buildHalo();
+    this.buildStars();
+    this.buildNebula();
+    this.flares = new FlareField(CORE_RADIUS, this.uniforms, this.isMobile ? 14 : 28);
+    this.mainGroup.add(this.flares.mesh);
 
     window.addEventListener("resize", this.onResize);
-    window.addEventListener("mousemove", this.onMouseMove);
-    this.setState("idle");
     this.animate();
     return true;
   }
 
-  // ─── Node generation: two-lobe ellipsoid ─────────────────────────────────
-  private generateNodes(n: number): Node[] {
-    const ELL = { x: 3.4, y: 2.4, z: 2.8 };
-    const HEMI_GAP = 0.35;
-    const out: Node[] = [];
-    for (let i = 0; i < n; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const r = 0.55 + 0.45 * Math.cbrt(Math.random());
-      let x = r * Math.sin(phi) * Math.cos(theta) * ELL.x;
-      const y = r * Math.sin(phi) * Math.sin(theta) * ELL.y;
-      const z = r * Math.cos(phi) * ELL.z;
-      x += x < 0 ? -HEMI_GAP : HEMI_GAP;
-      out.push({
-        x,
-        y,
-        z,
-        home: { x, y, z },
-        activation: 0,
-        drift: {
-          x: (Math.random() - 0.5) * 0.0006,
-          y: (Math.random() - 0.5) * 0.0006,
-          z: (Math.random() - 0.5) * 0.0006,
-        },
-      });
-    }
-    return out;
+  // ─── Dust field ────────────────────────────────────────────────────────────
+  private buildDust() {
+    const positions = new Float32Array(this.DUST_COUNT * 3);
+    for (let i = 0; i < positions.length; i++) positions[i] = (Math.random() - 0.5) * 100;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    this.dustMat = new THREE.PointsMaterial({
+      color: THEMES[0].dust.clone(),
+      size: 0.1,
+      transparent: true,
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.dustMesh = new THREE.Points(geo, this.dustMat);
+    this.scene.add(this.dustMesh);
   }
 
-  private dist(a: Node, b: Node) {
-    const dx = a.x - b.x,
-      dy = a.y - b.y,
-      dz = a.z - b.z;
-    return Math.sqrt(dx * dx + dy * dy + dz * dz);
-  }
-
-  // ─── Synapse edges: kNN with distance cap + adjacency list ────────────────
-  private buildEdges(list: Node[]): Edge[] {
-    const result: Edge[] = [];
-    const seen = new Set<string>();
-    this.adj = list.map(() => []);
-    for (let i = 0; i < list.length; i++) {
-      const cands: { j: number; d: number }[] = [];
-      for (let j = 0; j < list.length; j++) {
-        if (i === j) continue;
-        const d = this.dist(list[i], list[j]);
-        if (d <= this.MAX_EDGE_DIST) cands.push({ j, d });
-      }
-      cands.sort((p, q) => p.d - q.d);
-      const k = Math.min(this.NEIGHBORS, cands.length);
-      for (let c = 0; c < k; c++) {
-        const j = cands[c].j;
-        const key = i < j ? `${i}_${j}` : `${j}_${i}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const edgeIndex = result.length;
-        result.push({ a: i, b: j, len: cands[c].d });
-        this.adj[i].push(edgeIndex);
-        this.adj[j].push(edgeIndex);
-      }
-    }
-    return result;
-  }
-
-  private buildNodeGeometry() {
-    const N = this.nodes.length;
-    const positions = new Float32Array(N * 3);
-    const colors = new Float32Array(N * 3);
-    const sizes = new Float32Array(N);
-    this.nodeActivations = new Float32Array(N);
-
-    for (let i = 0; i < N; i++) {
-      positions[i * 3] = this.nodes[i].x;
-      positions[i * 3 + 1] = this.nodes[i].y;
-      positions[i * 3 + 2] = this.nodes[i].z;
-      const t = Math.random();
-      if (t < 0.6) {
-        // cyan
-        colors[i * 3] = 0.0 + Math.random() * 0.1;
-        colors[i * 3 + 1] = 0.8 + Math.random() * 0.2;
-        colors[i * 3 + 2] = 0.9 + Math.random() * 0.1;
-      } else if (t < 0.82) {
-        // violet
-        colors[i * 3] = 0.4 + Math.random() * 0.2;
-        colors[i * 3 + 1] = 0.15 + Math.random() * 0.2;
-        colors[i * 3 + 2] = 0.9 + Math.random() * 0.1;
-      } else if (t < 0.92) {
-        // gold accent
-        colors[i * 3] = 1.0;
-        colors[i * 3 + 1] = 0.72 + Math.random() * 0.12;
-        colors[i * 3 + 2] = 0.28 + Math.random() * 0.1;
-      } else {
-        // white highlight
-        colors[i * 3] = 0.85 + Math.random() * 0.15;
-        colors[i * 3 + 1] = 0.85 + Math.random() * 0.15;
-        colors[i * 3 + 2] = 1.0;
-      }
-      sizes[i] = Math.random() * 2.0 + 1.1;
-    }
-
-    this.nodeGeo = new THREE.BufferGeometry();
-    this.nodeGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    this.nodeGeo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    this.nodeGeo.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
-    this.nodeGeo.setAttribute("aActivation", new THREE.BufferAttribute(this.nodeActivations, 1));
-
-    this.nodeMat = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uGlobalActivity: { value: this.liveActivity },
-        uTint: { value: new THREE.Color(...this.tintCurrent) },
-        uTintAmount: { value: this.tintAmount },
-        uVoice: { value: 0 },
-      },
+  // ─── Molten core ───────────────────────────────────────────────────────────
+  private buildCore() {
+    const geo = new THREE.SphereGeometry(CORE_RADIUS, 128, 128);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
       vertexShader: `
-        attribute float size;
-        attribute float aActivation;
-        attribute vec3 color;
-        varying vec3 vColor;
-        varying float vGlow;
-        uniform float uTime;
-        uniform float uGlobalActivity;
+        uniform float time;
         uniform float uVoice;
+        varying vec3 vPosition;
+        varying vec3 vNormal;
+        ${snoise3GLSL}
         void main() {
-          vColor = color;
-          // Voice ripple: while JARVIS speaks, the whole cluster breathes outward
-          // and each neuron shimmers, so the brain looks like it is vocalizing.
-          float hash = sin(position.x * 12.9 + position.y * 7.3 + position.z * 3.1);
-          float ripple = 1.0 + uVoice * (0.08 + 0.07 * sin(uTime * 9.0 + hash * 6.2832));
-          vec3 vpos = position * ripple;
-          vec4 mvPosition = modelViewMatrix * vec4(vpos, 1.0);
-          float idle = sin(uTime * 1.5 + position.x * 3.7 + position.y * 2.1) * 0.3 + 0.7;
-          float fire = aActivation;
-          vGlow = idle * 0.5 + fire + uGlobalActivity * 0.4 + uVoice * 0.5;
-          float boost = 1.0 + fire * 2.2 + uGlobalActivity * 0.6 + uVoice * 1.1;
-          gl_PointSize = size * boost * (300.0 / -mvPosition.z);
-          gl_Position = projectionMatrix * mvPosition;
+          vPosition = position;
+          vNormal = normal;
+          // Voice swells the surface: displacement grows from the pen's 0.15
+          // up to ~0.45 while JARVIS speaks.
+          float amp = 0.15 + uVoice * 0.85;
+          float displacement = snoise(position * 1.8 + time * 0.4) * amp;
+          vec3 newPosition = position + normal * displacement;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
         }
       `,
       fragmentShader: `
-        varying vec3 vColor;
-        varying float vGlow;
-        uniform vec3 uTint;
-        uniform float uTintAmount;
+        uniform float time;
+        uniform float uVoice;
+        uniform float uPulse;
+        uniform vec3 cDark;
+        uniform vec3 cRed;
+        uniform vec3 cOrange;
+        uniform vec3 cYellow;
+        varying vec3 vPosition;
+        varying vec3 vNormal;
+        ${snoise3GLSL}
         void main() {
-          vec2 uv = gl_PointCoord - vec2(0.5);
-          float d = length(uv);
-          if (d > 0.5) discard;
-          float core = 1.0 - smoothstep(0.0, 0.15, d);
-          float glow = 1.0 - smoothstep(0.1, 0.5, d);
-          float alpha = (core * 0.9 + glow * 0.5) * vGlow;
-          vec3 tinted = mix(vColor, uTint, uTintAmount);
-          gl_FragColor = vec4(tinted, alpha);
+          float n1 = snoise(vPosition * 1.5 - time * 0.5);
+          float n2 = snoise(vPosition * 4.0 + time * 0.3);
+          float noiseVal = n1 * 0.6 + n2 * 0.4;
+
+          vec3 color;
+          if (noiseVal < -0.1) {
+            color = mix(cDark, cRed, smoothstep(-0.5, -0.1, noiseVal));
+          } else if (noiseVal < 0.3) {
+            color = mix(cRed, cOrange, smoothstep(-0.1, 0.3, noiseVal));
+          } else {
+            color = mix(cOrange, cYellow, smoothstep(0.3, 0.8, noiseVal));
+          }
+
+          float fresnel = dot(vNormal, vec3(0.0, 0.0, 1.0));
+          fresnel = clamp(1.0 - fresnel, 0.0, 1.0);
+          color += cOrange * pow(fresnel, 2.0) * 0.8;
+
+          // Glow boost while speaking / pulsing.
+          color *= 1.5 + uVoice * 2.6 + uPulse * 1.2;
+
+          gl_FragColor = vec4(color, 1.0);
         }
       `,
-      transparent: true,
-      vertexColors: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
     });
-
-    this.scene.add(new THREE.Points(this.nodeGeo, this.nodeMat));
+    this.mainGroup.add(new THREE.Mesh(geo, mat));
   }
 
-  private buildEdgeGeometry() {
-    const edgePos = new Float32Array(this.edges.length * 2 * 3);
-    const edgeCol = new Float32Array(this.edges.length * 2 * 3);
-    for (let k = 0; k < this.edges.length; k++) {
-      const a = this.nodes[this.edges[k].a],
-        b = this.nodes[this.edges[k].b];
-      edgePos.set([a.x, a.y, a.z, b.x, b.y, b.z], k * 6);
-      edgeCol.set([0.0, 0.3, 0.4, 0.25, 0.1, 0.45], k * 6);
-    }
-    const edgeGeo = new THREE.BufferGeometry();
-    edgeGeo.setAttribute("position", new THREE.BufferAttribute(edgePos, 3));
-    edgeGeo.setAttribute("color", new THREE.BufferAttribute(edgeCol, 3));
-    this.edgeMat = new THREE.LineBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.12,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    this.scene.add(new THREE.LineSegments(edgeGeo, this.edgeMat));
-  }
+  // ─── Energy veins ──────────────────────────────────────────────────────────
+  private buildVeins() {
+    const positions: number[] = [];
+    const progress: number[] = [];
+    const offsets: number[] = [];
+    const rands: number[] = [];
 
-  private buildPulseGeometry() {
-    this.pulsePositions = new Float32Array(this.MAX_PULSES * 3);
-    this.pulseSizes = new Float32Array(this.MAX_PULSES);
-    const pulseColors = new Float32Array(this.MAX_PULSES * 3);
-    for (let i = 0; i < this.MAX_PULSES; i++) {
-      this.pulsePositions[i * 3] = 9999;
-      this.pulseSizes[i] = 0;
-      pulseColors[i * 3] = 0.6;
-      pulseColors[i * 3 + 1] = 0.95;
-      pulseColors[i * 3 + 2] = 1.0;
-    }
-    this.pulseGeo = new THREE.BufferGeometry();
-    this.pulseGeo.setAttribute("position", new THREE.BufferAttribute(this.pulsePositions, 3));
-    this.pulseGeo.setAttribute("size", new THREE.BufferAttribute(this.pulseSizes, 1));
-    this.pulseGeo.setAttribute("color", new THREE.BufferAttribute(pulseColors, 3));
-    const pulseMat = new THREE.ShaderMaterial({
-      uniforms: { uTint: this.nodeMat.uniforms.uTint },
-      vertexShader: `
-        attribute float size;
-        attribute vec3 color;
-        varying vec3 vColor;
-        void main() {
-          vColor = color;
-          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (300.0 / -mvPosition.z);
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `,
-      fragmentShader: `
-        varying vec3 vColor;
-        uniform vec3 uTint;
-        void main() {
-          vec2 uv = gl_PointCoord - vec2(0.5);
-          float d = length(uv);
-          if (d > 0.5) discard;
-          float a = 1.0 - smoothstep(0.0, 0.5, d);
-          gl_FragColor = vec4(mix(vColor, uTint, 0.4), a);
-        }
-      `,
-      transparent: true,
-      vertexColors: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-    this.scene.add(new THREE.Points(this.pulseGeo, pulseMat));
-  }
+    for (let i = 0; i < this.NUM_VEINS; i++) {
+      const start = randomPointOnSphere(OUTER_RADIUS);
+      const end = start.clone().normalize().multiplyScalar(CORE_RADIUS * 0.85);
 
-  // ─── Pulses ───────────────────────────────────────────────────────────────
-  private spawnPulse(edgeIndex: number, fromNode: number) {
-    if (this.livePulses.length >= this.MAX_PULSES) return;
-    const e = this.edges[edgeIndex];
-    if (!e) return;
-    const dir = fromNode === e.a ? 1 : -1;
-    this.livePulses.push({ edge: edgeIndex, dir, t: 0, speed: 0.9 / Math.max(e.len, 0.3) });
-  }
+      const mid = new THREE.Vector3().lerpVectors(start, end, 0.5);
+      mid.normalize().multiplyScalar(OUTER_RADIUS * 0.55);
+      const tangent = new THREE.Vector3().crossVectors(start, new THREE.Vector3(0, 1, 0)).normalize();
+      const bitangent = new THREE.Vector3().crossVectors(start, tangent).normalize();
+      mid.add(tangent.multiplyScalar((Math.random() - 0.5) * 6));
+      mid.add(bitangent.multiplyScalar((Math.random() - 0.5) * 6));
 
-  private seedRandomPulses(count: number) {
-    for (let c = 0; c < count; c++) {
-      if (!this.edges.length) return;
-      const node = Math.floor(Math.random() * this.nodes.length);
-      const list = this.adj[node];
-      if (list && list.length) this.spawnPulse(list[Math.floor(Math.random() * list.length)], node);
-    }
-  }
+      const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+      const points = curve.getPoints(POINTS_PER_VEIN); // returns POINTS_PER_VEIN + 1 points
+      const offset = Math.random();
+      const rand = Math.random();
 
-  private updatePulses(delta: number) {
-    const speedMul = this.target.pulseSpeed;
-    const propagation = this.target.propagation;
-    for (let i = 0; i < this.MAX_PULSES; i++) this.pulseSizes[i] = 0;
-
-    for (let p = this.livePulses.length - 1; p >= 0; p--) {
-      const pulse = this.livePulses[p];
-      pulse.t += pulse.speed * delta * speedMul;
-      const e = this.edges[pulse.edge];
-      const from = pulse.dir > 0 ? this.nodes[e.a] : this.nodes[e.b];
-      const to = pulse.dir > 0 ? this.nodes[e.b] : this.nodes[e.a];
-      const tt = Math.min(pulse.t, 1);
-      const slot = p % this.MAX_PULSES;
-      this.pulsePositions[slot * 3] = lerp(from.x, to.x, tt);
-      this.pulsePositions[slot * 3 + 1] = lerp(from.y, to.y, tt);
-      this.pulsePositions[slot * 3 + 2] = lerp(from.z, to.z, tt);
-      this.pulseSizes[slot] = 5.0;
-
-      if (pulse.t >= 1) {
-        const arrived = pulse.dir > 0 ? e.b : e.a;
-        this.nodes[arrived].activation = Math.min(1, this.nodes[arrived].activation + 0.9);
-        const list = this.adj[arrived];
-        for (let n = 0; n < list.length; n++) {
-          if (list[n] !== pulse.edge && Math.random() < propagation) this.spawnPulse(list[n], arrived);
-        }
-        this.livePulses.splice(p, 1);
+      for (let j = 0; j < POINTS_PER_VEIN; j++) {
+        positions.push(points[j].x, points[j].y, points[j].z);
+        positions.push(points[j + 1].x, points[j + 1].y, points[j + 1].z);
+        progress.push(j / POINTS_PER_VEIN, (j + 1) / POINTS_PER_VEIN);
+        offsets.push(offset, offset);
+        rands.push(rand, rand);
       }
     }
-    this.pulseGeo.attributes.position.needsUpdate = true;
-    this.pulseGeo.attributes.size.needsUpdate = true;
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute("progress", new THREE.Float32BufferAttribute(progress, 1));
+    geo.setAttribute("offset", new THREE.Float32BufferAttribute(offsets, 1));
+    geo.setAttribute("randomSeed", new THREE.Float32BufferAttribute(rands, 1));
+
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `
+        attribute float progress;
+        attribute float offset;
+        attribute float randomSeed;
+        varying float vProgress;
+        varying float vOffset;
+        varying float vRandom;
+        void main() {
+          vProgress = progress;
+          vOffset = offset;
+          vRandom = randomSeed;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        uniform float uPulse;
+        uniform vec3 cSurface;
+        uniform vec3 cCoreA;
+        uniform vec3 cCoreB;
+        varying float vProgress;
+        varying float vOffset;
+        varying float vRandom;
+        void main() {
+          vec3 targetCoreColor = mix(cCoreA, cCoreB, vRandom);
+          vec3 color = mix(cSurface, targetCoreColor, pow(vProgress, 1.5));
+
+          float speed = 0.3;
+          float phase = vProgress - time * speed + vOffset * 10.0;
+          float flow = fract(phase);
+          float pulse = exp(-flow * 10.0);
+
+          // uPulse brightens the traveling heads on each spoken word.
+          vec3 pulseGlow = color * pulse * (10.0 + uPulse * 42.0);
+          color += pulseGlow;
+
+          float alphaBase = 0.02;
+          float alphaPulse = pulse * (0.9 + uPulse * 1.3);
+          float alpha = alphaBase + alphaPulse;
+
+          alpha *= smoothstep(0.0, 0.05, vProgress) * smoothstep(1.0, 0.8, vProgress);
+
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.mainGroup.add(new THREE.LineSegments(geo, mat));
+  }
+
+  // ─── Boundary halo ─────────────────────────────────────────────────────────
+  // A fresnel-rim sphere at the vein-origin radius: invisible face-on, a soft
+  // luminous limb at the edges, so the veins read as born from an energy field.
+  // Tinted by cSurface, so theme switches cross-fade it for free.
+  private buildHalo() {
+    const geo = new THREE.SphereGeometry(OUTER_RADIUS * 0.995, 64, 64);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 cSurface;
+        varying vec3 vNormal;
+        void main() {
+          float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 3.5);
+          vec3 color = cSurface * fresnel * 1.6;
+          float alpha = fresnel * 0.35;
+          gl_FragColor = vec4(color, alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.mainGroup.add(new THREE.Mesh(geo, mat));
+  }
+
+  // ─── Space backdrop: distant starfield ─────────────────────────────────────
+  // Far outside the fog's reach by construction (ShaderMaterials ignore fog).
+  // Added to the scene root, not mainGroup, so it reads as a fixed sky.
+  private buildStars() {
+    const COUNT = this.isMobile ? 1200 : 2500;
+    const positions = new Float32Array(COUNT * 3);
+    const sizes = new Float32Array(COUNT);
+    const seeds = new Float32Array(COUNT);
+    const colors = new Float32Array(COUNT * 3);
+    const white = new THREE.Color(0xffffff);
+    const cool = new THREE.Color(0xbfd4ff);
+    const warm = new THREE.Color(0xffe0b8);
+    for (let i = 0; i < COUNT; i++) {
+      const dir = new THREE.Vector3(
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+      ).normalize();
+      const r = 220 + Math.random() * 200;
+      positions[i * 3] = dir.x * r;
+      positions[i * 3 + 1] = dir.y * r;
+      positions[i * 3 + 2] = dir.z * r;
+      sizes[i] = 0.6 + Math.random() * 1.6;
+      seeds[i] = Math.random();
+      const t = Math.random();
+      const c = t < 0.85 ? white : t < 0.95 ? cool : warm;
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+    geo.setAttribute("seed", new THREE.BufferAttribute(seeds, 1));
+    geo.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `
+        attribute float size;
+        attribute float seed;
+        attribute vec3 aColor;
+        uniform float time;
+        varying vec3 vColor;
+        varying float vTwinkle;
+        void main() {
+          vColor = aColor;
+          vTwinkle = 0.75 + 0.25 * sin(time * (0.5 + seed) + seed * 40.0);
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = size * (600.0 / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vTwinkle;
+        void main() {
+          vec2 uv = gl_PointCoord - vec2(0.5);
+          float d = length(uv);
+          if (d > 0.5) discard;
+          float falloff = 1.0 - smoothstep(0.0, 0.5, d);
+          gl_FragColor = vec4(vColor * vTwinkle, falloff * vTwinkle);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.scene.add(new THREE.Points(geo, mat));
+  }
+
+  // ─── Space backdrop: faint theme-tinted nebula haze ────────────────────────
+  private buildNebula() {
+    const geo = new THREE.SphereGeometry(500, 32, 32);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        varying vec3 vDir;
+        ${snoise3GLSL}
+        void main() {
+          float n = snoise(vDir * 2.0 + time * 0.01) * 0.6
+                  + snoise(vDir * 5.0 - time * 0.01) * 0.4;
+          n = max(0.0, n);
+          vec3 color = vec3(0.0, 0.8, 1.0) * n * 0.16;
+          gl_FragColor = vec4(color, n * 0.14);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      depthWrite: false,
+      depthTest: false,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = -1;
+    this.scene.add(mesh);
   }
 
   // ─── Animate ──────────────────────────────────────────────────────────────
@@ -467,122 +530,57 @@ export class NeuralScene {
     this.rafId = requestAnimationFrame(this.animate);
     if (typeof document !== "undefined" && document.hidden) return;
     const delta = Math.min(this.clock.getDelta(), 0.05);
-    const elapsed = this.clock.getElapsedTime();
+    this.uniforms.time.value = this.clock.getElapsedTime();
 
-    const effectiveActivity = Math.min(1.5, this.target.activity + this.ampBump);
-    this.liveActivity = lerp(this.liveActivity, effectiveActivity, delta * 3);
-    this.ampBump *= 0.9;
-    this.edgeMat.opacity = lerp(this.edgeMat.opacity, this.target.edgeOpacity, delta * 3);
-    if (this.colorCycle) {
-      // Sweep vividly through the three brand colors for the greeting burst.
-      const cols = [TINTS.cyan, TINTS.violet, TINTS.magenta];
-      const seg = (elapsed * 0.45) % 3;
-      const i0 = Math.floor(seg) % 3;
-      const i1 = (i0 + 1) % 3;
-      const f = seg - Math.floor(seg);
-      this.tintCurrent[0] = lerp(cols[i0][0], cols[i1][0], f);
-      this.tintCurrent[1] = lerp(cols[i0][1], cols[i1][1], f);
-      this.tintCurrent[2] = lerp(cols[i0][2], cols[i1][2], f);
-      this.tintAmount = lerp(this.tintAmount, 0.92, delta * 3);
-    } else {
-      this.tintAmount = lerp(this.tintAmount, this.target.tintAmount, delta * 2);
-      const tt = TINTS[this.target.tint];
-      this.tintCurrent[0] = lerp(this.tintCurrent[0], tt[0], delta * 2);
-      this.tintCurrent[1] = lerp(this.tintCurrent[1], tt[1], delta * 2);
-      this.tintCurrent[2] = lerp(this.tintCurrent[2], tt[2], delta * 2);
-    }
+    // Envelopes: voice chases its target fast; word pulses decay quickly;
+    // the greet surge decays over ~4.5s (matches the page's active window).
+    this.voiceLevel += (this.voiceTarget - this.voiceLevel) * Math.min(1, delta * 14);
+    this.pulseLevel *= Math.exp(-2.8 * delta);
+    this.greetLevel *= Math.exp(-0.8 * delta);
+    this.uniforms.uVoice.value = Math.min(1, this.voiceLevel + this.greetLevel * 0.5);
+    this.uniforms.uPulse.value = Math.min(1.5, this.pulseLevel + this.greetLevel);
 
-    this.voiceLevel = lerp(this.voiceLevel, this.voiceTarget, delta * 14);
-    this.nodeMat.uniforms.uTime.value = elapsed;
-    this.nodeMat.uniforms.uGlobalActivity.value = this.liveActivity;
-    this.nodeMat.uniforms.uVoice.value = this.voiceLevel;
-    this.nodeMat.uniforms.uTintAmount.value = this.tintAmount;
-    (this.nodeMat.uniforms.uTint.value as THREE.Color).setRGB(
-      this.tintCurrent[0],
-      this.tintCurrent[1],
-      this.tintCurrent[2],
-    );
+    // Cross-fade every color channel toward the active theme (pen behavior).
+    const tgt = THEMES[this.themeIndex];
+    this.uniforms.cDark.value.lerp(tgt.core[0], THEME_LERP);
+    this.uniforms.cRed.value.lerp(tgt.core[1], THEME_LERP);
+    this.uniforms.cOrange.value.lerp(tgt.core[2], THEME_LERP);
+    this.uniforms.cYellow.value.lerp(tgt.core[3], THEME_LERP);
+    this.uniforms.cSurface.value.lerp(tgt.vein.surface, THEME_LERP);
+    this.uniforms.cCoreA.value.lerp(tgt.vein.coreA, THEME_LERP);
+    this.uniforms.cCoreB.value.lerp(tgt.vein.coreB, THEME_LERP);
+    this.dustMat.color.lerp(tgt.dust, THEME_LERP);
 
-    const seedRate = this.reduceMotion && this.currentState === "idle" ? 0 : this.target.seedRate;
-    this.seedAccumulator += seedRate * delta;
-    while (this.seedAccumulator >= 1) {
-      this.seedRandomPulses(1);
-      this.seedAccumulator -= 1;
-    }
+    this.bloomPass.strength = 2.0 + this.greetLevel * 1.2 + this.uniforms.uVoice.value * 1.4;
+    if (!this.reduceMotion) this.controls.autoRotateSpeed = 0.8 + this.greetLevel * 2.0;
 
-    this.updatePulses(delta);
-
-    const pos = this.nodeGeo.attributes.position.array as Float32Array;
-    for (let i = 0; i < this.nodes.length; i++) {
-      const node = this.nodes[i];
-      node.x += node.drift.x;
-      node.y += node.drift.y;
-      node.z += node.drift.z;
-      node.drift.x -= (node.x - node.home.x) * 0.00004;
-      node.drift.y -= (node.y - node.home.y) * 0.00004;
-      node.drift.z -= (node.z - node.home.z) * 0.00004;
-      node.activation *= 0.92;
-      pos[i * 3] = node.x;
-      pos[i * 3 + 1] = node.y;
-      pos[i * 3 + 2] = node.z;
-      this.nodeActivations[i] = node.activation;
-    }
-    this.nodeGeo.attributes.position.needsUpdate = true;
-    this.nodeGeo.attributes.aActivation.needsUpdate = true;
-
-    const cam = this.camera.position;
-    cam.x += (this.mouse.x * 0.4 - cam.x) * delta * 1.5;
-    cam.y += (this.mouse.y * 0.4 - cam.y) * delta * 1.5;
-    // During the greeting, dolly the camera in/out for extra sense of movement.
-    const baseZ = this.colorCycle ? 9.4 + Math.sin(elapsed * 2.2) * 0.4 : 10;
-    cam.z += (baseZ - cam.z) * delta * 2;
-    this.camera.lookAt(0, 0, 0);
-
-    if (this.useBloom && this.composer && this.bloomPass) {
-      // Brighter bloom as the network energises (peaks during greeting).
-      this.bloomPass.strength = 0.42 + this.liveActivity * 0.42;
-      this.composer.render();
-    } else {
-      this.renderer.render(this.scene, this.camera);
-    }
+    this.dustMesh.rotation.y += 0.02 * delta;
+    this.flares?.update(delta);
+    this.controls.update();
+    this.composer.render();
   }
 
   // ─── Public controls ──────────────────────────────────────────────────────
-  setState(name: NeuralState) {
-    if (!STATE_PROFILES[name]) return;
-    this.currentState = name;
-    this.target = STATE_PROFILES[name];
-    if (name === "thinking") this.seedRandomPulses(this.isMobile ? 6 : 12);
-  }
-
+  /** Word-boundary punch: brightens vein pulse heads and the core. */
   pulse(count = 1) {
-    this.seedRandomPulses(count);
+    this.pulseLevel = Math.min(1.5, this.pulseLevel + 0.4 * count);
+    if (!this.reduceMotion) this.flares?.activate(2 + Math.floor(Math.random() * 2));
   }
 
-  /**
-   * A bright, colorful "hello" burst: max energy, cascading pulses and a sweep
-   * through all three brand colors, easing back to idle after ~5s.
-   */
-  greet(durationMs = 4500) {
-    this.colorCycle = true;
-    this.currentState = "greeting";
-    this.target = STATE_PROFILES.greeting;
-    this.seedRandomPulses(this.isMobile ? 18 : 40);
-    if (this.greetTimer) clearTimeout(this.greetTimer);
-    this.greetTimer = setTimeout(() => {
-      this.colorCycle = false;
-      this.greetTimer = null;
-      this.setState("idle");
-    }, durationMs);
-  }
-
-  setAmplitude(level: number) {
-    this.ampBump = Math.max(0, Math.min(1, level || 0));
-  }
-
-  /** Drive the brain's voice ripple (0..1). Page feeds a speech envelope here. */
+  /** Drive the core's voice swell (0..1). Page feeds a speech envelope here. */
   setVoiceLevel(level: number) {
     this.voiceTarget = Math.max(0, Math.min(1, level || 0));
+  }
+
+  /** Greeting surge: bloom + rotation + vein/core boost, decaying over ~4.5s. */
+  greet() {
+    this.greetLevel = 1;
+    if (!this.reduceMotion) this.flares?.activate(8);
+  }
+
+  /** Set the active palette; colors cross-fade toward it each frame. */
+  setTheme(index: number) {
+    this.themeIndex = Math.max(0, Math.min(THEMES.length - 1, Math.floor(index)));
   }
 
   private onResize() {
@@ -590,20 +588,23 @@ export class NeuralScene {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.composer?.setSize(window.innerWidth, window.innerHeight);
-    this.bloomPass?.setSize(window.innerWidth, window.innerHeight);
-  }
-
-  private onMouseMove(e: MouseEvent) {
-    this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-    this.mouse.y = -((e.clientY / window.innerHeight) * 2 - 1);
+    this.composer.setSize(window.innerWidth, window.innerHeight);
   }
 
   dispose() {
     if (this.rafId) cancelAnimationFrame(this.rafId);
-    if (this.greetTimer) clearTimeout(this.greetTimer);
     window.removeEventListener("resize", this.onResize);
-    window.removeEventListener("mousemove", this.onMouseMove);
+    this.controls?.dispose();
+    this.scene?.traverse((obj) => {
+      const o = obj as THREE.Object3D & {
+        geometry?: THREE.BufferGeometry;
+        material?: THREE.Material | THREE.Material[];
+      };
+      o.geometry?.dispose();
+      if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+      else o.material?.dispose();
+    });
+    this.bloomPass?.dispose();
     this.composer?.dispose();
     if (this.renderer) this.renderer.dispose();
   }

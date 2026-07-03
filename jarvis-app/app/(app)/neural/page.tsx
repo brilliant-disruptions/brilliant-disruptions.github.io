@@ -1,24 +1,21 @@
 "use client";
 
 /**
- * JARVIS Neural Interface — a member-gated, full-screen Iron Man HUD.
+ * JARVIS Neural Interface — a member-gated, full-screen magma core.
  *
- * Flow: ENGAGE (unlocks audio) → cinematic boot → live HUD. The neuron brain is
- * an arc-reactor core (Three.js + bloom) wrapped in rotating reticle rings, a
- * radar sweep, a gold frame and live telemetry panels. The "Hi, I'm JARVIS"
- * button fires a color-cycling burst with a power-up sound while JARVIS speaks.
+ * A molten noise-displaced core wrapped in energy veins that pulse inward toward
+ * the core (Three.js + bloom + orbit controls). The "Hi, I'm
+ * JARVIS" button speaks a rotating greeting while the core reacts
+ * theatrically — flares, swells, and blooms with JARVIS's words. Voice-only:
+ * no captions. Theme switcher bottom-left.
  */
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NeuralScene } from "@/lib/neural/scene";
 import { HudSound } from "@/lib/neural/sound";
-import { HudRings } from "@/components/neural/HudRings";
-import { HudPanels } from "@/components/neural/HudPanels";
-import { BootSequence } from "@/components/neural/BootSequence";
-
-const GREETING = "Hello. I'm JARVIS — the Brilliant Disruptions neural interface. All systems online.";
-type Phase = "engage" | "booting" | "live";
+import { createGreetingBag } from "@/lib/neural/greetings";
+import { ThemeSwitcher } from "@/components/neural/ThemeSwitcher";
 
 export default function NeuralPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,14 +24,17 @@ export default function NeuralPage() {
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const boundaryTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const speakingRef = useRef(false);
-  const synthUnlockedRef = useRef(false);
   const voiceRaf = useRef(0);
   const voiceSpike = useRef(0);
+  const speakSession = useRef(0);
+  const startWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const failsafeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const greetingBag = useRef<(() => string) | null>(null);
 
-  const [phase, setPhase] = useState<Phase>("engage");
   const [active, setActive] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [webglOk, setWebglOk] = useState(true);
+  const [theme, setTheme] = useState(0);
 
   // ─── Scene + sound lifecycle ───────────────────────────────────────────────
   useEffect(() => {
@@ -45,6 +45,15 @@ export default function NeuralPage() {
     setWebglOk(ok);
     soundRef.current = new HudSound();
     return () => {
+      if (boundaryTimer.current) {
+        clearInterval(boundaryTimer.current);
+        boundaryTimer.current = null;
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- counter ref, not a DOM node: bump before cancel() so any deferred speak() callbacks still in flight no-op against a dead turn
+      speakSession.current++;
+      window.speechSynthesis?.cancel();
+      if (startWatchdog.current) clearTimeout(startWatchdog.current);
+      if (failsafeTimer.current) clearTimeout(failsafeTimer.current);
       if (voiceRaf.current) cancelAnimationFrame(voiceRaf.current);
       scene.dispose();
       sceneRef.current = null;
@@ -88,6 +97,7 @@ export default function NeuralPage() {
 
   const startBoundaryFallback = useCallback(
     (text: string) => {
+      if (boundaryTimer.current) return; // idempotent: keep the earlier interval, whose est clock is already running
       const perPulse = 180;
       const est = Math.max(1200, (text.length / 12) * 1000);
       let elapsed = 0;
@@ -101,10 +111,10 @@ export default function NeuralPage() {
     [stopBoundaryFallback],
   );
 
-  // While speaking, feed the brain a continuous voice envelope (a smooth shimmer
-  // plus a punch on every word) so the whole neuron cluster ripples like it's
-  // the one talking. The browser won't expose the real TTS waveform, so this is
-  // a believable synthesized envelope synced to the speech timing.
+  // While speaking, feed the core a continuous voice envelope (a smooth shimmer
+  // plus a punch on every word) so the magma surface swells like it's the one
+  // talking. The browser won't expose the real TTS waveform, so this is a
+  // believable synthesized envelope synced to the speech timing.
   const startVoiceEnvelope = useCallback(() => {
     if (voiceRaf.current) return;
     const loop = () => {
@@ -125,11 +135,25 @@ export default function NeuralPage() {
 
   const speak = useCallback(
     (text: string) => {
+      const turn = ++speakSession.current;
       speakingRef.current = true;
       setSpeaking(true);
       startVoiceEnvelope();
       const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+      const clearTimers = () => {
+        if (startWatchdog.current) {
+          clearTimeout(startWatchdog.current);
+          startWatchdog.current = null;
+        }
+        if (failsafeTimer.current) {
+          clearTimeout(failsafeTimer.current);
+          failsafeTimer.current = null;
+        }
+      };
+      clearTimers(); // a new turn owns the timers
       const done = () => {
+        if (speakSession.current !== turn) return;
+        clearTimers();
         speakingRef.current = false;
         setSpeaking(false);
         stopBoundaryFallback();
@@ -137,10 +161,14 @@ export default function NeuralPage() {
       };
       if (!synth || typeof SpeechSynthesisUtterance === "undefined") {
         startBoundaryFallback(text);
-        setTimeout(done, Math.max(1500, (text.length / 12) * 1000));
+        failsafeTimer.current = setTimeout(done, Math.max(1500, (text.length / 12) * 1000));
         return;
       }
-      synth.cancel();
+      // Cancel only when something is actually queued: an unconditional
+      // cancel() right before speak() is the classic pattern that makes some
+      // engines (iOS Safari, occasionally desktop Chrome) silently swallow
+      // the new utterance.
+      if (synth.speaking || synth.pending) synth.cancel();
       const u = new SpeechSynthesisUtterance(text);
       // Light touch: neural voices sound most human near their natural pitch, so
       // we only nudge slightly for a calm, measured delivery.
@@ -151,12 +179,20 @@ export default function NeuralPage() {
       if (voiceRef.current) u.voice = voiceRef.current;
 
       let gotBoundary = false;
+      let started = false;
       u.onstart = () => {
+        if (speakSession.current !== turn) return;
+        started = true;
+        if (startWatchdog.current) {
+          clearTimeout(startWatchdog.current);
+          startWatchdog.current = null;
+        }
         setTimeout(() => {
-          if (!gotBoundary && speakingRef.current) startBoundaryFallback(text);
+          if (speakSession.current === turn && !gotBoundary && speakingRef.current) startBoundaryFallback(text);
         }, 280);
       };
       u.onboundary = () => {
+        if (speakSession.current !== turn) return;
         gotBoundary = true;
         sceneRef.current?.pulse(2);
         voiceSpike.current = 0.65 + Math.random() * 0.35;
@@ -164,6 +200,17 @@ export default function NeuralPage() {
       u.onend = done;
       u.onerror = done;
       synth.speak(u);
+
+      // Watchdog: some engines swallow utterances silently (no onstart, no
+      // onerror). Keep the core performing; the failsafe below ends the turn.
+      startWatchdog.current = setTimeout(() => {
+        if (speakSession.current !== turn) return;
+        startWatchdog.current = null;
+        if (!started && speakingRef.current) startBoundaryFallback(text);
+      }, 1200);
+      // Failsafe: even if onend never arrives, the turn always ends and the
+      // buttons re-enable.
+      failsafeTimer.current = setTimeout(done, Math.max(4000, (text.length / 10) * 1000 + 2000));
     },
     [pickVoice, startBoundaryFallback, stopBoundaryFallback, startVoiceEnvelope, stopVoiceEnvelope],
   );
@@ -186,40 +233,26 @@ export default function NeuralPage() {
     };
   }, [pickVoice]);
 
-  const unlockSynthesis = () => {
-    if (synthUnlockedRef.current) return;
-    const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
-    if (!synth || typeof SpeechSynthesisUtterance === "undefined") return;
-    const u = new SpeechSynthesisUtterance(" ");
-    u.volume = 0;
-    synth.speak(u);
-    synthUnlockedRef.current = true;
+  // ─── Interactions ──────────────────────────────────────────────────────────
+  const onThemeChange = (i: number) => {
+    setTheme(i);
+    sceneRef.current?.setTheme(i);
   };
-
-  // ─── Flow ──────────────────────────────────────────────────────────────────
-  const onEngage = () => {
-    soundRef.current?.unlock();
-    soundRef.current?.boot();
-    unlockSynthesis();
-    setPhase("booting");
-  };
-
-  const onBootComplete = useCallback(() => {
-    setPhase("live");
-    soundRef.current?.startAmbient();
-  }, []);
 
   const onGreet = () => {
-    if (active) return;
+    if (active || speaking) return;
     setActive(true);
+    soundRef.current?.unlock(); // first user gesture unlocks audio
     soundRef.current?.powerUp();
     sceneRef.current?.greet();
-    speak(GREETING);
+    if (!greetingBag.current) greetingBag.current = createGreetingBag();
+    speak(greetingBag.current());
     window.setTimeout(() => setActive(false), 4500);
   };
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-[#04060a] text-[var(--white)]">
+      {/* Canvas keeps pointer events — OrbitControls listens on it. */}
       <canvas ref={canvasRef} aria-hidden className="absolute inset-0 h-full w-full" />
       {!webglOk && (
         <div
@@ -233,82 +266,38 @@ export default function NeuralPage() {
         />
       )}
 
-      {/* scanline veil */}
-      <div aria-hidden className="hud-scanlines pointer-events-none absolute inset-0 opacity-30" />
-
-      {/* gold frame */}
-      <div aria-hidden className="pointer-events-none absolute inset-3 sm:inset-5">
-        <div className="absolute inset-0 border" style={{ borderColor: "rgba(0,229,255,0.16)" }} />
-        {(["left-0 top-0 border-l border-t", "right-0 top-0 border-r border-t", "left-0 bottom-0 border-l border-b", "right-0 bottom-0 border-r border-b"] as const).map(
-          (c, i) => (
-            <div key={i} className={`absolute h-6 w-6 ${c}`} style={{ borderColor: "var(--gold)" }} />
-          ),
-        )}
-      </div>
-
-      {/* live HUD chrome */}
-      {phase === "live" && (
-        <>
-          <HudRings active={active} />
-          <HudPanels speaking={speaking} />
-
-          <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-5 sm:p-10">
-            <header className="flex items-center justify-between">
-              <Link
-                href="/overview"
-                className="pointer-events-auto font-mono text-xs tracking-widest text-[var(--muted-hi)] transition hover:text-[var(--cyan)]"
-              >
-                ← CONSOLE
-              </Link>
-              <div className="hidden font-mono text-[11px] tracking-[0.2em] text-[var(--gold)] sm:block">
-                MK XLII · {active ? "ACTIVE" : "IDLE"}
-              </div>
-            </header>
-
-            <div className="flex-1" />
-
-            <footer className="flex flex-col items-center gap-4">
-              <button
-                onClick={onGreet}
-                disabled={active}
-                className="pointer-events-auto px-9 py-4 font-display text-base font-semibold tracking-wide backdrop-blur transition disabled:opacity-80"
-                style={{
-                  clipPath: "polygon(0 14px, 14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px))",
-                  background: active ? "rgba(255,179,71,0.14)" : "rgba(0,229,255,0.1)",
-                  border: `1.5px solid ${active ? "var(--gold)" : "var(--cyan)"}`,
-                  color: active ? "var(--gold-bright)" : "var(--white)",
-                  boxShadow: active ? "0 0 36px rgba(255,179,71,0.45)" : "0 0 24px rgba(0,229,255,0.3)",
-                }}
-              >
-                {active ? "JARVIS ONLINE…" : "Hi, I'm JARVIS"}
-              </button>
-            </footer>
-          </div>
-        </>
-      )}
-
-      {/* boot sequence */}
-      {phase === "booting" && <BootSequence onComplete={onBootComplete} />}
-
-      {/* engage gate */}
-      {phase === "engage" && (
-        <div className="absolute inset-0 z-30 grid place-items-center">
-          <button
-            onClick={onEngage}
-            className="pointer-events-auto grid place-items-center rounded-full font-display text-lg font-semibold tracking-[0.3em] text-[var(--cyan)] transition hover:text-[var(--white)]"
-            style={{
-              width: "180px",
-              height: "180px",
-              background: "rgba(0,229,255,0.06)",
-              border: "1.5px solid var(--cyan)",
-              boxShadow: "0 0 50px rgba(0,229,255,0.3), inset 0 0 40px rgba(0,229,255,0.08)",
-              animation: "hud-pulse 2.4s ease-in-out infinite",
-            }}
+      {/* UI overlay — transparent to drags except its own controls. */}
+      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-5 sm:p-8">
+        <header className="flex items-center justify-between">
+          <Link
+            href="/overview"
+            className="pointer-events-auto font-mono text-xs tracking-widest text-[var(--muted-hi)] transition hover:text-[var(--cyan)]"
           >
-            ENGAGE
-          </button>
-        </div>
-      )}
+            ← CONSOLE
+          </Link>
+        </header>
+
+        <footer className="relative flex items-end">
+          <ThemeSwitcher active={theme} onChange={onThemeChange} />
+          <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-3">
+            <button
+              onClick={onGreet}
+              disabled={active || speaking}
+              className="pointer-events-auto px-9 py-4 font-display text-base font-semibold tracking-wide backdrop-blur transition disabled:opacity-80"
+              style={{
+                clipPath:
+                  "polygon(0 14px, 14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px))",
+                background: active ? "rgba(255,179,71,0.14)" : "rgba(0,229,255,0.1)",
+                border: `1.5px solid ${active ? "var(--gold)" : "var(--cyan)"}`,
+                color: active ? "var(--gold-bright)" : "var(--white)",
+                boxShadow: active ? "0 0 36px rgba(255,179,71,0.45)" : "0 0 24px rgba(0,229,255,0.3)",
+              }}
+            >
+              {active ? "JARVIS ONLINE…" : "Hi, I'm JARVIS"}
+            </button>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
