@@ -53,7 +53,6 @@ export default function NeuralPage() {
     setWebglOk(ok);
     soundRef.current = new HudSound();
     listenerRef.current = new JarvisListener();
-    micRef.current = new MicAnalyser();
     setMicSupported(JarvisListener.isSupported());
     return () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps -- counter ref, not a DOM node: the live value must be bumped so a getUserMedia still pending at unmount resolves into an already-dead session
@@ -241,8 +240,9 @@ export default function NeuralPage() {
     // getUserMedia resolving after the listen already ended: a stale session's
     // levels are ignored and its late-arriving stream is stopped immediately.
     const session = ++listenSession.current;
-    const mic = micRef.current;
-    void mic?.start((level, peak) => {
+    const mic = new MicAnalyser(); // per session: a stale session's late getUserMedia can only ever touch its own instance
+    micRef.current = mic;
+    void mic.start((level, peak) => {
       if (listenSession.current !== session) return;
       sceneRef.current?.setVoiceLevel(level * 0.8);
       if (peak) sceneRef.current?.pulse(1);
@@ -257,6 +257,7 @@ export default function NeuralPage() {
       onEnd: () => {
         listenSession.current++;
         micRef.current?.stop();
+        micRef.current = null;
         sceneRef.current?.setVoiceLevel(0);
         soundRef.current?.blip();
         setMicState("idle");
