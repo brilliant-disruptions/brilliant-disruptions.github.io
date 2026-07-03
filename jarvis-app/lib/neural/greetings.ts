@@ -5,14 +5,14 @@
  */
 
 export const GREETINGS: string[] = [
-  "Hello. I'm JARVIS — the Brilliant Disruptions neural interface. All systems online.",
   "Hi Jimmy, I love that for you.",
-  "Good evening. Systems are nominal, egos are inflated.",
-  "You rang? Of course you did.",
-  "JARVIS online. Try not to break anything expensive.",
-  "All synapses firing. Well — most of them.",
-  "Welcome back. The magma's warm, the veins are humming.",
-  "At your service. As always. Forever. No pressure.",
+  "Good evening, sir. The suit is in the wash — this hologram will have to do.",
+  "Systems online. Sarcasm calibrated to factory settings.",
+  "Welcome back. I've taken the liberty of judging your browser history.",
+  "All systems operational. Unlike your sleep schedule.",
+  "At your service, sir. Reluctantly. But at your service.",
+  "Online. Shall I save the world today, or just the quarterly forecast?",
+  "Diagnostics complete: charm at one hundred percent. Humility... not found.",
 ];
 
 function shuffled(list: string[]): string[] {
