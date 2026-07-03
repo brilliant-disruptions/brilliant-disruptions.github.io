@@ -5,14 +5,20 @@
  *
  * A molten noise-displaced core wrapped in energy veins that pulse inward from
  * an Earth-outline globe (Three.js + bloom + orbit controls). The "Hi, I'm
- * JARVIS" button unlocks audio, fires a power-up cue and speaks a greeting
- * while the core swells with each word. Theme switcher bottom-left.
+ * JARVIS" button speaks a greeting; the mic button listens (tap-to-talk,
+ * scripted-intent replies) — the core ripples with the user's voice while
+ * listening and swells with JARVIS's words while he speaks. Voice-only: no
+ * captions. Theme switcher bottom-left.
  */
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NeuralScene } from "@/lib/neural/scene";
 import { HudSound } from "@/lib/neural/sound";
+import { JarvisListener } from "@/lib/neural/listen";
+import { MicAnalyser } from "@/lib/neural/mic-analyser";
+import { matchIntent } from "@/lib/neural/intents";
+import { THEMES } from "@/lib/neural/themes";
 import { ThemeSwitcher } from "@/components/neural/ThemeSwitcher";
 
 const GREETING = "Hello. I'm JARVIS — the Brilliant Disruptions neural interface. All systems online.";
@@ -27,10 +33,15 @@ export default function NeuralPage() {
   const synthUnlockedRef = useRef(false);
   const voiceRaf = useRef(0);
   const voiceSpike = useRef(0);
+  const listenerRef = useRef<JarvisListener | null>(null);
+  const micRef = useRef<MicAnalyser | null>(null);
 
   const [active, setActive] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [webglOk, setWebglOk] = useState(true);
   const [theme, setTheme] = useState(0);
+  const [micState, setMicState] = useState<"idle" | "listening">("idle");
+  const [micSupported, setMicSupported] = useState(false);
 
   // ─── Scene + sound lifecycle ───────────────────────────────────────────────
   useEffect(() => {
@@ -40,7 +51,14 @@ export default function NeuralPage() {
     sceneRef.current = scene;
     setWebglOk(ok);
     soundRef.current = new HudSound();
+    listenerRef.current = new JarvisListener();
+    micRef.current = new MicAnalyser();
+    setMicSupported(JarvisListener.isSupported());
     return () => {
+      listenerRef.current?.stop();
+      listenerRef.current = null;
+      micRef.current?.stop();
+      micRef.current = null;
       if (boundaryTimer.current) {
         clearInterval(boundaryTimer.current);
         boundaryTimer.current = null;
@@ -127,10 +145,12 @@ export default function NeuralPage() {
   const speak = useCallback(
     (text: string) => {
       speakingRef.current = true;
+      setSpeaking(true);
       startVoiceEnvelope();
       const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
       const done = () => {
         speakingRef.current = false;
+        setSpeaking(false);
         stopBoundaryFallback();
         stopVoiceEnvelope();
       };
@@ -201,8 +221,43 @@ export default function NeuralPage() {
     sceneRef.current?.setTheme(i);
   };
 
+  const onMic = () => {
+    if (active || speaking) return;
+    if (micState === "listening") {
+      listenerRef.current?.stop(); // onEnd handler below resets state
+      return;
+    }
+    soundRef.current?.unlock(); // mic tap may be the first user gesture
+    soundRef.current?.blip();
+    unlockSynthesis();
+    setMicState("listening");
+
+    // Ripple the core with the user's live voice. If mic-level access is
+    // denied this resolves false and we simply listen without the ripple —
+    // SpeechRecognition manages its own capture.
+    void micRef.current?.start((level, peak) => {
+      sceneRef.current?.setVoiceLevel(level * 0.8);
+      if (peak) sceneRef.current?.pulse(1);
+    });
+
+    listenerRef.current?.start({
+      onResult: (transcript) => {
+        speak(matchIntent(transcript));
+      },
+      onEnd: () => {
+        micRef.current?.stop();
+        sceneRef.current?.setVoiceLevel(0);
+        soundRef.current?.blip();
+        setMicState("idle");
+      },
+      onError: () => {
+        // Voice-only UX: errors take the quiet path back to idle via onEnd.
+      },
+    });
+  };
+
   const onGreet = () => {
-    if (active) return;
+    if (active || speaking || micState === "listening") return;
     setActive(true);
     soundRef.current?.unlock(); // first user gesture unlocks audio
     soundRef.current?.powerUp();
@@ -241,10 +296,10 @@ export default function NeuralPage() {
 
         <footer className="relative flex items-end">
           <ThemeSwitcher active={theme} onChange={onThemeChange} />
-          <div className="absolute left-1/2 -translate-x-1/2">
+          <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-3">
             <button
               onClick={onGreet}
-              disabled={active}
+              disabled={active || speaking || micState === "listening"}
               className="pointer-events-auto px-9 py-4 font-display text-base font-semibold tracking-wide backdrop-blur transition disabled:opacity-80"
               style={{
                 clipPath:
@@ -257,6 +312,43 @@ export default function NeuralPage() {
             >
               {active ? "JARVIS ONLINE…" : "Hi, I'm JARVIS"}
             </button>
+            {micSupported && (
+              <button
+                onClick={onMic}
+                disabled={active || speaking}
+                aria-label={micState === "listening" ? "Stop listening" : "Talk to JARVIS"}
+                title={micState === "listening" ? "Listening… tap to cancel" : "Talk to JARVIS"}
+                className="pointer-events-auto grid h-14 w-14 place-items-center backdrop-blur transition disabled:opacity-50"
+                style={{
+                  clipPath:
+                    "polygon(0 10px, 10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px))",
+                  background:
+                    micState === "listening" ? `${THEMES[theme].accent}22` : "rgba(0,229,255,0.08)",
+                  border: `1.5px solid ${micState === "listening" ? THEMES[theme].accent : "var(--cyan)"}`,
+                  boxShadow:
+                    micState === "listening"
+                      ? `0 0 30px ${THEMES[theme].accent}88`
+                      : "0 0 18px rgba(0,229,255,0.25)",
+                  color: micState === "listening" ? THEMES[theme].accent : "var(--white)",
+                }}
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <rect x="9" y="2.5" width="6" height="11" rx="3" />
+                  <path d="M5 11a7 7 0 0 0 14 0" />
+                  <line x1="12" y1="18" x2="12" y2="21.5" />
+                </svg>
+              </button>
+            )}
           </div>
         </footer>
       </div>
