@@ -35,6 +35,7 @@ export default function NeuralPage() {
   const listenerRef = useRef<JarvisListener | null>(null);
   const micRef = useRef<MicAnalyser | null>(null);
   const listenSession = useRef(0);
+  const speakSession = useRef(0);
   const startWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
   const failsafeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const greetingBag = useRef<(() => string) | null>(null);
@@ -67,6 +68,8 @@ export default function NeuralPage() {
         clearInterval(boundaryTimer.current);
         boundaryTimer.current = null;
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- counter ref, not a DOM node: bump before cancel() so any deferred speak() callbacks still in flight no-op against a dead turn
+      speakSession.current++;
       window.speechSynthesis?.cancel();
       if (startWatchdog.current) clearTimeout(startWatchdog.current);
       if (failsafeTimer.current) clearTimeout(failsafeTimer.current);
@@ -150,6 +153,7 @@ export default function NeuralPage() {
 
   const speak = useCallback(
     (text: string) => {
+      const turn = ++speakSession.current;
       speakingRef.current = true;
       setSpeaking(true);
       startVoiceEnvelope();
@@ -166,6 +170,7 @@ export default function NeuralPage() {
       };
       clearTimers(); // a new turn owns the timers
       const done = () => {
+        if (speakSession.current !== turn) return;
         clearTimers();
         speakingRef.current = false;
         setSpeaking(false);
@@ -194,16 +199,18 @@ export default function NeuralPage() {
       let gotBoundary = false;
       let started = false;
       u.onstart = () => {
+        if (speakSession.current !== turn) return;
         started = true;
         if (startWatchdog.current) {
           clearTimeout(startWatchdog.current);
           startWatchdog.current = null;
         }
         setTimeout(() => {
-          if (!gotBoundary && speakingRef.current) startBoundaryFallback(text);
+          if (speakSession.current === turn && !gotBoundary && speakingRef.current) startBoundaryFallback(text);
         }, 280);
       };
       u.onboundary = () => {
+        if (speakSession.current !== turn) return;
         gotBoundary = true;
         sceneRef.current?.pulse(2);
         voiceSpike.current = 0.65 + Math.random() * 0.35;
@@ -215,8 +222,9 @@ export default function NeuralPage() {
       // Watchdog: some engines swallow utterances silently (no onstart, no
       // onerror). Keep the core performing; the failsafe below ends the turn.
       startWatchdog.current = setTimeout(() => {
+        if (speakSession.current !== turn) return;
         startWatchdog.current = null;
-        if (!started && speakingRef.current) startBoundaryFallback(text);
+        if (speakSession.current === turn && !started && speakingRef.current) startBoundaryFallback(text);
       }, 1200);
       // Failsafe: even if onend never arrives, the turn always ends and the
       // buttons re-enable.
