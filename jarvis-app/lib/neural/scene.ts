@@ -19,6 +19,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { THEMES } from "./themes";
+import { FlareField } from "./flares";
 
 const CORE_RADIUS = 2.2;
 const OUTER_RADIUS = 10.0;
@@ -99,6 +100,7 @@ export class NeuralScene {
   private dustMat!: THREE.PointsMaterial;
   private rafId = 0;
   private supported = true;
+  private flares: FlareField | null = null;
 
   private themeIndex = 0;
   private voiceLevel = 0;
@@ -204,6 +206,8 @@ export class NeuralScene {
     this.buildCore();
     this.buildVeins();
     this.buildHalo();
+    this.flares = new FlareField(CORE_RADIUS, this.uniforms, this.isMobile ? 14 : 28);
+    this.mainGroup.add(this.flares.mesh);
 
     window.addEventListener("resize", this.onResize);
     this.animate();
@@ -445,6 +449,7 @@ export class NeuralScene {
     if (!this.reduceMotion) this.controls.autoRotateSpeed = 0.8 + this.greetLevel * 2.0;
 
     this.dustMesh.rotation.y += 0.02 * delta;
+    this.flares?.update(delta);
     this.controls.update();
     this.composer.render();
   }
@@ -453,6 +458,7 @@ export class NeuralScene {
   /** Word-boundary punch: brightens vein pulse heads and the core. */
   pulse(count = 1) {
     this.pulseLevel = Math.min(1.5, this.pulseLevel + 0.4 * count);
+    if (!this.reduceMotion) this.flares?.activate(2 + Math.floor(Math.random() * 2));
   }
 
   /** Drive the core's voice swell (0..1). Page feeds a speech envelope here. */
@@ -463,6 +469,7 @@ export class NeuralScene {
   /** Greeting surge: bloom + rotation + vein/core boost, decaying over ~4.5s. */
   greet() {
     this.greetLevel = 1;
+    if (!this.reduceMotion) this.flares?.activate(8);
   }
 
   /** Set the active palette; colors cross-fade toward it each frame. */
