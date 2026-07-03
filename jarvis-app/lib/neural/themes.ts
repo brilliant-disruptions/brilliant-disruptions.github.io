@@ -2,7 +2,7 @@
  * Theme palettes for the JARVIS magma-core scene.
  *
  * Each palette drives every color channel in the scene (core gradient, vein
- * pulses, globe outline, volcano points, dust, fog/background) plus the CSS
+ * pulses, dust, fog/background) plus the CSS
  * bits the ThemeSwitcher needs (thumb gradient + glow accent). The scene lerps
  * all channels toward the active palette each frame, so switching cross-fades.
  */
@@ -18,9 +18,6 @@ export type NeuralTheme = {
   /** Core sphere gradient stops: dark → hot mid → bright → peak. */
   core: [Color, Color, Color, Color];
   vein: { surface: Color; coreA: Color; coreB: Color };
-  /** Globe continent-outline color (HDR — values >1 feed bloom). */
-  boundary: Color;
-  volcano: Color;
   dust: Color;
   bg: Color;
 };
@@ -41,8 +38,6 @@ export const THEMES: NeuralTheme[] = [
       coreA: new Color(0.8, 0.1, 0.0),
       coreB: new Color(1.0, 0.6, 0.0),
     },
-    boundary: new Color(0.0, 1.5, 3.0),
-    volcano: new Color(0xff5500),
     dust: new Color(0x223355),
     bg: new Color(0x010102),
   },
@@ -61,8 +56,6 @@ export const THEMES: NeuralTheme[] = [
       coreA: new Color(0.8, 0.0, 0.8),
       coreB: new Color(0.0, 0.8, 1.0),
     },
-    boundary: new Color(2.0, 0.0, 1.5),
-    volcano: new Color(0x00ff00),
     dust: new Color(0x2a0044),
     bg: new Color(0x020005),
   },
@@ -81,8 +74,6 @@ export const THEMES: NeuralTheme[] = [
       coreA: new Color(1.0, 0.8, 0.0),
       coreB: new Color(1.0, 0.3, 0.0),
     },
-    boundary: new Color(1.5, 1.5, 2.5),
-    volcano: new Color(0xffffff),
     dust: new Color(0x443311),
     bg: new Color(0x000103),
   },

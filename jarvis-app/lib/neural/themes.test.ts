@@ -15,8 +15,6 @@ describe("THEMES", () => {
       expect(t.vein.surface).toBeInstanceOf(Color);
       expect(t.vein.coreA).toBeInstanceOf(Color);
       expect(t.vein.coreB).toBeInstanceOf(Color);
-      expect(t.boundary).toBeInstanceOf(Color);
-      expect(t.volcano).toBeInstanceOf(Color);
       expect(t.dust).toBeInstanceOf(Color);
       expect(t.bg).toBeInstanceOf(Color);
       expect(t.swatch).toContain("linear-gradient");

@@ -2,8 +2,8 @@
  * NeuralScene — the JARVIS "magma core" for the Neural tab.
  *
  * A molten noise-displaced core sphere wrapped in ~1200 bezier energy veins
- * that pulse inward from an Earth-outline globe shell, with volcano points,
- * a dust field, bloom post-processing and orbit controls. Ported from
+ * that pulse inward toward the core, with a dust field, bloom
+ * post-processing and orbit controls. Ported from
  * https://codepen.io/VoXelo/pen/RNGRQBo and made voice-reactive: the page
  * feeds a speech envelope via setVoiceLevel()/pulse() and the core visibly
  * swells with each word JARVIS speaks.
@@ -97,8 +97,6 @@ export class NeuralScene {
   private mainGroup!: THREE.Group;
   private dustMesh!: THREE.Points;
   private dustMat!: THREE.PointsMaterial;
-  private volcanoMat!: THREE.ShaderMaterial;
-  private earthTex: THREE.Texture | null = null;
   private rafId = 0;
   private supported = true;
 
@@ -113,7 +111,7 @@ export class NeuralScene {
   private readonly DUST_COUNT: number;
   private readonly reduceMotion: boolean;
 
-  // Shared across core / vein / globe materials; volcano shares time + uPulse.
+  // Shared across core / vein materials.
   private uniforms = {
     time: { value: 0 },
     uVoice: { value: 0 },
@@ -125,8 +123,6 @@ export class NeuralScene {
     cSurface: { value: THEMES[0].vein.surface.clone() },
     cCoreA: { value: THEMES[0].vein.coreA.clone() },
     cCoreB: { value: THEMES[0].vein.coreB.clone() },
-    boundaryColor: { value: THEMES[0].boundary.clone() },
-    tEarth: { value: null as THREE.Texture | null },
   };
 
   constructor(canvas: HTMLCanvasElement) {
@@ -181,14 +177,6 @@ export class NeuralScene {
     this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(15, 10, 25);
 
-    this.earthTex = new THREE.TextureLoader().load(
-      "/textures/earth_specular_2048.jpg",
-      undefined,
-      undefined,
-      () => console.warn("NeuralScene: failed to load Earth texture; globe outlines will be dark"),
-    );
-    this.uniforms.tEarth.value = this.earthTex;
-
     this.composer = new EffectComposer(this.renderer);
     this.composer.setPixelRatio(dpr);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
@@ -215,8 +203,6 @@ export class NeuralScene {
     this.buildDust();
     this.buildCore();
     this.buildVeins();
-    this.buildGlobe();
-    this.buildVolcanoes();
 
     window.addEventListener("resize", this.onResize);
     this.animate();
@@ -394,90 +380,6 @@ export class NeuralScene {
     this.mainGroup.add(new THREE.LineSegments(geo, mat));
   }
 
-  // ─── Earth-outline globe shell ─────────────────────────────────────────────
-  private buildGlobe() {
-    const geo = new THREE.SphereGeometry(OUTER_RADIUS * 0.995, 128, 128);
-    const mat = new THREE.ShaderMaterial({
-      uniforms: this.uniforms,
-      vertexShader: `
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        void main() {
-          vUv = uv;
-          vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform sampler2D tEarth;
-        uniform vec3 boundaryColor;
-        varying vec2 vUv;
-        varying vec3 vNormal;
-        void main() {
-          vec2 texel = vec2(1.5 / 2048.0, 1.5 / 1024.0);
-
-          float c = texture2D(tEarth, vUv).r;
-          float r = texture2D(tEarth, vUv + vec2(texel.x, 0.0)).r;
-          float u = texture2D(tEarth, vUv + vec2(0.0, texel.y)).r;
-          float l = texture2D(tEarth, vUv + vec2(-texel.x, 0.0)).r;
-          float d = texture2D(tEarth, vUv + vec2(0.0, -texel.y)).r;
-
-          float edge = abs(4.0 * c - r - u - l - d);
-          float outline = smoothstep(0.1, 0.8, edge);
-
-          vec3 color = boundaryColor * outline;
-          color *= 2.5;
-
-          float fresnel = pow(1.0 - max(dot(vNormal, vec3(0.0, 0.0, 1.0)), 0.0), 3.0);
-          color += boundaryColor * fresnel * 0.5;
-
-          float alpha = outline * 0.8 + fresnel * 0.2;
-          gl_FragColor = vec4(color, alpha);
-        }
-      `,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    this.mainGroup.add(new THREE.Mesh(geo, mat));
-  }
-
-  // ─── Volcano points ────────────────────────────────────────────────────────
-  private buildVolcanoes() {
-    const points: THREE.Vector3[] = [];
-    for (let i = 0; i < 150; i++) points.push(randomPointOnSphere(OUTER_RADIUS));
-    const geo = new THREE.BufferGeometry().setFromPoints(points);
-    this.volcanoMat = new THREE.ShaderMaterial({
-      uniforms: {
-        color: { value: THEMES[0].volcano.clone() },
-        size: { value: 7.0 * Math.min(window.devicePixelRatio, 2) },
-        time: this.uniforms.time,
-      },
-      vertexShader: `
-        uniform float size;
-        void main() {
-          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          gl_PointSize = size * (20.0 / -mvPosition.z);
-          gl_Position = projectionMatrix * mvPosition;
-        }
-      `,
-      fragmentShader: `
-        uniform vec3 color;
-        uniform float time;
-        void main() {
-          vec2 pt = gl_PointCoord - vec2(0.5);
-          if (abs(pt.x) > 0.35 || abs(pt.y) > 0.35) discard;
-          float throb = sin(time * 3.0 + gl_FragCoord.x) * 0.5 + 0.5;
-          gl_FragColor = vec4(color * (1.5 + throb), 0.9);
-        }
-      `,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    this.mainGroup.add(new THREE.Points(geo, this.volcanoMat));
-  }
-
   // ─── Animate ──────────────────────────────────────────────────────────────
   private animate() {
     this.rafId = requestAnimationFrame(this.animate);
@@ -502,8 +404,6 @@ export class NeuralScene {
     this.uniforms.cSurface.value.lerp(tgt.vein.surface, THEME_LERP);
     this.uniforms.cCoreA.value.lerp(tgt.vein.coreA, THEME_LERP);
     this.uniforms.cCoreB.value.lerp(tgt.vein.coreB, THEME_LERP);
-    this.uniforms.boundaryColor.value.lerp(tgt.boundary, THEME_LERP);
-    (this.volcanoMat.uniforms.color.value as THREE.Color).lerp(tgt.volcano, THEME_LERP);
     this.dustMat.color.lerp(tgt.dust, THEME_LERP);
     (this.scene.fog as THREE.FogExp2).color.lerp(tgt.bg, THEME_LERP);
     this.renderer.setClearColor((this.scene.fog as THREE.FogExp2).color);
@@ -558,7 +458,6 @@ export class NeuralScene {
       if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
       else o.material?.dispose();
     });
-    this.earthTex?.dispose();
     this.bloomPass?.dispose();
     this.composer?.dispose();
     if (this.renderer) this.renderer.dispose();
