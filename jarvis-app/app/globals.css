@@ -106,22 +106,6 @@ body {
   background: transparent;
 }
 
-/* ── Iron Man HUD animations ─────────────────────────────────────────────── */
-@keyframes hud-spin {
-  to { transform: rotate(360deg); }
-}
-@keyframes hud-spin-rev {
-  to { transform: rotate(-360deg); }
-}
-@keyframes hud-blink {
-  0%, 60% { opacity: 1; }
-  61%, 100% { opacity: 0.25; }
-}
-@keyframes hud-scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
-}
-
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001ms !important;
