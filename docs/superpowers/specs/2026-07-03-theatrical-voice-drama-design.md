@@ -38,3 +38,9 @@ reduced-motion decision (color/glow response stays on).
 2. Manual: greeting speech makes the core unmistakably surge per word, vein
    pulses flare and linger briefly, bloom breathes with the voice; idle scene
    (no speech) looks unchanged from before.
+
+## Tuning addendum (2026-07-03)
+
+User reviewed Theatrical live and asked for "a little more dramatic." All seven
+values raised one notch: swell 0.60→0.85, core glow 1.8/0.8→2.6/1.2, vein glow
+30→42, vein alpha 0.9→1.3, decay −3.5→−2.8, word punch 0.3→0.4, bloom 0.9→1.4.

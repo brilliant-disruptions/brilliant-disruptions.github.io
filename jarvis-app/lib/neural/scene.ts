@@ -244,7 +244,7 @@ export class NeuralScene {
           vNormal = normal;
           // Voice swells the surface: displacement grows from the pen's 0.15
           // up to ~0.45 while JARVIS speaks.
-          float amp = 0.15 + uVoice * 0.60;
+          float amp = 0.15 + uVoice * 0.85;
           float displacement = snoise(position * 1.8 + time * 0.4) * amp;
           vec3 newPosition = position + normal * displacement;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
@@ -280,7 +280,7 @@ export class NeuralScene {
           color += cOrange * pow(fresnel, 2.0) * 0.8;
 
           // Glow boost while speaking / pulsing.
-          color *= 1.5 + uVoice * 1.8 + uPulse * 0.8;
+          color *= 1.5 + uVoice * 2.6 + uPulse * 1.2;
 
           gl_FragColor = vec4(color, 1.0);
         }
@@ -362,11 +362,11 @@ export class NeuralScene {
           float pulse = exp(-flow * 10.0);
 
           // uPulse brightens the traveling heads on each spoken word.
-          vec3 pulseGlow = color * pulse * (10.0 + uPulse * 30.0);
+          vec3 pulseGlow = color * pulse * (10.0 + uPulse * 42.0);
           color += pulseGlow;
 
           float alphaBase = 0.02;
-          float alphaPulse = pulse * (0.9 + uPulse * 0.9);
+          float alphaPulse = pulse * (0.9 + uPulse * 1.3);
           float alpha = alphaBase + alphaPulse;
 
           alpha *= smoothstep(0.0, 0.05, vProgress) * smoothstep(1.0, 0.8, vProgress);
@@ -423,7 +423,7 @@ export class NeuralScene {
     // Envelopes: voice chases its target fast; word pulses decay quickly;
     // the greet surge decays over ~4.5s (matches the page's active window).
     this.voiceLevel += (this.voiceTarget - this.voiceLevel) * Math.min(1, delta * 14);
-    this.pulseLevel *= Math.exp(-3.5 * delta);
+    this.pulseLevel *= Math.exp(-2.8 * delta);
     this.greetLevel *= Math.exp(-0.8 * delta);
     this.uniforms.uVoice.value = Math.min(1, this.voiceLevel + this.greetLevel * 0.5);
     this.uniforms.uPulse.value = Math.min(1.5, this.pulseLevel + this.greetLevel);
@@ -441,7 +441,7 @@ export class NeuralScene {
     (this.scene.fog as THREE.FogExp2).color.lerp(tgt.bg, THEME_LERP);
     this.renderer.setClearColor((this.scene.fog as THREE.FogExp2).color);
 
-    this.bloomPass.strength = 2.0 + this.greetLevel * 1.2 + this.uniforms.uVoice.value * 0.9;
+    this.bloomPass.strength = 2.0 + this.greetLevel * 1.2 + this.uniforms.uVoice.value * 1.4;
     if (!this.reduceMotion) this.controls.autoRotateSpeed = 0.8 + this.greetLevel * 2.0;
 
     this.dustMesh.rotation.y += 0.02 * delta;
@@ -452,7 +452,7 @@ export class NeuralScene {
   // ─── Public controls ──────────────────────────────────────────────────────
   /** Word-boundary punch: brightens vein pulse heads and the core. */
   pulse(count = 1) {
-    this.pulseLevel = Math.min(1.5, this.pulseLevel + 0.3 * count);
+    this.pulseLevel = Math.min(1.5, this.pulseLevel + 0.4 * count);
   }
 
   /** Drive the core's voice swell (0..1). Page feeds a speech envelope here. */
