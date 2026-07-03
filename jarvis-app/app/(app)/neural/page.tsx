@@ -18,10 +18,9 @@ import { HudSound } from "@/lib/neural/sound";
 import { JarvisListener } from "@/lib/neural/listen";
 import { MicAnalyser } from "@/lib/neural/mic-analyser";
 import { matchIntent } from "@/lib/neural/intents";
+import { createGreetingBag } from "@/lib/neural/greetings";
 import { THEMES } from "@/lib/neural/themes";
 import { ThemeSwitcher } from "@/components/neural/ThemeSwitcher";
-
-const GREETING = "Hello. I'm JARVIS — the Brilliant Disruptions neural interface. All systems online.";
 
 export default function NeuralPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -36,6 +35,9 @@ export default function NeuralPage() {
   const listenerRef = useRef<JarvisListener | null>(null);
   const micRef = useRef<MicAnalyser | null>(null);
   const listenSession = useRef(0);
+  const startWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const failsafeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const greetingBag = useRef<(() => string) | null>(null);
 
   const [active, setActive] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -66,6 +68,8 @@ export default function NeuralPage() {
         boundaryTimer.current = null;
       }
       window.speechSynthesis?.cancel();
+      if (startWatchdog.current) clearTimeout(startWatchdog.current);
+      if (failsafeTimer.current) clearTimeout(failsafeTimer.current);
       if (voiceRaf.current) cancelAnimationFrame(voiceRaf.current);
       scene.dispose();
       sceneRef.current = null;
@@ -150,7 +154,19 @@ export default function NeuralPage() {
       setSpeaking(true);
       startVoiceEnvelope();
       const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+      const clearTimers = () => {
+        if (startWatchdog.current) {
+          clearTimeout(startWatchdog.current);
+          startWatchdog.current = null;
+        }
+        if (failsafeTimer.current) {
+          clearTimeout(failsafeTimer.current);
+          failsafeTimer.current = null;
+        }
+      };
+      clearTimers(); // a new turn owns the timers
       const done = () => {
+        clearTimers();
         speakingRef.current = false;
         setSpeaking(false);
         stopBoundaryFallback();
@@ -158,10 +174,14 @@ export default function NeuralPage() {
       };
       if (!synth || typeof SpeechSynthesisUtterance === "undefined") {
         startBoundaryFallback(text);
-        setTimeout(done, Math.max(1500, (text.length / 12) * 1000));
+        failsafeTimer.current = setTimeout(done, Math.max(1500, (text.length / 12) * 1000));
         return;
       }
-      synth.cancel();
+      // Cancel only when something is actually queued: an unconditional
+      // cancel() right before speak() is the classic pattern that makes some
+      // engines (iOS Safari, occasionally desktop Chrome) silently swallow
+      // the new utterance.
+      if (synth.speaking || synth.pending) synth.cancel();
       const u = new SpeechSynthesisUtterance(text);
       // Light touch: neural voices sound most human near their natural pitch, so
       // we only nudge slightly for a calm, measured delivery.
@@ -172,7 +192,13 @@ export default function NeuralPage() {
       if (voiceRef.current) u.voice = voiceRef.current;
 
       let gotBoundary = false;
+      let started = false;
       u.onstart = () => {
+        started = true;
+        if (startWatchdog.current) {
+          clearTimeout(startWatchdog.current);
+          startWatchdog.current = null;
+        }
         setTimeout(() => {
           if (!gotBoundary && speakingRef.current) startBoundaryFallback(text);
         }, 280);
@@ -185,6 +211,16 @@ export default function NeuralPage() {
       u.onend = done;
       u.onerror = done;
       synth.speak(u);
+
+      // Watchdog: some engines swallow utterances silently (no onstart, no
+      // onerror). Keep the core performing; the failsafe below ends the turn.
+      startWatchdog.current = setTimeout(() => {
+        startWatchdog.current = null;
+        if (!started && speakingRef.current) startBoundaryFallback(text);
+      }, 1200);
+      // Failsafe: even if onend never arrives, the turn always ends and the
+      // buttons re-enable.
+      failsafeTimer.current = setTimeout(done, Math.max(4000, (text.length / 10) * 1000 + 2000));
     },
     [pickVoice, startBoundaryFallback, stopBoundaryFallback, startVoiceEnvelope, stopVoiceEnvelope],
   );
@@ -275,7 +311,8 @@ export default function NeuralPage() {
     soundRef.current?.powerUp();
     unlockSynthesis();
     sceneRef.current?.greet();
-    speak(GREETING);
+    if (!greetingBag.current) greetingBag.current = createGreetingBag();
+    speak(greetingBag.current());
     window.setTimeout(() => setActive(false), 4500);
   };
 
