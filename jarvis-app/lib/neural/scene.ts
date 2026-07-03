@@ -206,6 +206,8 @@ export class NeuralScene {
     this.buildCore();
     this.buildVeins();
     this.buildHalo();
+    this.buildStars();
+    this.buildNebula();
     this.flares = new FlareField(CORE_RADIUS, this.uniforms, this.isMobile ? 14 : 28);
     this.mainGroup.add(this.flares.mesh);
 
@@ -415,6 +417,112 @@ export class NeuralScene {
       depthWrite: false,
     });
     this.mainGroup.add(new THREE.Mesh(geo, mat));
+  }
+
+  // ─── Space backdrop: distant starfield ─────────────────────────────────────
+  // Far outside the fog's reach by construction (ShaderMaterials ignore fog).
+  // Added to the scene root, not mainGroup, so it reads as a fixed sky.
+  private buildStars() {
+    const COUNT = this.isMobile ? 1200 : 2500;
+    const positions = new Float32Array(COUNT * 3);
+    const sizes = new Float32Array(COUNT);
+    const seeds = new Float32Array(COUNT);
+    const colors = new Float32Array(COUNT * 3);
+    const white = new THREE.Color(0xffffff);
+    const cool = new THREE.Color(0xbfd4ff);
+    const warm = new THREE.Color(0xffe0b8);
+    for (let i = 0; i < COUNT; i++) {
+      const dir = new THREE.Vector3(
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+      ).normalize();
+      const r = 220 + Math.random() * 200;
+      positions[i * 3] = dir.x * r;
+      positions[i * 3 + 1] = dir.y * r;
+      positions[i * 3 + 2] = dir.z * r;
+      sizes[i] = 0.6 + Math.random() * 1.6;
+      seeds[i] = Math.random();
+      const t = Math.random();
+      const c = t < 0.85 ? white : t < 0.95 ? cool : warm;
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+    geo.setAttribute("seed", new THREE.BufferAttribute(seeds, 1));
+    geo.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `
+        attribute float size;
+        attribute float seed;
+        attribute vec3 aColor;
+        uniform float time;
+        varying vec3 vColor;
+        varying float vTwinkle;
+        void main() {
+          vColor = aColor;
+          vTwinkle = 0.75 + 0.25 * sin(time * (0.5 + seed) + seed * 40.0);
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = size * (600.0 / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        varying float vTwinkle;
+        void main() {
+          vec2 uv = gl_PointCoord - vec2(0.5);
+          float d = length(uv);
+          if (d > 0.5) discard;
+          float falloff = 1.0 - smoothstep(0.0, 0.5, d);
+          gl_FragColor = vec4(vColor * vTwinkle, falloff * vTwinkle);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.scene.add(new THREE.Points(geo, mat));
+  }
+
+  // ─── Space backdrop: faint theme-tinted nebula haze ────────────────────────
+  private buildNebula() {
+    const geo = new THREE.SphereGeometry(500, 32, 32);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      vertexShader: `
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        uniform vec3 cSurface;
+        varying vec3 vDir;
+        ${snoise3GLSL}
+        void main() {
+          float n = snoise(vDir * 2.0 + time * 0.01) * 0.6
+                  + snoise(vDir * 5.0 - time * 0.01) * 0.4;
+          n = max(0.0, n);
+          vec3 color = cSurface * n * 0.16;
+          gl_FragColor = vec4(color, n * 0.14);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      depthWrite: false,
+      depthTest: false,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = -1;
+    this.scene.add(mesh);
   }
 
   // ─── Animate ──────────────────────────────────────────────────────────────
