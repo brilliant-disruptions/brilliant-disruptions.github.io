@@ -35,6 +35,7 @@ export default function NeuralPage() {
   const voiceSpike = useRef(0);
   const listenerRef = useRef<JarvisListener | null>(null);
   const micRef = useRef<MicAnalyser | null>(null);
+  const listenSession = useRef(0);
 
   const [active, setActive] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -55,6 +56,7 @@ export default function NeuralPage() {
     micRef.current = new MicAnalyser();
     setMicSupported(JarvisListener.isSupported());
     return () => {
+      listenSession.current++;
       listenerRef.current?.stop();
       listenerRef.current = null;
       micRef.current?.stop();
@@ -234,10 +236,17 @@ export default function NeuralPage() {
 
     // Ripple the core with the user's live voice. If mic-level access is
     // denied this resolves false and we simply listen without the ripple —
-    // SpeechRecognition manages its own capture.
-    void micRef.current?.start((level, peak) => {
+    // SpeechRecognition manages its own capture. The session token handles
+    // getUserMedia resolving after the listen already ended: a stale session's
+    // levels are ignored and its late-arriving stream is stopped immediately.
+    const session = ++listenSession.current;
+    const mic = micRef.current;
+    void mic?.start((level, peak) => {
+      if (listenSession.current !== session) return;
       sceneRef.current?.setVoiceLevel(level * 0.8);
       if (peak) sceneRef.current?.pulse(1);
+    }).then((ok) => {
+      if (ok && listenSession.current !== session) mic.stop();
     });
 
     listenerRef.current?.start({
@@ -245,6 +254,7 @@ export default function NeuralPage() {
         speak(matchIntent(transcript));
       },
       onEnd: () => {
+        listenSession.current++;
         micRef.current?.stop();
         sceneRef.current?.setVoiceLevel(0);
         soundRef.current?.blip();
@@ -317,6 +327,7 @@ export default function NeuralPage() {
                 onClick={onMic}
                 disabled={active || speaking}
                 aria-label={micState === "listening" ? "Stop listening" : "Talk to JARVIS"}
+                aria-pressed={micState === "listening"}
                 title={micState === "listening" ? "Listening… tap to cancel" : "Talk to JARVIS"}
                 className="pointer-events-auto grid h-14 w-14 place-items-center backdrop-blur transition disabled:opacity-50"
                 style={{

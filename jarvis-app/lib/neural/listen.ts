@@ -46,6 +46,7 @@ export class JarvisListener {
     rec.maxAlternatives = 1;
 
     let ended = false;
+    let resulted = false;
     const finish = () => {
       if (ended) return;
       ended = true;
@@ -56,9 +57,13 @@ export class JarvisListener {
     this.finishActive = finish;
 
     rec.onresult = (ev) => {
+      if (resulted) return;
       const last = ev.results[ev.results.length - 1];
       const transcript = last?.[0]?.transcript?.trim();
-      if (transcript) handlers.onResult(transcript);
+      if (transcript) {
+        resulted = true;
+        handlers.onResult(transcript);
+      }
     };
     rec.onerror = (ev) => {
       handlers.onError(ev.error || "unknown");
