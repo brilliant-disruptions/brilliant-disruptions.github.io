@@ -103,3 +103,49 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
 EOF
 )"
 ```
+
+---
+
+### Task 2: Theatrical voice drama
+
+**Files:**
+- Modify: `lib/neural/scene.ts`
+
+**Interfaces:**
+- Consumes: existing `uVoice`/`uPulse` uniforms, `pulseLevel`/`greetLevel` envelopes, `bloomPass`.
+- Produces: nothing new — constant tuning only.
+
+**Spec:** `docs/superpowers/specs/2026-07-03-theatrical-voice-drama-design.md` (value table is authoritative).
+
+No unit test (shader/scene constants; compile-gated like the rest of the scene).
+
+- [ ] **Step 1: Apply the seven value changes**
+
+Each is a one-line replacement in `lib/neural/scene.ts`:
+
+1. Core vertex shader — replace `float amp = 0.15 + uVoice * 0.30;` with `float amp = 0.15 + uVoice * 0.60;`
+2. Core fragment shader — replace `color *= 1.5 + uVoice * 0.9 + uPulse * 0.4;` with `color *= 1.5 + uVoice * 1.8 + uPulse * 0.8;`
+3. Vein fragment shader — replace `vec3 pulseGlow = color * pulse * (10.0 + uPulse * 18.0);` with `vec3 pulseGlow = color * pulse * (10.0 + uPulse * 30.0);`
+4. Vein fragment shader — replace `float alphaPulse = pulse * (0.9 + uPulse * 0.5);` with `float alphaPulse = pulse * (0.9 + uPulse * 0.9);`
+5. `animate()` — replace `this.pulseLevel *= Math.exp(-6 * delta);` with `this.pulseLevel *= Math.exp(-3.5 * delta);`
+6. `pulse()` — replace `this.pulseLevel = Math.min(1.5, this.pulseLevel + 0.2 * count);` with `this.pulseLevel = Math.min(1.5, this.pulseLevel + 0.3 * count);`
+7. `animate()` — replace `this.bloomPass.strength = 2.0 + this.greetLevel * 1.2;` with `this.bloomPass.strength = 2.0 + this.greetLevel * 1.2 + this.uniforms.uVoice.value * 0.9;`
+
+If any snippet doesn't match exactly, STOP and report the mismatch.
+
+- [ ] **Step 2: Full gate**
+
+Run: `npx tsc --noEmit && npm run lint && npm run test`
+Expected: all clean, 56 tests.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add lib/neural/scene.ts
+git commit -m "$(cat <<'EOF'
+Turn up voice-reactive drama: bigger swell, lingering word surges, voice-driven bloom
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+EOF
+)"
+```
