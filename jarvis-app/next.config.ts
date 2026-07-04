@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
   // Investment Planner (Next.js, deployed separately on Vercel) follows the
   // same shape: its own next.config.mjs sets basePath: "/investment-planner"
   // so its routes and _next/static assets line up under this prefix too.
+  //
+  // Cardex (Next.js, deployed separately on Vercel) follows the same shape:
+  // its own next.config.mjs sets basePath: "/cardex".
   async rewrites() {
     return [
       {
@@ -32,6 +35,14 @@ const nextConfig: NextConfig = {
       {
         source: "/investment-planner/:path*",
         destination: "https://investment-planner-five.vercel.app/investment-planner/:path*",
+      },
+      {
+        source: "/cardex",
+        destination: "https://cardex-ruddy.vercel.app/cardex",
+      },
+      {
+        source: "/cardex/:path*",
+        destination: "https://cardex-ruddy.vercel.app/cardex/:path*",
       },
     ];
   },

@@ -158,6 +158,15 @@ export function TopBar({
         >
           Investment Planner
         </a>
+        {/* Cardex — a proxied Next.js app (next.config.ts rewrites) with its
+            own basePath, so a plain <a> for a full document load rather than
+            client navigation. */}
+        <a
+          href="/cardex"
+          className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-[var(--muted-hi)] transition hover:text-[var(--white)]"
+        >
+          Cardex
+        </a>
       </nav>
 
       <ApprovalsTray />
