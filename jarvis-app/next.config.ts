@@ -18,6 +18,9 @@ const nextConfig: NextConfig = {
   //
   // Cardex (Next.js, deployed separately on Vercel) follows the same shape:
   // its own next.config.mjs sets basePath: "/cardex".
+  //
+  // Wrapped Together (Next.js, deployed separately on Vercel) follows the
+  // same shape: its own next.config.mjs sets basePath: "/wrapped-together".
   async rewrites() {
     return [
       {
@@ -43,6 +46,14 @@ const nextConfig: NextConfig = {
       {
         source: "/cardex/:path*",
         destination: "https://cardex-ruddy.vercel.app/cardex/:path*",
+      },
+      {
+        source: "/wrapped-together",
+        destination: "https://wrapped-together.vercel.app/wrapped-together",
+      },
+      {
+        source: "/wrapped-together/:path*",
+        destination: "https://wrapped-together.vercel.app/wrapped-together/:path*",
       },
     ];
   },
