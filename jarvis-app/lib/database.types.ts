@@ -660,6 +660,56 @@ export type Database = {
         Relationships: []
       }
       // ── Added by migration 0016 (regenerate after deploy) ──
+      github_open_prs: {
+        Row: {
+          author: string | null
+          build_id: string | null
+          created_at: string
+          draft: boolean
+          external_id: string
+          id: string
+          number: number
+          repo: string
+          title: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          author?: string | null
+          build_id?: string | null
+          created_at?: string
+          draft?: boolean
+          external_id: string
+          id?: string
+          number: number
+          repo: string
+          title: string
+          updated_at: string
+          url?: string | null
+        }
+        Update: {
+          author?: string | null
+          build_id?: string | null
+          created_at?: string
+          draft?: boolean
+          external_id?: string
+          id?: string
+          number?: number
+          repo?: string
+          title?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "github_open_prs_build_id_fkey"
+            columns: ["build_id"]
+            isOneToOne: false
+            referencedRelation: "builds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       repo_activity: {
         Row: {
           author: string | null

@@ -321,6 +321,24 @@ export function useRepoActivity(limit = 60) {
   });
 }
 
+/** Open, non-draft PRs across every repo in the org (GitHub adapter feed).
+ *  Never build-scoped — Needs Attention shows everything. */
+export function useOpenPRs() {
+  const key = ["github_open_prs"];
+  useRealtime("github_open_prs", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("github_open_prs")
+        .select("*")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data as Tables<"github_open_prs">[];
+    },
+  });
+}
+
 export type GithubRepo = {
   full_name: string;
   description: string | null;

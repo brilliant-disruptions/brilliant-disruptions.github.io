@@ -43,6 +43,21 @@ const approval = (o: Partial<Tables<"approvals">>): Tables<"approvals"> =>
     ...o,
   }) as unknown as Tables<"approvals">;
 
+const openPR = (o: Partial<Tables<"github_open_prs">>): Tables<"github_open_prs"> =>
+  ({
+    id: o.title ?? "pr",
+    build_id: "b1",
+    repo: "brilliant-disruptions/apps",
+    external_id: o.title ?? "pr",
+    number: 1,
+    title: "pr",
+    author: "someone",
+    url: "https://github.com/brilliant-disruptions/apps/pull/1",
+    draft: false,
+    updated_at: "2026-01-01T00:00:00Z",
+    ...o,
+  }) as unknown as Tables<"github_open_prs">;
+
 describe("tickets surface only when they're actually waiting on someone", () => {
   it("includes a ticket parked in review", () => {
     const [item] = buildTriageItems([], [ticket({ stage: "review" })], []);
@@ -111,7 +126,7 @@ describe("feedback de-duplication", () => {
 });
 
 describe("ordering puts the most blocking work first", () => {
-  it("sorts decision > review > fix > feature > feedback, newest first within a bucket", () => {
+  it("sorts decision > review > pr > fix > feature > feedback, newest first within a bucket", () => {
     const items = buildTriageItems(
       [approval({})],
       [
@@ -120,11 +135,13 @@ describe("ordering puts the most blocking work first", () => {
         ticket({ title: "feat", source: "agent", stage: "backlog", type: "feature" }),
       ],
       [feedback({})],
+      [openPR({})],
     );
     expect(items.map((i) => i.category)).toEqual([
       "decision",
       "review",
       "review",
+      "pr",
       "feature",
       "feedback",
     ]);
@@ -137,6 +154,22 @@ describe("ordering puts the most blocking work first", () => {
     expect(item.category).toBe("decision");
     expect(item.source).toBe("high risk");
     expect(item.id.startsWith("approval:")).toBe(true);
+  });
+});
+
+describe("open PRs surface org-wide, including untracked repos", () => {
+  it("includes a synced open PR as a 'pr' item pointing at GitHub", () => {
+    const [item] = buildTriageItems([], [], [], [openPR({ title: "Fix flaky test" })]);
+    expect(item.category).toBe("pr");
+    expect(item.source).toBe("GitHub");
+    expect(item.href).toBe("https://github.com/brilliant-disruptions/apps/pull/1");
+    expect(item.id.startsWith("pr:")).toBe(true);
+  });
+
+  it("still surfaces a PR from a repo that isn't tracked as a build (build_id null)", () => {
+    const [item] = buildTriageItems([], [], [], [openPR({ title: "untracked", build_id: null })]);
+    expect(item.category).toBe("pr");
+    expect(item.buildId).toBeNull();
   });
 });
 

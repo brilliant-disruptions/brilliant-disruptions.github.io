@@ -172,6 +172,76 @@ async function reconcileIssue(
   return "noop";
 }
 
+// ── github_open_prs: org-wide open PR feed for the Needs Attention inbox ──
+// Paginate a GitHub list endpoint until a short page (< per_page) signals the end.
+async function ghPaginated(pathWithoutPage: string): Promise<Json[]> {
+  const out: Json[] = [];
+  for (let page = 1; ; page++) {
+    const sep = pathWithoutPage.includes("?") ? "&" : "?";
+    const batch = (await gh(`${pathWithoutPage}${sep}per_page=100&page=${page}`)) as Json[];
+    out.push(...batch);
+    if (batch.length < 100) break;
+  }
+  return out;
+}
+
+async function listOrgRepos(org: string): Promise<string[]> {
+  const repos = await ghPaginated(`/orgs/${org}/repos?type=all`);
+  return repos.map((r) => r.full_name as string);
+}
+
+async function fetchOpenPRs(repo: string): Promise<Json[]> {
+  return ghPaginated(`/repos/${repo}/pulls?state=open&sort=updated&direction=desc`);
+}
+
+// Reconcile github_open_prs to exactly the current set of open, non-draft PRs
+// across every repo in the org — independent of which repos are tracked as
+// builds. Best-effort per repo: one repo's failure (archived/empty/etc.) must
+// not stop the rest, but is surfaced via the returned warning.
+async function syncOpenPRs(org: string): Promise<{ count: number; warn: string | null }> {
+  let warn: string | null = null;
+  const repos = await listOrgRepos(org);
+  const seen: string[] = [];
+  const rows: Json[] = [];
+  for (const repo of repos) {
+    try {
+      const prs = await fetchOpenPRs(repo);
+      const build = await buildForRepo(repo);
+      for (const pr of prs) {
+        if (pr.draft === true) continue; // drafts aren't "needs attention" yet
+        const externalId = pr.node_id as string;
+        seen.push(externalId);
+        rows.push({
+          build_id: build?.id ?? null,
+          repo,
+          external_id: externalId,
+          number: pr.number as number,
+          title: (pr.title as string) ?? "(untitled PR)",
+          author: ((pr.user as Json)?.login as string) ?? null,
+          url: (pr.html_url as string) ?? null,
+          draft: false,
+          updated_at: (pr.updated_at as string) ?? new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      warn = `${repo}: ${String(e)}`;
+      console.error(`open PR sync for ${repo} failed:`, String(e));
+    }
+  }
+
+  if (rows.length > 0) {
+    await supabase.from("github_open_prs").upsert(rows, { onConflict: "external_id" });
+  }
+  // Drop rows for PRs that merged/closed/went back to draft since last sync.
+  // With an empty `seen` set (e.g. org fetch itself failed) skip the delete
+  // entirely — otherwise a transient org-list failure would wipe the table.
+  if (seen.length > 0) {
+    await supabase.from("github_open_prs").delete().not("external_id", "in", `(${seen.map((id) => `"${id}"`).join(",")})`);
+  }
+
+  return { count: rows.length, warn };
+}
+
 // ── repo_activity: recent commits + PRs for the Overview matrix (§12.1) ──
 // Upsert by external_id so a webhook and a later ?sync= backfill don't dup, and
 // a PR row updates (open → merged) instead of inserting twice.
@@ -454,12 +524,34 @@ async function runSync(): Promise<Json> {
     .is("github_path", null)
     .not("github_repo", "is", null);
 
+  const { data: conn } = await supabase
+    .from("connections")
+    .select("config")
+    .eq("provider", "github")
+    .maybeSingle();
+  // The apps repo config ("owner/apps") already names the org — reuse it rather
+  // than hardcoding, so this adapter isn't tied to one org name.
+  const org = ((conn?.config as Json | null)?.apps_repo as string | undefined)?.split("/")[0];
+
   let synced = 0;
   let status = "ok";
   let error: string | null = null;
   let activityWarn: string | null = null; // non-fatal backfill failure (degrades to 'partial')
   let monorepo: MonorepoResult | null = null;
   try {
+    // Org-wide open PR reconcile, independent of which repos are tracked as
+    // builds (best-effort: must not abort issue/commit sync below).
+    if (org) {
+      try {
+        const openPRs = await syncOpenPRs(org);
+        synced += openPRs.count;
+        if (openPRs.warn) activityWarn = openPRs.warn;
+      } catch (e) {
+        activityWarn = `open PR sync: ${String(e)}`;
+        console.error("open PR sync failed:", String(e));
+      }
+    }
+
     // Discover/reconcile monorepo folder-builds first (best-effort: a failure
     // here must not abort whole-repo issue sync, so it's caught and degraded).
     try {

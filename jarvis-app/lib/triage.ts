@@ -4,7 +4,7 @@
 // urgency-sorted stream. No React, no I/O — unit-tested in triage.test.ts.
 import type { Tables } from "@/lib/database.types";
 
-export type TriageCategory = "decision" | "review" | "bug" | "feature" | "feedback";
+export type TriageCategory = "decision" | "review" | "pr" | "bug" | "feature" | "feedback";
 
 export type TriageItem = {
   id: string;
@@ -21,9 +21,10 @@ export type TriageItem = {
 const URGENCY: Record<TriageCategory, number> = {
   decision: 0,
   review: 1,
-  bug: 2,
-  feature: 3,
-  feedback: 4,
+  pr: 2,
+  bug: 3,
+  feature: 4,
+  feedback: 5,
 };
 
 const TICKET_SOURCE_LABEL: Record<string, string> = {
@@ -75,6 +76,18 @@ function fromTickets(rows: Tables<"tickets">[]): TriageItem[] {
   return items;
 }
 
+function fromOpenPRs(rows: Tables<"github_open_prs">[]): TriageItem[] {
+  return rows.map((pr) => ({
+    id: `pr:${pr.external_id}`,
+    category: "pr" as const,
+    title: pr.title,
+    buildId: pr.build_id,
+    source: "GitHub",
+    href: pr.url,
+    at: pr.updated_at,
+  }));
+}
+
 function fromFeedback(rows: Tables<"feedback">[]): TriageItem[] {
   return rows
     // Skip feedback already converted to a ticket — that ticket carries it now,
@@ -92,13 +105,19 @@ function fromFeedback(rows: Tables<"feedback">[]): TriageItem[] {
     }));
 }
 
-/** Merge the three sources into one stream, sorted by urgency then recency. */
+/** Merge the four sources into one stream, sorted by urgency then recency. */
 export function buildTriageItems(
   approvals: Tables<"approvals">[],
   tickets: Tables<"tickets">[],
   feedback: Tables<"feedback">[],
+  openPRs: Tables<"github_open_prs">[] = [],
 ): TriageItem[] {
-  const merged = [...fromApprovals(approvals), ...fromTickets(tickets), ...fromFeedback(feedback)];
+  const merged = [
+    ...fromApprovals(approvals),
+    ...fromTickets(tickets),
+    ...fromOpenPRs(openPRs),
+    ...fromFeedback(feedback),
+  ];
   merged.sort(
     (a, b) =>
       URGENCY[a.category] - URGENCY[b.category] ||

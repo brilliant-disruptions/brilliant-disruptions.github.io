@@ -2,21 +2,21 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useApprovals, useTickets, useFeedback, useBuilds } from "@/lib/queries/hooks";
+import { useApprovals, useTickets, useFeedback, useBuilds, useOpenPRs } from "@/lib/queries/hooks";
 import { Card, SectionTitle, Badge } from "@/components/ui";
 import { timeAgo } from "@/lib/format";
 import { buildTriageItems, type TriageCategory, type TriageItem } from "@/lib/triage";
 
 // A read-only triage inbox: everything across the studio that's waiting on a
 // human, normalized into one stream and grouped by what kind of attention it
-// needs. Sources are existing tables (approvals, tickets, feedback) — no new
-// write paths. `tickets.source`/`feedback.source` already carry 'github', so
-// externally-synced items will appear here once that wiring lands (Phase 2+).
+// needs. Sources are approvals, tickets, feedback, and org-wide open PRs
+// (github_open_prs, synced independent of tracked builds) — no new write paths.
 // The merge/categorize/sort logic lives in lib/triage.ts (unit-tested).
 
 const CATEGORY_META: Record<TriageCategory, { label: string; tone: "amber" | "cyan" | "red" | "green" | "muted" }> = {
   decision: { label: "Decision", tone: "amber" },
   review: { label: "Review", tone: "cyan" },
+  pr: { label: "PR", tone: "green" },
   bug: { label: "Fix", tone: "red" },
   feature: { label: "Feature", tone: "green" },
   feedback: { label: "Feedback", tone: "muted" },
@@ -26,6 +26,7 @@ export function TriageInbox() {
   const approvals = useApprovals();
   const tickets = useTickets();
   const feedback = useFeedback();
+  const openPRs = useOpenPRs();
   const builds = useBuilds();
   const [filter, setFilter] = useState<TriageCategory | "all">("all");
 
@@ -36,8 +37,8 @@ export function TriageInbox() {
   }, [builds.data]);
 
   const items = useMemo(
-    () => buildTriageItems(approvals.data ?? [], tickets.data ?? [], feedback.data ?? []),
-    [approvals.data, tickets.data, feedback.data],
+    () => buildTriageItems(approvals.data ?? [], tickets.data ?? [], feedback.data ?? [], openPRs.data ?? []),
+    [approvals.data, tickets.data, feedback.data, openPRs.data],
   );
 
   const counts = useMemo(() => {
