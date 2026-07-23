@@ -335,6 +335,57 @@ export type Database = {
         }
         Relationships: []
       }
+      contributions: {
+        Row: {
+          amount_cents: number
+          build_id: string | null
+          contributed_on: string
+          created_at: string
+          currency: string
+          description: string
+          id: string
+          kind: string
+          member_id: string
+          notes: string | null
+          repaid_on: string | null
+          repayable: boolean
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          build_id?: string | null
+          contributed_on?: string
+          created_at?: string
+          currency?: string
+          description: string
+          id?: string
+          kind: string
+          member_id: string
+          notes?: string | null
+          repaid_on?: string | null
+          repayable?: boolean
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          build_id?: string | null
+          contributed_on?: string
+          created_at?: string
+          currency?: string
+          description?: string
+          id?: string
+          kind?: string
+          member_id?: string
+          notes?: string | null
+          repaid_on?: string | null
+          repayable?: boolean
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       decisions: {
         Row: {
           build_id: string | null

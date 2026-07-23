@@ -145,6 +145,43 @@ export function useRevenue() {
   });
 }
 
+/** Personal / owner contributions into the business (capital, loans, personally
+ *  paid expenses). Build-scoped like expenses; null build_id = studio/overhead. */
+export function useContributions() {
+  const activeBuild = useUIStore((s) => s.activeBuild);
+  const key = ["contributions", activeBuild];
+  useRealtime("contributions", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await scoped(
+        supabase.from("contributions").select("*").order("contributed_on", { ascending: false }),
+        activeBuild,
+      );
+      if (error) throw error;
+      return data as Tables<"contributions">[];
+    },
+  });
+}
+
+/** Active roster — used to attribute a contribution to a member. Never scoped. */
+export function useMembers() {
+  const key = ["members"];
+  useRealtime("members", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("members")
+        .select("*")
+        .eq("is_active", true)
+        .order("full_name");
+      if (error) throw error;
+      return data as Tables<"members">[];
+    },
+  });
+}
+
 export function useProspects() {
   const activeBuild = useUIStore((s) => s.activeBuild);
   const key = ["prospects", activeBuild];
