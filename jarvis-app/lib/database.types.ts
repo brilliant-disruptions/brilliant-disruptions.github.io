@@ -487,6 +487,8 @@ export type Database = {
           category: string
           created_at: string
           currency: string
+          description: string | null
+          effective_on: string | null
           external_id: string | null
           id: string
           is_recurring: boolean
@@ -506,6 +508,8 @@ export type Database = {
           category: string
           created_at?: string
           currency?: string
+          description?: string | null
+          effective_on?: string | null
           external_id?: string | null
           id?: string
           is_recurring?: boolean
@@ -525,6 +529,8 @@ export type Database = {
           category?: string
           created_at?: string
           currency?: string
+          description?: string | null
+          effective_on?: string | null
           external_id?: string | null
           id?: string
           is_recurring?: boolean

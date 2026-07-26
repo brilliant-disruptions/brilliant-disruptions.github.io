@@ -50,6 +50,54 @@ export function monthlyBurnCents(expenses: ExpenseLite[], asOfMs: number): numbe
   return recurring + recentOneOff;
 }
 
+/** One charge of an expense as it lands on the ledger: either the row itself
+ *  (`occurrence === 0`) or a generated repeat of a recurring row. Generated
+ *  occurrences are display-only — they are NOT rows in the DB, so they carry the
+ *  template's id plus the occurrence index to key on. */
+export type ExpenseOccurrence<T> = { expense: T; on: string; occurrence: number };
+
+/** Advance an ISO date by n months, clamping to the end of the target month so
+ *  a Jan-31 subscription bills Feb-28 rather than skipping into March. */
+function addMonthsIso(iso: string, months: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, lastDay));
+  return target.toISOString().slice(0, 10);
+}
+
+/** Expand recurring expenses into every charge that has actually happened, from
+ *  their `effective_on` start date (falling back to `spent_on`) up to and
+ *  including `asOfIso`. A recurring row is a subscription: the ledger must show
+ *  the twelve monthly charges a year-old $20/mo tool has really cost, not one.
+ *
+ *  Non-recurring expenses pass through as a single occurrence. Results are
+ *  sorted newest-first to match the ledger's `spent_on desc` ordering.
+ *
+ *  Do NOT feed the result to monthlyBurnCents — burn is computed from the
+ *  templates (recurring counted once per month by definition); expanded charges
+ *  would multiply it by however long the subscription has run. */
+export function expandExpenses<
+  T extends { amount_cents: number; is_recurring: boolean; spent_on: string; recurrence?: string | null; effective_on?: string | null },
+>(expenses: T[], asOfIso: string): ExpenseOccurrence<T>[] {
+  const out: ExpenseOccurrence<T>[] = [];
+  for (const e of expenses) {
+    const start = e.effective_on || e.spent_on;
+    // Unset recurrence means monthly (the historical default, as in burn).
+    const step = e.recurrence === "annual" ? 12 : 1;
+    if (!e.is_recurring || !start || start > asOfIso) {
+      out.push({ expense: e, on: e.spent_on, occurrence: 0 });
+      continue;
+    }
+    let on = start;
+    for (let i = 0; on <= asOfIso; i++) {
+      out.push({ expense: e, on, occurrence: i });
+      on = addMonthsIso(start, step * (i + 1));
+    }
+  }
+  return out.sort((a, b) => (a.on < b.on ? 1 : a.on > b.on ? -1 : 0));
+}
+
 /** Runway in months (§8.2). `cashCents = null` → bootstrapped (∞ / unknown,
  *  shown until a bank is connected). Zero/negative burn → Infinity. */
 export function runwayMonths(cashCents: number | null, burnCents: number): number | null {

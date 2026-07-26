@@ -3,81 +3,76 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/queries/hooks";
+import { useToast } from "@/components/Toast";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
+import { EXPENSE_CATEGORIES } from "@/components/NewExpenseModal";
 import type { Tables } from "@/lib/database.types";
 
-// Shared with EditExpenseModal so both forms offer the same set.
-export const EXPENSE_CATEGORIES = [
-  "infrastructure",
-  "ai_api",
-  "software_tools",
-  "marketing_ads",
-  "legal_accounting",
-  "hardware",
-  "contractor",
-  "travel",
-  "other",
-];
-
-export function NewExpenseModal({
-  open,
-  onClose,
+/** Edit one logged expense. Mounted only while a row is selected (keyed by id),
+ *  so the form state is always seeded from the record being edited — same shape
+ *  as BuildSettingsModal.
+ *
+ *  Recurring rows are templates: editing one changes every charge the ledger
+ *  derives from it, including past ones. The date field is therefore labelled
+ *  as the recurrence start when recurring, and kept in sync with spent_on so the
+ *  row and its first charge never disagree. */
+export function EditExpenseModal({
+  expense,
   builds,
-  defaultBuild,
+  onClose,
 }: {
-  open: boolean;
-  onClose: () => void;
+  expense: Tables<"expenses">;
   builds: Tables<"builds">[];
-  defaultBuild: string;
+  onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [buildId, setBuildId] = useState(defaultBuild !== "all" ? defaultBuild : "");
-  const [vendor, setVendor] = useState("");
-  const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState("software_tools");
-  const [recurring, setRecurring] = useState(false);
-  const [cadence, setCadence] = useState<"monthly" | "annual">("monthly");
-  const [description, setDescription] = useState("");
-  // Recurring only: when the subscription started. The ledger expands charges
-  // forward from here, so a tool signed up for last year shows every charge.
-  const [effectiveOn, setEffectiveOn] = useState("");
-  const [err, setErr] = useState<string | null>(null);
+  const toast = useToast();
+  const [buildId, setBuildId] = useState(expense.build_id ?? "");
+  const [vendor, setVendor] = useState(expense.vendor);
+  const [amount, setAmount] = useState((expense.amount_cents / 100).toFixed(2));
+  const [category, setCategory] = useState(expense.category);
+  const [description, setDescription] = useState(expense.description ?? "");
+  const [recurring, setRecurring] = useState(expense.is_recurring);
+  const [cadence, setCadence] = useState<"monthly" | "annual">(
+    expense.recurrence === "annual" ? "annual" : "monthly",
+  );
+  const [date, setDate] = useState(expense.effective_on ?? expense.spent_on);
   const [saving, setSaving] = useState(false);
 
-  async function submit() {
+  async function save() {
     const cents = Math.round(parseFloat(amount) * 100);
-    if (!vendor.trim()) return setErr("Vendor is required.");
-    if (!Number.isFinite(cents) || cents <= 0) return setErr("Enter a valid amount.");
+    if (!vendor.trim()) return toast.push("Vendor is required.", "error");
+    if (!Number.isFinite(cents) || cents <= 0) return toast.push("Enter a valid amount.", "error");
+    if (!date) return toast.push("Date is required.", "error");
     setSaving(true);
-    setErr(null);
-    const { error } = await supabase.from("expenses").insert({
-      build_id: buildId || null, // null = shared/overhead
-      vendor: vendor.trim(),
-      amount_cents: cents,
-      category,
-      is_recurring: recurring,
-      recurrence: recurring ? cadence : null,
-      description: description.trim() || null,
-      // The first charge date doubles as spent_on so the row itself sits on the
-      // ledger where it actually happened. Blank → DB default (today).
-      ...(recurring && effectiveOn ? { effective_on: effectiveOn, spent_on: effectiveOn } : {}),
-      source: "manual",
-    });
+    const { error } = await supabase
+      .from("expenses")
+      .update({
+        build_id: buildId || null,
+        vendor: vendor.trim(),
+        amount_cents: cents,
+        category,
+        description: description.trim() || null,
+        is_recurring: recurring,
+        recurrence: recurring ? cadence : null,
+        // effective_on only means something for a recurrence; clear it when the
+        // row is switched back to a one-off so the ledger stops expanding it.
+        effective_on: recurring ? date : null,
+        spent_on: date,
+      })
+      .eq("id", expense.id);
     setSaving(false);
-    if (error) return setErr(error.message);
+    if (error) return toast.push(error.message, "error");
     qc.invalidateQueries({ queryKey: ["expenses"] });
-    setVendor("");
-    setAmount("");
-    setDescription("");
-    setEffectiveOn("");
+    toast.push("Expense updated", "success");
     onClose();
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Log expense">
+    <Modal open onClose={onClose} title={`Edit ${expense.vendor}`}>
       <div className="space-y-3">
         <div>
-          <label className={labelClass}>Build (optional — blank = overhead)</label>
+          <label className={labelClass}>Build (blank = overhead)</label>
           <select className={inputClass} value={buildId} onChange={(e) => setBuildId(e.target.value)}>
             <option value="">Shared / overhead</option>
             {builds.map((b) => (
@@ -90,7 +85,7 @@ export function NewExpenseModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>Vendor</label>
-            <input className={inputClass} value={vendor} onChange={(e) => setVendor(e.target.value)} autoFocus />
+            <input className={inputClass} value={vendor} onChange={(e) => setVendor(e.target.value)} />
           </div>
           <div>
             <label className={labelClass}>Amount (USD)</label>
@@ -99,7 +94,6 @@ export function NewExpenseModal({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               inputMode="decimal"
-              placeholder="0.00"
             />
           </div>
         </div>
@@ -111,6 +105,7 @@ export function NewExpenseModal({
                 {c}
               </option>
             ))}
+            {!EXPENSE_CATEGORIES.includes(category) && <option value={category}>{category}</option>}
           </select>
         </div>
         <div>
@@ -139,27 +134,21 @@ export function NewExpenseModal({
             </select>
           )}
         </div>
-        {recurring && (
-          <div>
-            <label className={labelClass}>Effective date (blank = today)</label>
-            <input
-              className={inputClass}
-              type="date"
-              value={effectiveOn}
-              onChange={(e) => setEffectiveOn(e.target.value)}
-            />
+        <div>
+          <label className={labelClass}>{recurring ? "Effective date" : "Date"}</label>
+          <input className={inputClass} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          {recurring && (
             <p className="mt-1 text-xs text-[var(--muted-hi)]">
               Charges are listed {cadence === "annual" ? "annually" : "monthly"} from this date up to today.
             </p>
-          </div>
-        )}
-        {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
+          )}
+        </div>
         <div className="flex justify-end gap-2 pt-2">
           <button className={ghostBtn} onClick={onClose}>
             Cancel
           </button>
-          <button className={primaryBtn} onClick={submit} disabled={saving}>
-            {saving ? "Saving…" : "Log expense"}
+          <button className={primaryBtn} onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </div>

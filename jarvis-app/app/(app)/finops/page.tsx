@@ -13,9 +13,12 @@ import { useUIStore } from "@/lib/store";
 import { MetricCard, SectionTitle, Card, EmptyState, Badge } from "@/components/ui";
 import { NewExpenseModal } from "@/components/NewExpenseModal";
 import { NewContributionModal } from "@/components/NewContributionModal";
+import { EditExpenseModal } from "@/components/EditExpenseModal";
+import { EditContributionModal } from "@/components/EditContributionModal";
+import type { Tables } from "@/lib/database.types";
 import { primaryBtn } from "@/components/Modal";
 import { money } from "@/lib/format";
-import { monthlyBurnCents, runwayMonths, totalMrrCents } from "@/lib/metrics";
+import { expandExpenses, monthlyBurnCents, runwayMonths, totalMrrCents } from "@/lib/metrics";
 
 export default function FinOpsPage() {
   const expenses = useExpenses();
@@ -26,6 +29,10 @@ export default function FinOpsPage() {
   const activeBuild = useUIStore((s) => s.activeBuild);
   const [open, setOpen] = useState(false);
   const [contribOpen, setContribOpen] = useState(false);
+  // Row being edited, or null. Editing a recurring expense edits the underlying
+  // template — clicking any of its derived charges opens the same row.
+  const [editExpense, setEditExpense] = useState<Tables<"expenses"> | null>(null);
+  const [editContrib, setEditContrib] = useState<Tables<"contributions"> | null>(null);
   // Stable "now" for the trailing-30-day window — lazy init keeps render pure.
   const [asOfMs] = useState(() => Date.now());
 
@@ -38,7 +45,14 @@ export default function FinOpsPage() {
   const cash = useCashOnHand();
   const cashCents = activeBuild === "all" ? (cash.data ?? null) : null;
   const runway = runwayMonths(cashCents, burn);
-  const totalSpend = (expenses.data ?? []).reduce((s, e) => s + e.amount_cents, 0);
+  // Ledger view: recurring rows expanded into every charge since their
+  // effective date, so total spend is what has actually left the account.
+  // Burn above still reads the un-expanded rows (recurring = once per month).
+  const charges = useMemo(
+    () => expandExpenses(expenses.data ?? [], new Date(asOfMs).toISOString().slice(0, 10)),
+    [expenses.data, asOfMs],
+  );
+  const totalSpend = charges.reduce((s, c) => s + c.expense.amount_cents, 0);
   const margin = mrr - burn;
   const runwayLabel = runway === null ? "∞" : runway === Infinity ? "∞" : `${runway.toFixed(1)} mo`;
 
@@ -77,20 +91,30 @@ export default function FinOpsPage() {
             </button>
           )}
         </div>
-        {(expenses.data?.length ?? 0) === 0 ? (
+        {charges.length === 0 ? (
           <EmptyState title="No expenses logged" hint="Log one to see burn and margin update live." />
         ) : (
           <Card className="divide-y divide-[var(--glass-border)] p-0">
-            {expenses.data?.map((e) => (
-              <div key={e.id} className="flex items-center gap-3 px-4 py-2.5">
+            {charges.map(({ expense: e, on, occurrence }) => (
+              <button
+                key={`${e.id}:${occurrence}`}
+                onClick={() => setEditExpense(e)}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-white/[0.03]"
+                title="Edit expense"
+              >
                 <Badge tone="muted">{e.category}</Badge>
-                <span className="flex-1 text-sm text-[var(--white)]">{e.vendor}</span>
-                {e.is_recurring && <Badge tone="cyan">recurring</Badge>}
+                <span className="block min-w-0 flex-1">
+                  <span className="block truncate text-sm text-[var(--white)]">{e.vendor}</span>
+                  {e.description && (
+                    <span className="block truncate text-[10px] text-[var(--muted)]">{e.description}</span>
+                  )}
+                </span>
+                {e.is_recurring && <Badge tone="cyan">{e.recurrence === "annual" ? "annual" : "monthly"}</Badge>}
                 <span className="font-mono text-sm text-[var(--white)] tabular-nums">
                   {money(e.amount_cents)}
                 </span>
-                <span className="font-mono text-[10px] text-[var(--muted)]">{e.spent_on}</span>
-              </div>
+                <span className="font-mono text-[10px] text-[var(--muted)]">{on}</span>
+              </button>
             ))}
           </Card>
         )}
@@ -116,12 +140,17 @@ export default function FinOpsPage() {
         ) : (
           <Card className="divide-y divide-[var(--glass-border)] p-0">
             {contribs.map((c) => (
-              <div key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+              <button
+                key={c.id}
+                onClick={() => setEditContrib(c)}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-white/[0.03]"
+                title="Edit contribution"
+              >
                 <Badge tone="muted">{c.kind}</Badge>
-                <div className="flex-1 min-w-0">
+                <span className="block min-w-0 flex-1">
                   <span className="block truncate text-sm text-[var(--white)]">{c.description}</span>
                   <span className="text-[10px] text-[var(--muted)]">{memberName(c.member_id)}</span>
-                </div>
+                </span>
                 {c.repayable &&
                   (c.repaid_on ? (
                     <Badge tone="green">repaid</Badge>
@@ -132,7 +161,7 @@ export default function FinOpsPage() {
                   {money(c.amount_cents)}
                 </span>
                 <span className="font-mono text-[10px] text-[var(--muted)]">{c.contributed_on}</span>
-              </div>
+              </button>
             ))}
           </Card>
         )}
@@ -152,6 +181,26 @@ export default function FinOpsPage() {
         builds={builds.data ?? []}
         defaultBuild={activeBuild}
       />
+
+      {/* Keyed so each selection mounts a form seeded from that record. */}
+      {editExpense && (
+        <EditExpenseModal
+          key={editExpense.id}
+          expense={editExpense}
+          builds={builds.data ?? []}
+          onClose={() => setEditExpense(null)}
+        />
+      )}
+
+      {editContrib && (
+        <EditContributionModal
+          key={editContrib.id}
+          contribution={editContrib}
+          members={members.data ?? []}
+          builds={builds.data ?? []}
+          onClose={() => setEditContrib(null)}
+        />
+      )}
     </div>
   );
 }

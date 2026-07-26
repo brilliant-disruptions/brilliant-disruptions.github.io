@@ -3,71 +3,73 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/queries/hooks";
+import { useToast } from "@/components/Toast";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
+import { CONTRIBUTION_KINDS } from "@/components/NewContributionModal";
 import type { Tables } from "@/lib/database.types";
 
-// Accounting treatment of the contribution. cash/in_kind = owner's equity
-// (non-repayable); expense/loan = the company owes it back (a liability).
-export const CONTRIBUTION_KINDS: { value: string; label: string; repayable: boolean }[] = [
-  { value: "cash", label: "Cash injection (equity)", repayable: false },
-  { value: "in_kind", label: "In-kind asset (equity)", repayable: false },
-  { value: "expense", label: "Paid a business expense (reimbursable)", repayable: true },
-  { value: "loan", label: "Loan to company (repayable)", repayable: true },
-];
-
-export function NewContributionModal({
-  open,
-  onClose,
+/** Edit one contribution. Mounted only while a row is selected (keyed by id) so
+ *  state is seeded from that record.
+ *
+ *  `repayable` is derived from `kind` (cash/in_kind = equity, expense/loan =
+ *  liability), exactly as on create — it is never edited directly, so changing
+ *  the type can't leave the row's accounting treatment inconsistent. Marking a
+ *  repayable contribution repaid is what clears it from the "owed back" total,
+ *  so that date is editable here too. */
+export function EditContributionModal({
+  contribution,
   members,
   builds,
-  defaultBuild,
+  onClose,
 }: {
-  open: boolean;
-  onClose: () => void;
+  contribution: Tables<"contributions">;
   members: Tables<"members">[];
   builds: Tables<"builds">[];
-  defaultBuild: string;
+  onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const [memberId, setMemberId] = useState("");
-  const [buildId, setBuildId] = useState(defaultBuild !== "all" ? defaultBuild : "");
-  const [kind, setKind] = useState("cash");
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [contributedOn, setContributedOn] = useState("");
-  const [err, setErr] = useState<string | null>(null);
+  const toast = useToast();
+  const [memberId, setMemberId] = useState(contribution.member_id);
+  const [buildId, setBuildId] = useState(contribution.build_id ?? "");
+  const [kind, setKind] = useState(contribution.kind);
+  const [amount, setAmount] = useState((contribution.amount_cents / 100).toFixed(2));
+  const [description, setDescription] = useState(contribution.description);
+  const [contributedOn, setContributedOn] = useState(contribution.contributed_on);
+  const [repaidOn, setRepaidOn] = useState(contribution.repaid_on ?? "");
   const [saving, setSaving] = useState(false);
 
   const repayable = CONTRIBUTION_KINDS.find((k) => k.value === kind)?.repayable ?? false;
 
-  async function submit() {
+  async function save() {
     const cents = Math.round(parseFloat(amount) * 100);
-    if (!memberId) return setErr("Select who contributed.");
-    if (!description.trim()) return setErr("Describe what it was for.");
-    if (!Number.isFinite(cents) || cents <= 0) return setErr("Enter a valid amount.");
+    if (!memberId) return toast.push("Select who contributed.", "error");
+    if (!description.trim()) return toast.push("Describe what it was for.", "error");
+    if (!Number.isFinite(cents) || cents <= 0) return toast.push("Enter a valid amount.", "error");
+    if (!contributedOn) return toast.push("Date is required.", "error");
     setSaving(true);
-    setErr(null);
-    const { error } = await supabase.from("contributions").insert({
-      member_id: memberId,
-      build_id: buildId || null, // null = studio / overhead
-      kind,
-      amount_cents: cents,
-      description: description.trim(),
-      repayable,
-      // Omit contributed_on when blank so the DB default (today) applies.
-      ...(contributedOn ? { contributed_on: contributedOn } : {}),
-      source: "manual",
-    });
+    const { error } = await supabase
+      .from("contributions")
+      .update({
+        member_id: memberId,
+        build_id: buildId || null,
+        kind,
+        amount_cents: cents,
+        description: description.trim(),
+        contributed_on: contributedOn,
+        repayable,
+        // Equity can't be "repaid" — drop any stale date if the type changed.
+        repaid_on: repayable ? repaidOn || null : null,
+      })
+      .eq("id", contribution.id);
     setSaving(false);
-    if (error) return setErr(error.message);
+    if (error) return toast.push(error.message, "error");
     qc.invalidateQueries({ queryKey: ["contributions"] });
-    setAmount("");
-    setDescription("");
+    toast.push("Contribution updated", "success");
     onClose();
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Log contribution">
+    <Modal open onClose={onClose} title="Edit contribution">
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -111,11 +113,10 @@ export function NewContributionModal({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               inputMode="decimal"
-              placeholder="0.00"
             />
           </div>
           <div>
-            <label className={labelClass}>Date (blank = today)</label>
+            <label className={labelClass}>Date</label>
             <input
               className={inputClass}
               type="date"
@@ -130,21 +131,30 @@ export function NewContributionModal({
             className={inputClass}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="e.g. Seed cash, MacBook, AWS bill on personal card"
           />
         </div>
+        {repayable && (
+          <div>
+            <label className={labelClass}>Repaid on (blank = still owed)</label>
+            <input
+              className={inputClass}
+              type="date"
+              value={repaidOn}
+              onChange={(e) => setRepaidOn(e.target.value)}
+            />
+          </div>
+        )}
         <p className="text-xs text-[var(--muted-hi)]">
           {repayable
             ? "Recorded as reimbursable — the company owes this back."
             : "Recorded as owner's equity — capital contributed, not repayable."}
         </p>
-        {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <button className={ghostBtn} onClick={onClose}>
             Cancel
           </button>
-          <button className={primaryBtn} onClick={submit} disabled={saving}>
-            {saving ? "Saving…" : "Log contribution"}
+          <button className={primaryBtn} onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </div>

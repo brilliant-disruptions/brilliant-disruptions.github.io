@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  expandExpenses,
   monthlyBurnCents,
   runwayMonths,
   totalMrrCents,
@@ -48,6 +49,73 @@ describe("monthlyBurnCents — recurring + recent one-off, so burn reflects this
   it("treats unset recurrence as monthly (historical default — no silent reduction)", () => {
     const burn = monthlyBurnCents([{ amount_cents: 5000, is_recurring: true, spent_on: "2025-01-01" }], ASOF);
     expect(burn).toBe(5000);
+  });
+});
+
+describe("expandExpenses — a recurring row is a subscription, so the ledger shows every charge", () => {
+  const oneOff = { amount_cents: 2000, is_recurring: false, spent_on: "2026-01-15" };
+
+  it("passes one-off expenses through as a single charge", () => {
+    expect(expandExpenses([oneOff], "2026-06-18")).toEqual([
+      { expense: oneOff, on: "2026-01-15", occurrence: 0 },
+    ]);
+  });
+
+  it("bills a monthly subscription once per month from its effective date", () => {
+    const out = expandExpenses(
+      [{ ...oneOff, is_recurring: true, recurrence: "monthly", effective_on: "2026-03-10" }],
+      "2026-06-18",
+    );
+    expect(out.map((c) => c.on)).toEqual(["2026-06-10", "2026-05-10", "2026-04-10", "2026-03-10"]);
+  });
+
+  it("bills an annual subscription once per year", () => {
+    const out = expandExpenses(
+      [{ ...oneOff, is_recurring: true, recurrence: "annual", effective_on: "2024-03-01" }],
+      "2026-06-18",
+    );
+    expect(out.map((c) => c.on)).toEqual(["2026-03-01", "2025-03-01", "2024-03-01"]);
+  });
+
+  it("never bills past the as-of date (no invented future spend)", () => {
+    const out = expandExpenses(
+      [{ ...oneOff, is_recurring: true, recurrence: "monthly", effective_on: "2026-05-30" }],
+      "2026-06-18",
+    );
+    expect(out.map((c) => c.on)).toEqual(["2026-05-30"]);
+  });
+
+  it("clamps a month-end start into short months instead of skipping one", () => {
+    // A Jan-31 subscription must charge in February, not roll into March.
+    const out = expandExpenses(
+      [{ ...oneOff, is_recurring: true, recurrence: "monthly", effective_on: "2026-01-31" }],
+      "2026-04-01",
+    );
+    expect(out.map((c) => c.on)).toEqual(["2026-03-31", "2026-02-28", "2026-01-31"]);
+  });
+
+  it("falls back to spent_on when no effective date was recorded (pre-migration rows)", () => {
+    const out = expandExpenses(
+      [{ ...oneOff, is_recurring: true, recurrence: "monthly", spent_on: "2026-04-05" }],
+      "2026-06-18",
+    );
+    expect(out.map((c) => c.on)).toEqual(["2026-06-05", "2026-05-05", "2026-04-05"]);
+  });
+
+  it("shows a future-dated recurring row once, without back-filling charges", () => {
+    const out = expandExpenses(
+      [{ ...oneOff, is_recurring: true, recurrence: "monthly", effective_on: "2026-09-01" }],
+      "2026-06-18",
+    );
+    expect(out).toHaveLength(1);
+  });
+
+  it("keeps burn independent of how long a subscription has run", () => {
+    // Burn is per-month by definition: a $20/mo tool active for 18 months is
+    // still $20 of burn. Expanded charges must never leak into that number.
+    const rows = [{ ...oneOff, is_recurring: true, recurrence: "monthly", effective_on: "2025-01-01" }];
+    expect(monthlyBurnCents(rows, ASOF)).toBe(2000);
+    expect(expandExpenses(rows, "2026-06-18").length).toBeGreaterThan(12);
   });
 });
 
