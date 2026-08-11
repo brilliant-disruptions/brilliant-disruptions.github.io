@@ -281,6 +281,66 @@ export function useCashOnHand() {
   });
 }
 
+/** Latest value of each named portfolio metric, keyed by metric name. Absent
+ *  metrics are simply missing from the map — the caller renders "—" rather than
+ *  a zero, because "no bank connected" and "$0 in the bank" are different facts.
+ *
+ *  One query for all the metrics FinOps needs, rather than a hook per card. */
+export function useLatestMetrics(metrics: string[]) {
+  const key = ["metric_snapshots", "latest", [...metrics].sort()];
+  useRealtime("metric_snapshots", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("metric_snapshots")
+        .select("metric, value_num, captured_on, meta")
+        .in("metric", metrics)
+        .is("build_id", null)
+        .order("captured_on", { ascending: false });
+      if (error) throw error;
+      // Rows arrive newest-first, so the first sighting of a metric wins.
+      const latest = new Map<string, { value: number; captured_on: string; meta: unknown }>();
+      for (const row of data ?? []) {
+        if (!latest.has(row.metric)) {
+          latest.set(row.metric, {
+            value: Number(row.value_num),
+            captured_on: row.captured_on,
+            meta: row.meta,
+          });
+        }
+      }
+      return latest;
+    },
+  });
+}
+
+/** Daily history of the named portfolio metrics over the trailing `days`,
+ *  oldest-first — the shape a chart wants. */
+export function useMetricSeries(metrics: string[], days = 90) {
+  const key = ["metric_snapshots", "series", [...metrics].sort(), days];
+  useRealtime("metric_snapshots", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("metric_snapshots")
+        .select("metric, value_num, captured_on")
+        .in("metric", metrics)
+        .is("build_id", null)
+        .gte("captured_on", since)
+        .order("captured_on", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        metric: r.metric as string,
+        value: Number(r.value_num),
+        captured_on: r.captured_on as string,
+      }));
+    },
+  });
+}
+
 export function useAgents() {
   const key = ["agents"];
   useRealtime("agents", key);

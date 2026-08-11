@@ -20,6 +20,20 @@ const PROVIDER_KEYS: Record<string, { name: string; label: string }[]> = {
     { name: "STRIPE_WEBHOOK_SECRET", label: "Webhook signing secret" },
   ],
   mercury: [{ name: "MERCURY_API_TOKEN", label: "API token" }],
+  // Relay is reached through Plaid — it publishes no general REST API. The
+  // access token comes out of a Plaid Link flow, not from the Plaid dashboard.
+  plaid: [
+    { name: "PLAID_CLIENT_ID", label: "Client ID" },
+    { name: "PLAID_SECRET", label: "Secret" },
+    { name: "PLAID_ENV", label: "Environment (production | sandbox)" },
+    { name: "PLAID_ACCESS_TOKEN", label: "Access token (from Plaid Link)" },
+  ],
+  // No refresh token field: it is minted by the OAuth flow and rotated by the
+  // adapter on every sync. Pasting a stale one in would break the connection.
+  quickbooks: [
+    { name: "QB_CLIENT_ID", label: "Client ID" },
+    { name: "QB_CLIENT_SECRET", label: "Client secret" },
+  ],
   gmail: [
     { name: "GOOGLE_OAUTH_CLIENT_ID", label: "OAuth client ID" },
     { name: "GOOGLE_OAUTH_CLIENT_SECRET", label: "OAuth client secret" },
@@ -57,6 +71,7 @@ export function ConnectionModal({
   const [freq, setFreq] = useState(connection.sync_frequency ?? "");
   const [appsRepo, setAppsRepo] = useState((config.apps_repo as string) ?? "");
   const [busy, setBusy] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
 
   // The monorepo whose top-level folders each surface as a build. Non-secret, so
   // it's written straight to connections.config (members have RLS write) rather
@@ -191,6 +206,42 @@ export function ConnectionModal({
             </div>
             <p className="mt-1 text-[10px] text-[var(--muted)]">
               Each top-level folder in this repo surfaces as a build, and folder renames sync in.
+            </p>
+          </div>
+        )}
+
+        {connection.provider === "quickbooks" && (
+          <div>
+            <label className={labelClass}>Authorization</label>
+            {/* Not a plain link: the connect route mints an OAuth state nonce, so
+                it must prove the caller is a member first. functions.invoke sends
+                the signed-in JWT; we navigate to the URL it hands back. */}
+            <button
+              type="button"
+              className={primaryBtn + " mt-1"}
+              disabled={connecting}
+              onClick={async () => {
+                setConnecting(true);
+                const { data, error } = await supabase.functions.invoke("quickbooks", {
+                  body: { action: "connect" },
+                });
+                const url = (data as { url?: string } | null)?.url;
+                if (error || !url) {
+                  setConnecting(false);
+                  toast.push(error?.message ?? "Could not start the Intuit connection", "error");
+                  return;
+                }
+                window.location.href = url;
+              }}
+            >
+              {connecting ? "Opening Intuit…" : "Connect with Intuit"}
+            </button>
+            <p className="mt-1 text-[10px] text-[var(--muted)]">
+              Save the client ID and secret first, then authorize. Register this exact redirect
+              URI in your Intuit app:{" "}
+              <code className="text-[var(--muted-hi)]">
+                {process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/quickbooks?callback=true
+              </code>
             </p>
           </div>
         )}

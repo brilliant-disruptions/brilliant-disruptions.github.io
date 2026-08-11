@@ -1,0 +1,23 @@
+project_id = "kihctocqvuewjxmpoxcw"
+
+# Per-function JWT verification. Only the routes that a third party must be able
+# to reach unauthenticated are opted out — each of those authenticates the caller
+# itself, and none of them is a bare open endpoint:
+#
+#   stripe      Stripe posts webhooks with a Stripe-Signature header, not a
+#               Supabase JWT. The function verifies the HMAC and fails closed.
+#   quickbooks  Intuit redirects the founder's BROWSER to ?callback=true and
+#               cannot attach our JWT. That route is gated on the single-use
+#               `state` nonce ?connect=true issued; ?sync=true is separately
+#               gated on X-Sync-Key regardless of this setting.
+#
+# Everything else keeps the default verify_jwt = true. Note that a valid JWT is
+# NOT by itself an authorization decision here: the anon key is public, so the
+# financial ?sync=true routes additionally require the JARVIS_SYNC_KEY header
+# (see migration 0023).
+
+[functions.stripe]
+verify_jwt = false
+
+[functions.quickbooks]
+verify_jwt = false
