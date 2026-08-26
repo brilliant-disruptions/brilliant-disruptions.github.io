@@ -9,6 +9,7 @@ import { EditContributionModal } from "@/components/EditContributionModal";
 import type { Tables } from "@/lib/database.types";
 import { primaryBtn } from "@/components/Modal";
 import { money } from "@/lib/format";
+import { partnerTotals } from "@/lib/metrics";
 
 /** Owner capital: cash, gear, and personally-paid expenses put into the
  *  business, and how much of it the company still owes back. */
@@ -25,6 +26,12 @@ export function ContributionsTab() {
   const owedBack = contribs
     .filter((c) => c.repayable && !c.repaid_on)
     .reduce((s, c) => s + c.amount_cents, 0);
+  // Parity view: who has put in what, and how far each partner is from the
+  // partner who has put in the most. Net of repayments — see partnerTotals.
+  const byPartner = useMemo(
+    () => partnerTotals(contribs, (members.data ?? []).map((m) => m.id)),
+    [contribs, members.data],
+  );
   const memberName = useMemo(() => {
     const map = new Map((members.data ?? []).map((m) => [m.id, m.full_name]));
     return (id: string) => map.get(id) ?? "—";
@@ -43,6 +50,38 @@ export function ContributionsTab() {
           </button>
         )}
       </div>
+      {contribs.length > 0 && (
+        <Card className="p-0">
+          <div className="border-b border-[var(--glass-border)] px-4 py-2 font-mono text-[10px] uppercase tracking-wide text-[var(--muted-hi)]">
+            By partner · net of repayments
+          </div>
+          <div className="divide-y divide-[var(--glass-border)]">
+            {byPartner.map((p) => (
+              <div key={p.member_id} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="min-w-0 flex-1 truncate text-sm text-[var(--white)]">
+                  {memberName(p.member_id)}
+                </span>
+                {p.behindCents > 0 ? (
+                  <Badge tone="amber">{money(p.behindCents)} behind</Badge>
+                ) : (
+                  <Badge tone="green">most in</Badge>
+                )}
+                <span className="text-right">
+                  <span className="block font-mono text-sm text-[var(--white)] tabular-nums">
+                    {money(p.netCents)}
+                  </span>
+                  {p.contributedCents !== p.netCents && (
+                    <span className="font-mono text-[10px] text-[var(--muted)]">
+                      {money(p.contributedCents)} in · {money(p.contributedCents - p.netCents)} repaid
+                    </span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {contribs.length === 0 ? (
         <EmptyState
           title="No contributions logged"

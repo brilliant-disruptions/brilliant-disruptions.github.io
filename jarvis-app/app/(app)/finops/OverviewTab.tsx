@@ -12,11 +12,20 @@ import {
 import { useUIStore } from "@/lib/store";
 import { MetricCard, SectionTitle, Card, Badge } from "@/components/ui";
 import { money, timeAgo } from "@/lib/format";
-import { monthlyBurnCents, runwayMonths, totalMrrCents } from "@/lib/metrics";
+import {
+  expandExpenses,
+  monthlyBurnCents,
+  runwayMonths,
+  totalMrrCents,
+  weeklyCashFlow,
+} from "@/lib/metrics";
 import {
   ResponsiveContainer,
+  ComposedChart,
+  Bar,
   LineChart,
   Line,
+  ReferenceLine,
   XAxis,
   YAxis,
   Tooltip,
@@ -125,6 +134,34 @@ export function OverviewTab() {
     return [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
   }, [series.data]);
 
+  // Money actually moving, week by week: customer revenue and partner funding
+  // in, ledger spend out. The balance chart above shows levels; this shows the
+  // flows that produced them, which is what "where did the money go" means.
+  // Charted on one axis in dollars, spend drawn negative so in/out read at a
+  // glance. Weekly, not daily — daily flows are too spiky to read.
+  const asOfIso = new Date(asOfMs).toISOString().slice(0, 10);
+  const flowData = useMemo(() => {
+    const charges = expandExpenses(expenses.data ?? [], asOfIso).map((c) => ({
+      on: c.on,
+      amount_cents: c.expense.amount_cents,
+    }));
+    return weeklyCashFlow(
+      {
+        expenseCharges: charges,
+        revenue: revenue.data ?? [],
+        contributions: contributions.data ?? [],
+      },
+      asOfIso,
+      13,
+    ).map((w) => ({
+      week: w.week.slice(5),
+      Revenue: w.revenueCents / 100,
+      "Partner funding": w.fundingCents / 100,
+      Spend: -w.expenseCents / 100,
+    }));
+  }, [expenses.data, revenue.data, contributions.data, asOfIso]);
+  const hasFlow = flowData.some((w) => w.Revenue || w["Partner funding"] || w.Spend);
+
   const syncRows = (connections.data ?? [])
     .filter((c) => SYNC_PROVIDERS.includes(c.provider))
     .sort((a, b) => SYNC_PROVIDERS.indexOf(a.provider) - SYNC_PROVIDERS.indexOf(b.provider));
@@ -204,7 +241,7 @@ export function OverviewTab() {
       </section>
 
       <section className="space-y-3">
-        <SectionTitle>90-Day Trend</SectionTitle>
+        <SectionTitle>90-Day Trend · balances</SectionTitle>
         <Card className="h-72">
           {chartData.length === 0 ? (
             <div className="flex h-full items-center justify-center text-center text-sm text-[var(--muted-hi)]">
@@ -230,6 +267,46 @@ export function OverviewTab() {
                 <Line type="monotone" dataKey="Stripe" stroke="var(--success)" strokeWidth={2} dot={false} connectNulls />
                 <Line type="monotone" dataKey="Net income" stroke="var(--warn)" strokeWidth={2} dot={false} connectNulls />
               </LineChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+      </section>
+
+      <section className="space-y-3">
+        <SectionTitle>Money In / Money Out · last 13 weeks</SectionTitle>
+        <Card className="h-72">
+          {!hasFlow ? (
+            <div className="flex h-full items-center justify-center text-center text-sm text-[var(--muted-hi)]">
+              No money has moved in this window. Log an expense, revenue entry, or contribution.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={flowData} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" />
+                <XAxis dataKey="week" stroke="var(--muted)" fontSize={11} />
+                <YAxis
+                  stroke="var(--muted)"
+                  fontSize={11}
+                  tickFormatter={(v) => `$${Math.abs(Number(v)).toLocaleString()}`}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                  contentStyle={{
+                    background: "var(--elevated)",
+                    border: "1px solid var(--glass-border-2)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(v) => `$${Math.abs(Number(v)).toLocaleString()}`}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <ReferenceLine y={0} stroke="var(--glass-border-2)" />
+                {/* Inflows stack — both are money arriving that week — while
+                    spend sits below the zero line as its own bar. */}
+                <Bar dataKey="Revenue" stackId="in" fill="var(--success)" />
+                <Bar dataKey="Partner funding" stackId="in" fill="var(--cyan)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Spend" fill="var(--warn)" radius={[0, 0, 4, 4]} />
+              </ComposedChart>
             </ResponsiveContainer>
           )}
         </Card>

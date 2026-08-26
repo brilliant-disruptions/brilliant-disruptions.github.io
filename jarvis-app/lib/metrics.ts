@@ -153,3 +153,121 @@ export function forecastMrrCents(
     bear: build(SCENARIO_FACTOR.bear),
   };
 }
+
+// ── Partner parity (FinOps §5.x) ──────────────────────────────────
+export type ContributionLite = {
+  member_id: string;
+  amount_cents: number;
+  repayable: boolean;
+  repaid_on?: string | null;
+};
+
+/** What one partner has put into the business.
+ *
+ *  `contributedCents` is everything they have ever put in; `netCents` subtracts
+ *  contributions the company has already paid back, because a reimbursed outlay
+ *  is no longer capital that partner is carrying. Parity is judged on `net` —
+ *  that is the number that answers "are we all in for the same amount right
+ *  now?" — while the gross total stays visible so a repayment can't hide
+ *  someone's effort.
+ *  `behindCents` is how far below the top partner this one sits: 0 for the
+ *  leader, and for everyone else the amount they'd have to add to match. */
+export type PartnerTotal = {
+  member_id: string;
+  contributedCents: number;
+  netCents: number;
+  behindCents: number;
+};
+
+/** `memberIds` seeds the result with every active partner, so someone who has
+ *  contributed nothing shows up as $0 rather than vanishing — they are exactly
+ *  the person the parity view exists to surface. */
+export function partnerTotals(
+  contributions: ContributionLite[],
+  memberIds: string[] = [],
+): PartnerTotal[] {
+  const by = new Map<string, { contributedCents: number; netCents: number }>(
+    memberIds.map((id) => [id, { contributedCents: 0, netCents: 0 }]),
+  );
+  for (const c of contributions) {
+    const row = by.get(c.member_id) ?? { contributedCents: 0, netCents: 0 };
+    row.contributedCents += c.amount_cents;
+    // Repaid → the company settled it, so it no longer counts as capital in.
+    if (!(c.repayable && c.repaid_on)) row.netCents += c.amount_cents;
+    by.set(c.member_id, row);
+  }
+  const rows = [...by.entries()].map(([member_id, v]) => ({ member_id, ...v, behindCents: 0 }));
+  const top = rows.reduce((max, r) => Math.max(max, r.netCents), 0);
+  for (const r of rows) r.behindCents = top - r.netCents;
+  return rows.sort((a, b) => b.netCents - a.netCents);
+}
+
+// ── Cash flow (money in / money out) ──────────────────────────────
+export type CashFlowWeek = {
+  /** ISO date of the Monday that starts the bucket. */
+  week: string;
+  revenueCents: number;
+  fundingCents: number;
+  /** Positive magnitude of spend in the week. */
+  expenseCents: number;
+};
+
+/** Monday (UTC) of the week containing `iso`. */
+function weekStartIso(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  const dow = (d.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
+  d.setUTCDate(d.getUTCDate() - dow);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Weekly money in and money out over the trailing `weeks` weeks.
+ *
+ *  Daily flows are too spiky to read — a subscription hits one day and nothing
+ *  moves for a week — so charges are bucketed by week. Every bucket in the
+ *  window is emitted, including empty ones, so a quiet stretch reads as quiet
+ *  rather than as missing data.
+ *
+ *  Inflows are split: `revenue` is money customers paid us; `funding` is
+ *  partner capital put in. They are different kinds of "in" and a runway
+ *  conversation goes wrong if propped-up months look like earned months.
+ *  Expenses must be the *expanded* occurrences (see `expandExpenses`) so a
+ *  recurring subscription shows a charge every month it actually billed.
+ *  Contributions of kind `expense` are still funding here: the partner's cash
+ *  is what left, and the matching company spend is already in the expense
+ *  ledger if it was recorded there. */
+export function weeklyCashFlow(
+  input: {
+    expenseCharges: { on: string; amount_cents: number }[];
+    revenue: { occurred_on: string; amount_cents: number; status?: string | null }[];
+    contributions: { contributed_on: string; amount_cents: number }[];
+  },
+  asOfIso: string,
+  weeks = 13,
+): CashFlowWeek[] {
+  const buckets = new Map<string, CashFlowWeek>();
+  const end = weekStartIso(asOfIso);
+  let cursor = end;
+  for (let i = 0; i < weeks; i++) {
+    buckets.set(cursor, { week: cursor, revenueCents: 0, fundingCents: 0, expenseCents: 0 });
+    const d = new Date(`${cursor}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - 7);
+    cursor = d.toISOString().slice(0, 10);
+  }
+  const start = cursor; // one week before the earliest bucket
+
+  const add = (iso: string, key: "revenueCents" | "fundingCents" | "expenseCents", cents: number) => {
+    if (!iso || iso <= start || iso > asOfIso) return;
+    const b = buckets.get(weekStartIso(iso));
+    if (b) b[key] += cents;
+  };
+
+  for (const c of input.expenseCharges) add(c.on, "expenseCents", c.amount_cents);
+  // Only realized revenue: pending/refunded/failed money never landed.
+  for (const r of input.revenue) {
+    if (r.status && r.status !== "paid") continue;
+    add(r.occurred_on, "revenueCents", r.amount_cents);
+  }
+  for (const c of input.contributions) add(c.contributed_on, "fundingCents", c.amount_cents);
+
+  return [...buckets.values()].sort((a, b) => a.week.localeCompare(b.week));
+}

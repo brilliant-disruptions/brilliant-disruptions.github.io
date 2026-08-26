@@ -8,6 +8,8 @@ import {
   pipelineExpectedMrrCents,
   forecastMrrCents,
   STAGE_CLOSE_PROB,
+  partnerTotals,
+  weeklyCashFlow,
 } from "./metrics";
 
 // Tests encode WHY: these numbers drive cash decisions, so the math must be
@@ -175,5 +177,78 @@ describe("forecastMrrCents — bull ≥ base ≥ bear, monotonic, base captures 
   it("a zero pipeline yields a flat forecast at current MRR", () => {
     const flat = forecastMrrCents(8000, 0);
     expect(new Set(flat.base)).toEqual(new Set([8000]));
+  });
+});
+
+describe("partnerTotals — parity is judged on capital still in the business", () => {
+  it("sums per partner and measures the gap to the top contributor", () => {
+    const rows = partnerTotals([
+      { member_id: "a", amount_cents: 100_00, repayable: false },
+      { member_id: "a", amount_cents: 50_00, repayable: false },
+      { member_id: "b", amount_cents: 60_00, repayable: false },
+    ]);
+    expect(rows.map((r) => r.member_id)).toEqual(["a", "b"]);
+    expect(rows[0].netCents).toBe(150_00);
+    expect(rows[0].behindCents).toBe(0);
+    // b must put in $90 more to match a — the whole point of the view.
+    expect(rows[1].behindCents).toBe(90_00);
+  });
+
+  it("shows a partner who has contributed nothing — the one most behind", () => {
+    const rows = partnerTotals([{ member_id: "a", amount_cents: 100_00, repayable: false }], ["a", "b"]);
+    const b = rows.find((r) => r.member_id === "b")!;
+    expect(b.netCents).toBe(0);
+    expect(b.behindCents).toBe(100_00);
+  });
+
+  it("drops repaid contributions from net but keeps them in the gross total", () => {
+    const [a] = partnerTotals([
+      { member_id: "a", amount_cents: 100_00, repayable: true, repaid_on: "2026-05-01" },
+      { member_id: "a", amount_cents: 40_00, repayable: true, repaid_on: null },
+    ]);
+    expect(a.contributedCents).toBe(140_00);
+    expect(a.netCents).toBe(40_00);
+  });
+});
+
+describe("weeklyCashFlow — every dollar in and out, bucketed so it is readable", () => {
+  const asOf = "2026-06-18"; // a Thursday
+
+  it("buckets flows into the week they landed and keeps quiet weeks", () => {
+    const rows = weeklyCashFlow(
+      {
+        expenseCharges: [
+          { on: "2026-06-15", amount_cents: 30_00 }, // Mon of the current week
+          { on: "2026-06-18", amount_cents: 20_00 },
+        ],
+        revenue: [{ occurred_on: "2026-06-17", amount_cents: 500_00, status: "paid" }],
+        contributions: [{ contributed_on: "2026-06-16", amount_cents: 250_00 }],
+      },
+      asOf,
+      4,
+    );
+    expect(rows).toHaveLength(4);
+    const last = rows[3];
+    expect(last.week).toBe("2026-06-15");
+    expect(last.expenseCents).toBe(50_00);
+    expect(last.revenueCents).toBe(500_00);
+    expect(last.fundingCents).toBe(250_00);
+    expect(rows[0]).toMatchObject({ revenueCents: 0, fundingCents: 0, expenseCents: 0 });
+  });
+
+  it("ignores revenue that never landed and flows outside the window", () => {
+    const rows = weeklyCashFlow(
+      {
+        expenseCharges: [{ on: "2025-01-01", amount_cents: 999_00 }],
+        revenue: [
+          { occurred_on: "2026-06-17", amount_cents: 100_00, status: "pending" },
+          { occurred_on: "2026-06-17", amount_cents: 100_00, status: "refunded" },
+        ],
+        contributions: [],
+      },
+      asOf,
+      4,
+    );
+    expect(rows.reduce((s, r) => s + r.revenueCents + r.expenseCents, 0)).toBe(0);
   });
 });
