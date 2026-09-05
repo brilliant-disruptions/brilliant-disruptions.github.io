@@ -460,6 +460,88 @@ export function useGithubRepos(enabled: boolean) {
   });
 }
 
+/** The signed-in member's own roster row — used to optimistically self-assign
+ *  a ticket the instant it's moved, before the RPC round-trip confirms it. */
+export function useCurrentMember() {
+  const members = useMembers();
+  const key = ["auth", "current-member"];
+  return useQuery({
+    queryKey: key,
+    enabled: !!members.data,
+    queryFn: async () => {
+      const { data } = await supabase.auth.getUser();
+      const uid = data.user?.id;
+      return members.data?.find((m) => m.id === uid) ?? null;
+    },
+  });
+}
+
+export function useInitiatives() {
+  const activeBuild = useUIStore((s) => s.activeBuild);
+  const key = ["initiatives", activeBuild];
+  useRealtime("initiatives", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await scoped(
+        supabase.from("initiatives").select("*").order("sort_order"),
+        activeBuild,
+      );
+      if (error) throw error;
+      return data as Tables<"initiatives">[];
+    },
+  });
+}
+
+/** Pass buildId to pin the scope to a specific build regardless of the global
+ *  build filter — needed by drawers editing a work item that may not belong
+ *  to whichever build the board picker currently has selected. */
+export function useEpics(buildId?: string) {
+  const activeBuild = useUIStore((s) => s.activeBuild);
+  const scope = buildId ?? activeBuild;
+  const key = ["epics", scope];
+  useRealtime("epics", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await scoped(
+        supabase.from("epics").select("*").order("sort_order"),
+        scope,
+      );
+      if (error) throw error;
+      return data as Tables<"epics">[];
+    },
+  });
+}
+
+/** Custom-field templates. build_id null = global fallback for that item_type. */
+export function useTemplates() {
+  const key = ["work_item_templates"];
+  useRealtime("work_item_templates", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("work_item_templates").select("*");
+      if (error) throw error;
+      return data as Tables<"work_item_templates">[];
+    },
+  });
+}
+
+/** Saved board filter presets (spec: custom filters dropdown). */
+export function useBoardFilters() {
+  const key = ["board_filters"];
+  useRealtime("board_filters", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("board_filters").select("*").order("created_at");
+      if (error) throw error;
+      return data as Tables<"board_filters">[];
+    },
+  });
+}
+
 export function useRules() {
   const key = ["rules"];
   useRealtime("rules", key);

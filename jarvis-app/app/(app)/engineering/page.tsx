@@ -1,18 +1,78 @@
 "use client";
 
-import { useState } from "react";
-import { useTickets, useBuilds } from "@/lib/queries/hooks";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useTickets, useBuilds, useMembers } from "@/lib/queries/hooks";
 import { useUIStore } from "@/lib/store";
 import { MetricCard, SectionTitle, EmptyState } from "@/components/ui";
 import { Kanban } from "@/components/Kanban";
+import { EpicsBoard } from "@/components/EpicsBoard";
+import { InitiativesBoard } from "@/components/InitiativesBoard";
+import { EngineeringAnalytics } from "@/components/EngineeringAnalytics";
+import { EngineeringTemplates } from "@/components/EngineeringTemplates";
 import { NewIssueModal } from "@/components/NewIssueModal";
 import { primaryBtn } from "@/components/Modal";
 
+const TABS = ["Board", "Epics", "Initiatives", "Analytics", "Templates"] as const;
+type Tab = (typeof TABS)[number];
+
 export default function EngineeringPage() {
+  return (
+    <Suspense fallback={null}>
+      <EngineeringPageInner />
+    </Suspense>
+  );
+}
+
+function EngineeringPageInner() {
   const tickets = useTickets();
   const builds = useBuilds();
+  const members = useMembers();
   const activeBuild = useUIStore((s) => s.activeBuild);
+  const openWorkItem = useUIStore((s) => s.openWorkItem);
+  const setOpenWorkItem = useUIStore((s) => s.setOpenWorkItem);
+  const activeCard = useUIStore((s) => s.activeCard);
   const [issueOpen, setIssueOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>("Board");
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // A lineage-link click stashes { type, key } on the UI store; jump to the
+  // tab that owns that work item so its own effect can open the drawer.
+  useEffect(() => {
+    if (!openWorkItem) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing local tab to an external Zustand signal set by a lineage-link click elsewhere in the tree
+    if (openWorkItem.type === "ticket") setTab("Board");
+    if (openWorkItem.type === "epic") setTab("Epics");
+    if (openWorkItem.type === "initiative") setTab("Initiatives");
+  }, [openWorkItem]);
+
+  // On first load, a shareable ?card=type:key URL opens straight to that
+  // item's drawer — the target board's own pickup effect does the rest.
+  const consumedInitialCard = useRef(false);
+  useEffect(() => {
+    if (consumedInitialCard.current) return;
+    consumedInitialCard.current = true;
+    const card = searchParams.get("card");
+    if (!card) return;
+    const [type, ...rest] = card.split(":");
+    const key = rest.join(":");
+    if (key && (type === "ticket" || type === "epic" || type === "initiative")) {
+      setOpenWorkItem({ type, key });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mirror whichever drawer is open back into the URL so the card is
+  // shareable/bookmarkable and agents can reference it directly.
+  useEffect(() => {
+    const next = activeCard ? `${activeCard.type}:${activeCard.key}` : null;
+    if (next === searchParams.get("card")) return;
+    const url = next ? `${pathname}?card=${encodeURIComponent(next)}` : pathname;
+    router.replace(url, { scroll: false });
+  }, [activeCard, pathname, router, searchParams]);
 
   const all = tickets.data ?? [];
   const open = all.filter((t) => t.stage !== "done" && t.stage !== "archived").length;
@@ -20,6 +80,7 @@ export default function EngineeringPage() {
   const done = all.filter((t) => t.stage === "done").length;
 
   const hasBuilds = (builds.data?.length ?? 0) > 0;
+  const boardId = activeBuild !== "all" ? activeBuild : (builds.data?.[0]?.id ?? "");
 
   return (
     <div className="space-y-6">
@@ -29,35 +90,56 @@ export default function EngineeringPage() {
         <MetricCard label="Done" value={done} />
       </div>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <SectionTitle>Kanban — drag to advance</SectionTitle>
-          {hasBuilds && (
-            <button className={primaryBtn} onClick={() => setIssueOpen(true)}>
-              + New issue
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1 rounded-lg border border-[var(--glass-border-2)] p-1">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={
+                "rounded-md px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide " +
+                (tab === t ? "bg-[var(--indigo)] text-white" : "text-[var(--muted-hi)] hover:text-[var(--white)]")
+              }
+            >
+              {t}
             </button>
-          )}
+          ))}
         </div>
-
-        {!hasBuilds ? (
-          <EmptyState
-            title="No builds yet"
-            hint="Add a build from the Overview tab before creating issues."
-          />
-        ) : all.length === 0 ? (
-          <EmptyState
-            title="No issues"
-            hint="Create one, then drag it to Done to watch the rules engine cascade (recompute health → notify → audit)."
-            action={
-              <button className={primaryBtn} onClick={() => setIssueOpen(true)}>
-                + New issue
-              </button>
-            }
-          />
-        ) : (
-          <Kanban tickets={all} />
+        {hasBuilds && tab === "Board" && (
+          <button className={primaryBtn} onClick={() => setIssueOpen(true)}>
+            + New issue
+          </button>
         )}
-      </section>
+      </div>
+
+      {!hasBuilds ? (
+        <EmptyState title="No builds yet" hint="Add a build from the Overview tab before creating issues." />
+      ) : (
+        <>
+          {tab === "Board" && (
+            <section className="space-y-3">
+              <SectionTitle>Kanban — drag to advance</SectionTitle>
+              {all.length === 0 ? (
+                <EmptyState
+                  title="No issues"
+                  hint="Create one, then drag it to Done to watch the rules engine cascade (recompute health → notify → audit)."
+                  action={
+                    <button className={primaryBtn} onClick={() => setIssueOpen(true)}>
+                      + New issue
+                    </button>
+                  }
+                />
+              ) : (
+                <Kanban tickets={all} members={members.data ?? []} />
+              )}
+            </section>
+          )}
+          {tab === "Epics" && boardId && <EpicsBoard buildId={boardId} />}
+          {tab === "Initiatives" && boardId && <InitiativesBoard buildId={boardId} />}
+          {tab === "Analytics" && <EngineeringAnalytics tickets={all} />}
+          {tab === "Templates" && boardId && <EngineeringTemplates buildId={boardId} />}
+        </>
+      )}
 
       <NewIssueModal
         open={issueOpen}

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useUIStore } from "@/lib/store";
 
 export function Card({
   children,
@@ -110,6 +111,106 @@ export function HealthRing({ score, size = 56 }: { score: number; size?: number 
         {pct}
       </text>
     </svg>
+  );
+}
+
+/** Initials avatar for a member, colored by their avatar_color (falls back to
+ *  cyan for unassigned so cards always render a consistent-size chip). */
+export function Avatar({
+  name,
+  color,
+  size = 20,
+}: {
+  name: string | null | undefined;
+  color?: string | null;
+  size?: number;
+}) {
+  const initials = name
+    ? name
+        .split(" ")
+        .map((p) => p[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "?";
+  const c = color || "#6B7280";
+  return (
+    <span
+      title={name ?? "Unassigned"}
+      style={{ width: size, height: size, background: `${c}26`, border: `1px solid ${c}66`, color: c }}
+      className="inline-flex shrink-0 items-center justify-center rounded-full text-[9px] font-bold"
+    >
+      {initials}
+    </span>
+  );
+}
+
+/** Simple done/total progress bar, used for epic/initiative child rollups. */
+export function ProgressBar({ value, total }: { value: number; total: number }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--glass-border-2)]">
+        <div className="h-full rounded-full bg-[var(--indigo)]" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="font-mono text-[10px] text-[var(--muted-hi)]">
+        {value}/{total}
+      </span>
+    </div>
+  );
+}
+
+export type LineageEntry = {
+  key: string;
+  label: string;
+  current?: boolean;
+  /** Present on non-current entries so the key can link to that work item's drawer. */
+  type?: "ticket" | "epic" | "initiative";
+};
+
+/** A work item's key (e.g. "ENG-42"), clickable to open that item's drawer —
+ *  works across tabs/builds and regardless of archived status, since it
+ *  stashes an openWorkItem request on the UI store rather than depending on
+ *  the item already being in scope locally (see Kanban/EpicsBoard/
+ *  InitiativesBoard's openWorkItem effect). */
+export function WorkItemKeyLink({
+  itemKey,
+  type,
+  className = "font-mono text-[11px] font-semibold text-[var(--indigo-bright)] hover:underline",
+}: {
+  itemKey: string;
+  type: "ticket" | "epic" | "initiative";
+  className?: string;
+}) {
+  const setOpenWorkItem = useUIStore((s) => s.setOpenWorkItem);
+  return (
+    <button onClick={() => setOpenWorkItem({ type, key: itemKey })} className={className}>
+      {itemKey}
+    </button>
+  );
+}
+
+/** Breadcrumb trail shown atop a ticket/epic/initiative drawer, tracing
+ *  upstream ancestry (initiative › epic › ticket) with the current item bold.
+ *  Non-current entries are clickable via WorkItemKeyLink. */
+export function Lineage({ trail }: { trail: LineageEntry[] }) {
+  if (trail.length <= 1) return null;
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[12px]">
+      {trail.map((t, i) => (
+        <span key={t.key} className="flex items-center gap-1.5">
+          {i > 0 && <span className="text-[var(--muted-hi)]">›</span>}
+          <span className={t.current ? "text-[var(--white)]" : "text-[var(--muted-hi)]"}>
+            {!t.current && t.type ? (
+              <WorkItemKeyLink itemKey={t.key} type={t.type} />
+            ) : (
+              <span className="font-mono text-[11px] font-semibold text-[var(--indigo-bright)]">{t.key}</span>
+            )}{" "}
+            {t.label}
+          </span>
+        </span>
+      ))}
+    </div>
   );
 }
 

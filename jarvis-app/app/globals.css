@@ -13,6 +13,15 @@
   --cyan-dim: #00b8cc;
   --violet: #7c3aed;
   --magenta: #ff006e;
+  /* Engineering board accent (matches the bd-board reference design) */
+  --indigo: #6366f1;
+  --indigo-dim: #4f46e5;
+  /* Brighter tint for small indigo text on dark surfaces — --indigo itself
+     fails contrast at 10-11px, so labels (ticket/epic/initiative keys) use
+     this instead while borders/fills keep --indigo. */
+  --indigo-bright: #b4b8ff;
+  /* Ticket "pullable" signal — an available-to-grab item outside its own column. */
+  --pullable: #34d399;
   --white: #f0f0ff;
   --muted: #3a3a5c;
   --muted-hi: rgba(240, 240, 255, 0.55);
@@ -45,6 +54,10 @@
   --color-cyan-dim: var(--cyan-dim);
   --color-violet: var(--violet);
   --color-magenta: var(--magenta);
+  --color-indigo: var(--indigo);
+  --color-indigo-dim: var(--indigo-dim);
+  --color-indigo-bright: var(--indigo-bright);
+  --color-pullable: var(--pullable);
   --color-gold: var(--gold);
   --color-gold-bright: var(--gold-bright);
   --color-white-soft: var(--white);
