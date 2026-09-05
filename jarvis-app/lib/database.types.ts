@@ -1559,7 +1559,7 @@ export type Database = {
         Returns: undefined
       }
       set_connection: {
-        Args: { p_provider: string; p_status: string; p_sync_frequency: string }
+        Args: { p_provider: string; p_status: string; p_sync_frequency: string | null }
         Returns: {
           config: Json
           created_at: string
@@ -1614,8 +1614,8 @@ export type Database = {
           p_auto_approve_medium: boolean
           p_build_scope: string
           p_conditions: Json
-          p_description: string
-          p_id: string
+          p_description: string | null
+          p_id: string | null
           p_is_enabled: boolean
           p_name: string
           p_priority: number
