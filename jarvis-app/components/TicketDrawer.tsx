@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/queries/hooks";
+import { supabase, useMembers, useEpics, useInitiatives, useTemplates } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
-import { Badge } from "@/components/ui";
+import { Badge, Lineage, type LineageEntry } from "@/components/ui";
+import { SWIMLANES } from "@/lib/board-constants";
+import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import type { Tables } from "@/lib/database.types";
 
 const TYPES = ["bug", "feature", "perf", "security", "ux", "infra", "chore"];
@@ -17,17 +19,34 @@ const PRIORITY_TONE: Record<string, "red" | "amber" | "cyan" | "muted"> = {
   low: "muted",
 };
 
-/** View + edit a ticket's description, type, priority, and blocker flag. Stage
- *  is read-only here — it advances through the Kanban (advance_ticket RPC), which
- *  is the audited action surface. Edits are direct updates (RLS allows members). */
+/** View + edit a ticket. Stage is read-only here — it advances through the
+ *  Kanban (advance_ticket RPC), which also stamps the mover as assignee, so
+ *  that's the audited action surface for both. Everything else here is a
+ *  direct update (RLS allows members), including a manual assignee override
+ *  for assigning work without moving its stage. */
 export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; onClose: () => void }) {
   const qc = useQueryClient();
+  const members = useMembers();
+  const epics = useEpics(ticket.build_id);
+  const initiatives = useInitiatives();
+  const templates = useTemplates();
   const [description, setDescription] = useState(ticket.description ?? "");
   const [type, setType] = useState(ticket.type ?? "feature");
   const [priority, setPriority] = useState(ticket.priority ?? "medium");
   const [isBlocker, setIsBlocker] = useState(ticket.is_blocker ?? false);
+  const [assigneeId, setAssigneeId] = useState(ticket.assignee_id ?? "");
+  const [epicId, setEpicId] = useState(ticket.epic_id ?? "");
+  const [swimlane, setSwimlane] = useState(ticket.swimlane ?? "product");
+  const [points, setPoints] = useState(ticket.points?.toString() ?? "");
+  const [customFields, setCustomFields] = useState<Record<string, unknown>>(
+    (ticket.custom_fields as Record<string, unknown>) ?? {},
+  );
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const template =
+    templates.data?.find((t) => t.build_id === ticket.build_id && t.item_type === "ticket") ??
+    templates.data?.find((t) => t.build_id === null && t.item_type === "ticket");
 
   async function save() {
     setSaving(true);
@@ -39,6 +58,11 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
         type,
         priority,
         is_blocker: isBlocker,
+        assignee_id: assigneeId || null,
+        epic_id: epicId || null,
+        swimlane,
+        points: points ? Number(points) : null,
+        custom_fields: customFields as never,
       })
       .eq("id", ticket.id);
     setSaving(false);
@@ -47,10 +71,31 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
     onClose();
   }
 
+  async function abort() {
+    if (!confirm("Abort this ticket? It will be archived and removed from the board.")) return;
+    setSaving(true);
+    setErr(null);
+    const { error } = await supabase.from("tickets").update({ stage: "archived" }).eq("id", ticket.id);
+    setSaving(false);
+    if (error) return setErr(error.message);
+    qc.invalidateQueries({ queryKey: ["tickets"] });
+    onClose();
+  }
+
+  const epic = epics.data?.find((e) => e.id === ticket.epic_id);
+  const initiative = initiatives.data?.find((i) => i.id === epic?.initiative_id);
+  const trail = [
+    initiative && { key: initiative.key, label: initiative.title, type: "initiative" as const },
+    epic && { key: epic.key, label: epic.title, type: "epic" as const },
+    { key: ticket.key, label: ticket.title, current: true },
+  ].filter(Boolean) as LineageEntry[];
+
   return (
     <Modal open onClose={onClose} title={ticket.title}>
       <div className="space-y-3">
+        <Lineage trail={trail} />
         <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="muted">{ticket.key}</Badge>
           <Badge tone={PRIORITY_TONE[priority] ?? "muted"}>{priority}</Badge>
           <Badge tone="muted">{ticket.stage}</Badge>
           {ticket.ref && <Badge tone="cyan">{ticket.ref}</Badge>}
@@ -100,6 +145,67 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>Assignee</label>
+            <select className={inputClass} value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+              <option value="">— unassigned —</option>
+              {(members.data ?? []).map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.full_name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[10px] text-[var(--muted-hi)]">
+              Moving this ticket to a new stage reassigns it to whoever moves it.
+            </p>
+          </div>
+          <div>
+            <label className={labelClass}>Swimlane</label>
+            <select className={inputClass} value={swimlane} onChange={(e) => setSwimlane(e.target.value)}>
+              {SWIMLANES.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.icon} {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>Epic</label>
+            <select className={inputClass} value={epicId} onChange={(e) => setEpicId(e.target.value)}>
+              <option value="">— none —</option>
+              {(epics.data ?? [])
+                .filter((e) => e.build_id === ticket.build_id)
+                .map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.title}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Points</label>
+            <input
+              type="number"
+              min={0}
+              className={inputClass}
+              value={points}
+              onChange={(e) => setPoints(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {template && template.fields && (template.fields as unknown[]).length > 0 && (
+          <CustomFieldsEditor
+            fields={template.fields as never}
+            values={customFields}
+            onChange={setCustomFields}
+          />
+        )}
+
         <label className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
           <input type="checkbox" checked={isBlocker} onChange={(e) => setIsBlocker(e.target.checked)} />
           Launch blocker
@@ -107,6 +213,13 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
 
         {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
         <div className="flex justify-end gap-2 pt-2">
+          <button
+            className="mr-auto rounded-md border border-[var(--danger)]/40 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-[var(--danger)]/10"
+            onClick={abort}
+            disabled={saving}
+          >
+            Abort
+          </button>
           <button className={ghostBtn} onClick={onClose}>
             Cancel
           </button>
