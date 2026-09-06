@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, useMembers, useEpics, useInitiatives, useTemplates, useBuilds } from "@/lib/queries/hooks";
+import { supabase, useMembers, useEpics, useInitiatives, useTemplates, useBuilds, useLinkedActivity } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
 import { Badge, Lineage, type LineageEntry } from "@/components/ui";
 import { SWIMLANES } from "@/lib/board-constants";
@@ -31,6 +31,7 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
   const builds = useBuilds();
   const initiatives = useInitiatives();
   const templates = useTemplates();
+  const linkedActivity = useLinkedActivity(ticket.key);
   const [description, setDescription] = useState(ticket.description ?? "");
   const [type, setType] = useState(ticket.type ?? "feature");
   const [priority, setPriority] = useState(ticket.priority ?? "medium");
@@ -111,6 +112,29 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
             </a>
           )}
         </div>
+
+        {(linkedActivity.data?.length ?? 0) > 0 && (
+          <div>
+            <label className={labelClass}>Linked commits &amp; PRs</label>
+            <ul className="space-y-1">
+              {linkedActivity.data!.map((a) => (
+                <li key={a.id} className="flex items-center gap-2 text-sm">
+                  <Badge tone="muted">{a.kind === "pull_request" ? "PR" : "commit"}</Badge>
+                  {a.url ? (
+                    <a href={a.url} target="_blank" rel="noreferrer" className="text-[var(--cyan)] hover:underline">
+                      {a.ref} {a.title}
+                    </a>
+                  ) : (
+                    <span>
+                      {a.ref} {a.title}
+                    </span>
+                  )}
+                  {a.status && <Badge tone="muted">{a.status}</Badge>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div>
           <label className={labelClass}>Description</label>

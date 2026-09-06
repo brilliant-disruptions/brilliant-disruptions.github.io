@@ -1188,6 +1188,7 @@ export type Database = {
           occurred_at: string
           ref: string | null
           status: string | null
+          ticket_key: string | null
           title: string
           url: string | null
         }
@@ -1201,6 +1202,7 @@ export type Database = {
           occurred_at?: string
           ref?: string | null
           status?: string | null
+          ticket_key?: string | null
           title: string
           url?: string | null
         }
@@ -1214,6 +1216,7 @@ export type Database = {
           occurred_at?: string
           ref?: string | null
           status?: string | null
+          ticket_key?: string | null
           title?: string
           url?: string | null
         }

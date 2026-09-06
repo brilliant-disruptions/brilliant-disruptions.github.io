@@ -418,6 +418,26 @@ export function useRepoActivity(limit = 60) {
   });
 }
 
+/** Commits/PRs whose branch, commit message, or PR title referenced this
+ *  ticket's key (e.g. "BD-0005"), parsed by the github adapter. */
+export function useLinkedActivity(ticketKey: string | null | undefined) {
+  const key = ["repo_activity", "ticket_key", ticketKey];
+  useRealtime("repo_activity", key);
+  return useQuery({
+    queryKey: key,
+    enabled: Boolean(ticketKey),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("repo_activity")
+        .select("*")
+        .eq("ticket_key", ticketKey as string)
+        .order("occurred_at", { ascending: false });
+      if (error) throw error;
+      return data as Tables<"repo_activity">[];
+    },
+  });
+}
+
 /** Open, non-draft PRs across every repo in the org (GitHub adapter feed).
  *  Never build-scoped — Needs Attention shows everything. */
 export function useOpenPRs() {
