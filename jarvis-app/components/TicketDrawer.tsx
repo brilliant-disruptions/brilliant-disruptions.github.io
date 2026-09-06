@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase, useMembers, useEpics, useInitiatives, useTemplates, useBuilds, useLinkedActivity } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
-import { Badge, Lineage, type LineageEntry } from "@/components/ui";
+import { Badge, Lineage, SettingsMenu, type LineageEntry } from "@/components/ui";
 import { SWIMLANES } from "@/lib/board-constants";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import type { Tables } from "@/lib/database.types";
@@ -33,6 +33,7 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
   const templates = useTemplates();
   const linkedActivity = useLinkedActivity(ticket.key);
   const [description, setDescription] = useState(ticket.description ?? "");
+  const [editingDescription, setEditingDescription] = useState(false);
   const [type, setType] = useState(ticket.type ?? "feature");
   const [priority, setPriority] = useState(ticket.priority ?? "medium");
   const [isBlocker, setIsBlocker] = useState(ticket.is_blocker ?? false);
@@ -49,6 +50,8 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
   const template =
     templates.data?.find((t) => t.build_id === ticket.build_id && t.item_type === "ticket") ??
     templates.data?.find((t) => t.build_id === null && t.item_type === "ticket");
+  const templateFields = (template?.fields as { key: string }[] | undefined) ?? [];
+  const showPoints = templateFields.some((f) => f.key === "points");
 
   async function save() {
     setSaving(true);
@@ -111,6 +114,9 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
               GitHub ↗
             </a>
           )}
+          <div className="ml-auto">
+            <SettingsMenu items={[{ label: "Abort", onClick: abort, danger: true }]} />
+          </div>
         </div>
 
         {(linkedActivity.data?.length ?? 0) > 0 && (
@@ -138,13 +144,23 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
 
         <div>
           <label className={labelClass}>Description</label>
-          <textarea
-            className={inputClass + " min-h-[120px] resize-y"}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Context, repro steps, acceptance criteria…"
-            autoFocus
-          />
+          {editingDescription ? (
+            <textarea
+              className={inputClass + " min-h-[120px] resize-y"}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onBlur={() => setEditingDescription(false)}
+              placeholder="Context, repro steps, acceptance criteria…"
+              autoFocus
+            />
+          ) : (
+            <p
+              className="min-h-[2.5rem] cursor-text whitespace-pre-wrap rounded-md border border-transparent px-1 py-1.5 text-sm text-[var(--muted-hi)] hover:border-[var(--glass-border-2)]"
+              onClick={() => setEditingDescription(true)}
+            >
+              {description || <span className="text-[var(--muted)]">Click to add a description…</span>}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -197,7 +213,7 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className={showPoints ? "grid grid-cols-2 gap-3" : ""}>
           <div>
             <label className={labelClass}>Epic</label>
             <select className={inputClass} value={epicId} onChange={(e) => setEpicId(e.target.value)}>
@@ -210,21 +226,23 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
               ))}
             </select>
           </div>
-          <div>
-            <label className={labelClass}>Points</label>
-            <input
-              type="number"
-              min={0}
-              className={inputClass}
-              value={points}
-              onChange={(e) => setPoints(e.target.value)}
-            />
-          </div>
+          {showPoints && (
+            <div>
+              <label className={labelClass}>Points</label>
+              <input
+                type="number"
+                min={0}
+                className={inputClass}
+                value={points}
+                onChange={(e) => setPoints(e.target.value)}
+              />
+            </div>
+          )}
         </div>
 
-        {template && template.fields && (template.fields as unknown[]).length > 0 && (
+        {template && templateFields.filter((f) => f.key !== "points").length > 0 && (
           <CustomFieldsEditor
-            fields={template.fields as never}
+            fields={templateFields.filter((f) => f.key !== "points") as never}
             values={customFields}
             onChange={setCustomFields}
           />
@@ -237,13 +255,6 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
 
         {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <button
-            className="mr-auto rounded-md border border-[var(--danger)]/40 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-[var(--danger)]/10"
-            onClick={abort}
-            disabled={saving}
-          >
-            Abort
-          </button>
           <button className={ghostBtn} onClick={onClose}>
             Cancel
           </button>

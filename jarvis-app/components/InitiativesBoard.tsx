@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase, useInitiatives, useEpics, useTemplates } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
-import { EmptyState, ProgressBar, Lineage, Badge, WorkItemKeyLink } from "@/components/ui";
+import { EmptyState, ProgressBar, Lineage, Badge, WorkItemKeyLink, SettingsMenu } from "@/components/ui";
 import { useUIStore } from "@/lib/store";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import { CreateEpicModal } from "@/components/EpicsBoard";
@@ -203,6 +203,9 @@ function InitiativeDrawer({
         <Lineage trail={trail} />
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="muted">{initiative.key}</Badge>
+          <div className="ml-auto">
+            <SettingsMenu items={[{ label: "Abort", onClick: abort, danger: true }]} />
+          </div>
         </div>
         <div>
           <label className={labelClass}>Title</label>
@@ -274,13 +277,6 @@ function InitiativeDrawer({
 
         {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <button
-            className="mr-auto rounded-md border border-[var(--danger)]/40 px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-[var(--danger)]/10"
-            onClick={abort}
-            disabled={saving}
-          >
-            Abort
-          </button>
           <button className={ghostBtn} onClick={onClose}>
             Cancel
           </button>

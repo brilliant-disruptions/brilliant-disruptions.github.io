@@ -27,6 +27,13 @@ export function EngineeringTemplates({ buildId }: { buildId: string }) {
     setFields((t?.fields as CustomField[]) ?? []);
   }
 
+  const hasPoints = fields.some((f) => f.key === "points");
+  function togglePoints(enabled: boolean) {
+    setFields((f) =>
+      enabled ? [...f, { key: "points", label: "Points", type: "number" }] : f.filter((field) => field.key !== "points"),
+    );
+  }
+
   function addField() {
     setFields((f) => [...f, { key: `field_${f.length + 1}`, label: "New field", type: "text" }]);
   }
@@ -63,9 +70,19 @@ export function EngineeringTemplates({ buildId }: { buildId: string }) {
         </select>
       </div>
 
+      {itemType === "ticket" && (
+        <label className="mt-4 flex items-center gap-2 text-sm text-[var(--muted-hi)]">
+          <input type="checkbox" checked={hasPoints} onChange={(e) => togglePoints(e.target.checked)} />
+          Show points field on tickets
+        </label>
+      )}
+
       <div className="mt-4 space-y-2">
-        {fields.length === 0 && <p className="text-sm text-[var(--muted-hi)]">No custom fields for {itemType}s yet.</p>}
-        {fields.map((f, i) => (
+        {fields.filter((f) => f.key !== "points").length === 0 && (
+          <p className="text-sm text-[var(--muted-hi)]">No custom fields for {itemType}s yet.</p>
+        )}
+        {fields.map((f, i) =>
+          f.key === "points" ? null : (
           <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto_auto] items-end gap-2">
             <div>
               <label className={labelClass}>Key</label>
@@ -107,7 +124,8 @@ export function EngineeringTemplates({ buildId }: { buildId: string }) {
               </div>
             )}
           </div>
-        ))}
+          ),
+        )}
       </div>
 
       <div className="mt-4 flex justify-between">

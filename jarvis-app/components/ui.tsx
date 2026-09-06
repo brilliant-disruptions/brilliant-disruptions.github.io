@@ -1,5 +1,43 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useUIStore } from "@/lib/store";
+
+/** Small kebab-menu for a card/drawer's destructive/rare actions (e.g. Abort)
+ *  so they don't sit as a permanent button next to Save/Cancel. */
+export function SettingsMenu({ items }: { items: { label: string; onClick: () => void; danger?: boolean }[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        className="rounded-md border border-[var(--glass-border-2)] px-2 py-1 text-[var(--muted-hi)] hover:text-[var(--white)]"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Settings"
+      >
+        ⋯
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-20 mt-1 min-w-[140px] rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] py-1 shadow-lg">
+            {items.map((item) => (
+              <button
+                key={item.label}
+                className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-[var(--glass-border-2)] ${
+                  item.danger ? "text-[var(--danger)]" : "text-[var(--muted-hi)]"
+                }`}
+                onClick={() => {
+                  setOpen(false);
+                  item.onClick();
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function Card({
   children,

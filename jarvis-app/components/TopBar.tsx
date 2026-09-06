@@ -25,7 +25,7 @@ type MemberLite = {
 
 const TABS = [
   ["Overview", "/overview"],
-  ["Engineering", "/engineering"],
+  ["Workflow", "/engineering"],
   ["FinOps", "/finops"],
   ["Growth", "/growth"],
   ["Customers", "/customers"],

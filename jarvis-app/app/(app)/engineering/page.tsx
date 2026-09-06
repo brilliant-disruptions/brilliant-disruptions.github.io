@@ -11,10 +11,12 @@ import { InitiativesBoard } from "@/components/InitiativesBoard";
 import { EngineeringAnalytics } from "@/components/EngineeringAnalytics";
 import { EngineeringTemplates } from "@/components/EngineeringTemplates";
 import { NewIssueModal } from "@/components/NewIssueModal";
+import { BuildSettingsModal } from "@/components/BuildSettingsModal";
 import { primaryBtn } from "@/components/Modal";
 
-const TABS = ["Board", "Epics", "Initiatives", "Analytics", "Templates"] as const;
-type Tab = (typeof TABS)[number];
+const TABS = ["Board", "Epics", "Initiatives"] as const;
+const SETTINGS_TABS = ["Analytics", "Templates"] as const;
+type Tab = (typeof TABS)[number] | (typeof SETTINGS_TABS)[number];
 
 export default function EngineeringPage() {
   return (
@@ -34,6 +36,8 @@ function EngineeringPageInner() {
   const activeCard = useUIStore((s) => s.activeCard);
   const [issueOpen, setIssueOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("Board");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [buildSettingsOpen, setBuildSettingsOpen] = useState(false);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -104,6 +108,47 @@ function EngineeringPageInner() {
               {t}
             </button>
           ))}
+          <div className="relative">
+            <button
+              onClick={() => setSettingsOpen((o) => !o)}
+              className={
+                "rounded-md px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide " +
+                ((SETTINGS_TABS as readonly string[]).includes(tab)
+                  ? "bg-[var(--indigo)] text-white"
+                  : "text-[var(--muted-hi)] hover:text-[var(--white)]")
+              }
+            >
+              Settings ▾
+            </button>
+            {settingsOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setSettingsOpen(false)} />
+                <div className="absolute left-0 z-20 mt-1 min-w-[160px] rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] py-1 shadow-lg">
+                  {SETTINGS_TABS.map((t) => (
+                    <button
+                      key={t}
+                      className="block w-full px-3 py-1.5 text-left text-sm text-[var(--muted-hi)] hover:bg-[var(--glass-border-2)] hover:text-[var(--white)]"
+                      onClick={() => {
+                        setTab(t);
+                        setSettingsOpen(false);
+                      }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                  <button
+                    className="block w-full px-3 py-1.5 text-left text-sm text-[var(--muted-hi)] hover:bg-[var(--glass-border-2)] hover:text-[var(--white)]"
+                    onClick={() => {
+                      setBuildSettingsOpen(true);
+                      setSettingsOpen(false);
+                    }}
+                  >
+                    Board settings
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
         {hasBuilds && tab === "Board" && (
           <button className={primaryBtn} onClick={() => setIssueOpen(true)}>
@@ -147,6 +192,12 @@ function EngineeringPageInner() {
         builds={builds.data ?? []}
         defaultBuild={activeBuild}
       />
+
+      {buildSettingsOpen &&
+        (() => {
+          const build = builds.data?.find((b) => b.id === boardId);
+          return build ? <BuildSettingsModal build={build} onClose={() => setBuildSettingsOpen(false)} /> : null;
+        })()}
     </div>
   );
 }
