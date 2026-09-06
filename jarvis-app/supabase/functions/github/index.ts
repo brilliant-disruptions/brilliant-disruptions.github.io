@@ -250,9 +250,25 @@ async function upsertActivity(rows: Json[]): Promise<void> {
   await supabase.from("repo_activity").upsert(rows, { onConflict: "external_id" });
 }
 
+// Ticket/epic/initiative keys share one format (BD-####, migration 0026), so a
+// single case-insensitive regex finds a work-item key wherever a branch name,
+// commit message, or PR title happens to mention one. First match wins.
+const TICKET_KEY_RE = /\bBD-\d+\b/i;
+
+function extractTicketKey(...texts: (string | null | undefined)[]): string | null {
+  for (const t of texts) {
+    if (!t) continue;
+    const m = t.match(TICKET_KEY_RE);
+    if (m) return m[0].toUpperCase();
+  }
+  return null;
+}
+
 // Handles BOTH shapes: the push-webhook commit ({id, message, timestamp,
 // author:{name}, url}) and the REST /commits item ({sha, html_url, commit:{...}}).
-function commitRow(buildId: string, c: Json): Json {
+// branchRef (e.g. "refs/heads/BD-0005-blah") is passed separately since only
+// the push webhook carries it — commits fetched via REST don't know their branch.
+function commitRow(buildId: string, c: Json, branchRef?: string | null): Json {
   const commit = (c.commit as Json) ?? {};
   const sha = (c.id ?? c.sha) as string;
   const msg = (((c.message as string) ?? (commit.message as string)) ?? "").split("\n")[0];
@@ -269,21 +285,25 @@ function commitRow(buildId: string, c: Json): Json {
     url: (c.html_url as string) ?? (c.url as string) ?? null,
     status: null,
     occurred_at: when ?? new Date().toISOString(),
+    ticket_key: extractTicketKey(branchRef, msg),
   };
 }
 
 function prRow(buildId: string, pr: Json): Json {
   const merged = Boolean(pr.merged_at ?? pr.merged);
+  const title = (pr.title as string) ?? "(untitled PR)";
+  const headRef = ((pr.head as Json)?.ref as string) ?? null;
   return {
     build_id: buildId,
     kind: "pull_request",
     external_id: pr.node_id as string,
     ref: `#${pr.number}`,
-    title: (pr.title as string) ?? "(untitled PR)",
+    title,
     author: ((pr.user as Json)?.login as string) ?? null,
     url: (pr.html_url as string) ?? null,
     status: merged ? "merged" : ((pr.state as string) ?? null),
     occurred_at: (pr.updated_at as string) ?? new Date().toISOString(),
+    ticket_key: extractTicketKey(headRef, title),
   };
 }
 
@@ -339,7 +359,8 @@ async function handleWebhook(ghEvent: string, body: Json): Promise<Json> {
       return { result: "deploy event emitted" };
     case "push": {
       const commits = (body.commits as Json[]) ?? [];
-      await upsertActivity(commits.map((c) => commitRow(build.id, c)));
+      const branchRef = body.ref as string | undefined; // "refs/heads/BD-0005-blah-blah"
+      await upsertActivity(commits.map((c) => commitRow(build.id, c, branchRef)));
       return { result: `recorded ${commits.length} commits` };
     }
     case "pull_request": {
