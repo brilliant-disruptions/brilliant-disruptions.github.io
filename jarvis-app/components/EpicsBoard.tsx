@@ -11,13 +11,16 @@ import {
   useMembers,
   useTemplates,
   useTickets,
+  useWorkflowStageRules,
 } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
 import { EmptyState, ProgressBar, Avatar, Lineage, Badge, WorkItemKeyLink, SettingsMenu, type LineageEntry } from "@/components/ui";
 import { useUIStore } from "@/lib/store";
+import { useToast } from "@/components/Toast";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import { NewIssueModal } from "@/components/NewIssueModal";
 import { EPIC_COLUMNS, SWIMLANES } from "@/lib/board-constants";
+import { checkStageGate } from "@/lib/workflow-gating";
 import type { Tables } from "@/lib/database.types";
 
 type Epic = Tables<"epics">;
@@ -30,6 +33,8 @@ export function EpicsBoard({ buildId }: { buildId: string }) {
   const templates = useTemplates();
   const members = useMembers();
   const me = useCurrentMember();
+  const stageRules = useWorkflowStageRules();
+  const toast = useToast();
   const [selected, setSelected] = useState<Epic | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -60,6 +65,15 @@ export function EpicsBoard({ buildId }: { buildId: string }) {
   // Dragging an epic to a new status also assigns it to whoever moved it,
   // mirroring advance_ticket's behavior for tickets.
   async function move(epic: Epic, status: string) {
+    const gate = checkStageGate(
+      stageRules.data ?? [],
+      "epic",
+      epic.build_id,
+      epic.status,
+      status,
+      (epic.custom_fields as Record<string, unknown>) ?? {},
+    );
+    if (!gate.allowed) return toast.push(gate.reason, "error");
     const { error } = await supabase
       .from("epics")
       .update({ status, assignee_id: me.data?.id ?? epic.assignee_id })

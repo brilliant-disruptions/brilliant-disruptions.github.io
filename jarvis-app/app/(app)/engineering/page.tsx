@@ -10,12 +10,13 @@ import { EpicsBoard } from "@/components/EpicsBoard";
 import { InitiativesBoard } from "@/components/InitiativesBoard";
 import { EngineeringAnalytics } from "@/components/EngineeringAnalytics";
 import { EngineeringTemplates } from "@/components/EngineeringTemplates";
+import { WorkflowRulesEditor } from "@/components/WorkflowRulesEditor";
 import { NewIssueModal } from "@/components/NewIssueModal";
 import { BuildSettingsModal } from "@/components/BuildSettingsModal";
 import { primaryBtn } from "@/components/Modal";
 
 const TABS = ["Board", "Epics", "Initiatives"] as const;
-const SETTINGS_TABS = ["Analytics", "Templates"] as const;
+const SETTINGS_TABS = ["Analytics", "Templates", "Workflow Rules"] as const;
 type Tab = (typeof TABS)[number] | (typeof SETTINGS_TABS)[number];
 
 export default function EngineeringPage() {
@@ -183,6 +184,7 @@ function EngineeringPageInner() {
           {tab === "Initiatives" && boardId && <InitiativesBoard buildId={boardId} />}
           {tab === "Analytics" && <EngineeringAnalytics tickets={all} />}
           {tab === "Templates" && boardId && <EngineeringTemplates buildId={boardId} />}
+          {tab === "Workflow Rules" && boardId && <WorkflowRulesEditor buildId={boardId} />}
         </>
       )}
 

@@ -548,6 +548,20 @@ export function useTemplates() {
   });
 }
 
+/** Allowed stage transitions (+ optional gating conditions) per build/item_type. build_id null = global fallback. */
+export function useWorkflowStageRules() {
+  const key = ["workflow_stage_rules"];
+  useRealtime("workflow_stage_rules", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("workflow_stage_rules").select("*");
+      if (error) throw error;
+      return data as Tables<"workflow_stage_rules">[];
+    },
+  });
+}
+
 /** Saved board filter presets (spec: custom filters dropdown). */
 export function useBoardFilters() {
   const key = ["board_filters"];

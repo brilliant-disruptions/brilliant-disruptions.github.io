@@ -1481,6 +1481,47 @@ export type Database = {
           },
         ]
       }
+      workflow_stage_rules: {
+        Row: {
+          build_id: string | null
+          created_at: string
+          from_stage: string
+          gating_conditions: Json
+          id: string
+          item_type: string
+          to_stage: string
+          updated_at: string
+        }
+        Insert: {
+          build_id?: string | null
+          created_at?: string
+          from_stage: string
+          gating_conditions?: Json
+          id?: string
+          item_type: string
+          to_stage: string
+          updated_at?: string
+        }
+        Update: {
+          build_id?: string | null
+          created_at?: string
+          from_stage?: string
+          gating_conditions?: Json
+          id?: string
+          item_type?: string
+          to_stage?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_stage_rules_build_id_fkey"
+            columns: ["build_id"]
+            isOneToOne: false
+            referencedRelation: "builds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

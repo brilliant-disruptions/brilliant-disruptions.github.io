@@ -34,6 +34,12 @@ export const SWIMLANES = [
   { key: "growth", label: "Growth", color: "#EC4899", icon: "★" },
 ] as const;
 
+export const WORKFLOW_STAGES: Record<"ticket" | "epic" | "initiative", readonly { key: string; label: string }[]> = {
+  ticket: TICKET_COLUMNS.filter((c) => c.key !== "backlog_pullable"),
+  epic: EPIC_COLUMNS,
+  initiative: INITIATIVE_COLUMNS,
+};
+
 export const FIELD_TYPES = ["text", "number", "select", "date", "checkbox"] as const;
 
 export type CustomField = {
