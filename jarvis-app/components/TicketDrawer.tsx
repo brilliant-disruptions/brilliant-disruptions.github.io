@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, useMembers, useEpics, useInitiatives, useTemplates } from "@/lib/queries/hooks";
+import { supabase, useMembers, useEpics, useInitiatives, useTemplates, useBuilds } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
 import { Badge, Lineage, type LineageEntry } from "@/components/ui";
 import { SWIMLANES } from "@/lib/board-constants";
@@ -27,7 +27,8 @@ const PRIORITY_TONE: Record<string, "red" | "amber" | "cyan" | "muted"> = {
 export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; onClose: () => void }) {
   const qc = useQueryClient();
   const members = useMembers();
-  const epics = useEpics(ticket.build_id);
+  const epics = useEpics("all");
+  const builds = useBuilds();
   const initiatives = useInitiatives();
   const templates = useTemplates();
   const [description, setDescription] = useState(ticket.description ?? "");
@@ -177,13 +178,12 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
             <label className={labelClass}>Epic</label>
             <select className={inputClass} value={epicId} onChange={(e) => setEpicId(e.target.value)}>
               <option value="">— none —</option>
-              {(epics.data ?? [])
-                .filter((e) => e.build_id === ticket.build_id)
-                .map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.title}
-                  </option>
-                ))}
+              {(epics.data ?? []).map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.title}
+                  {e.build_id !== ticket.build_id ? ` (${builds.data?.find((b) => b.id === e.build_id)?.name ?? "other build"})` : ""}
+                </option>
+              ))}
             </select>
           </div>
           <div>
