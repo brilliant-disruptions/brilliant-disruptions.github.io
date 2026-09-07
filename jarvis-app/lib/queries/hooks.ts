@@ -562,6 +562,19 @@ export function useWorkflowStageRules() {
   });
 }
 
+export function useWorkflowStages() {
+  const key = ["workflow_stages"];
+  useRealtime("workflow_stages", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("workflow_stages").select("*").order("sort_order");
+      if (error) throw error;
+      return data as Tables<"workflow_stages">[];
+    },
+  });
+}
+
 /** Saved board filter presets (spec: custom filters dropdown). */
 export function useBoardFilters() {
   const key = ["board_filters"];

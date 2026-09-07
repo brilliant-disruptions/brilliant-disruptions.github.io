@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, useBoardFilters, useMembers } from "@/lib/queries/hooks";
+import { supabase, useBoardFilters, useMembers, useWorkflowStages } from "@/lib/queries/hooks";
 import { useUIStore } from "@/lib/store";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
-import { TICKET_COLUMNS, SWIMLANES } from "@/lib/board-constants";
+import { SWIMLANES, resolveStages } from "@/lib/board-constants";
 import type { BoardFilterConfig } from "@/lib/board-filters";
 
 const TICKET_TYPES = ["bug", "feature", "chore", "spike"];
@@ -19,6 +19,10 @@ export function BoardFilters() {
   const setActiveIds = useUIStore((s) => s.setActiveTicketFilterIds);
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  const activeBuild = useUIStore((s) => s.activeBuild);
+  const workflowStages = useWorkflowStages();
+  const ticketColumns = resolveStages(workflowStages.data, activeBuild, "ticket");
 
   const rows = filters.data ?? [];
 
@@ -64,16 +68,24 @@ export function BoardFilters() {
           </button>
         </div>
       )}
-      {creating && <CreateFilterModal members={members.data ?? []} onClose={() => setCreating(false)} />}
+      {creating && (
+        <CreateFilterModal
+          members={members.data ?? []}
+          ticketColumns={ticketColumns}
+          onClose={() => setCreating(false)}
+        />
+      )}
     </div>
   );
 }
 
 function CreateFilterModal({
   members,
+  ticketColumns,
   onClose,
 }: {
   members: { id: string; full_name: string }[];
+  ticketColumns: { key: string; label: string }[];
   onClose: () => void;
 }) {
   const qc = useQueryClient();
@@ -123,7 +135,7 @@ function CreateFilterModal({
         <div>
           <label className={labelClass}>Hide columns</label>
           <div className="mt-1 flex flex-wrap gap-2">
-            {TICKET_COLUMNS.map((c) => (
+            {ticketColumns.map((c) => (
               <label key={c.key} className="flex items-center gap-1 text-[12px] text-[var(--white)]">
                 <input
                   type="checkbox"

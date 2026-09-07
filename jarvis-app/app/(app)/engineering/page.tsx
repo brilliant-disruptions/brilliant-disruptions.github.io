@@ -11,12 +11,13 @@ import { InitiativesBoard } from "@/components/InitiativesBoard";
 import { EngineeringAnalytics } from "@/components/EngineeringAnalytics";
 import { EngineeringTemplates } from "@/components/EngineeringTemplates";
 import { WorkflowRulesEditor } from "@/components/WorkflowRulesEditor";
+import { StagesEditor } from "@/components/StagesEditor";
 import { NewIssueModal } from "@/components/NewIssueModal";
 import { BuildSettingsModal } from "@/components/BuildSettingsModal";
 import { primaryBtn } from "@/components/Modal";
 
 const TABS = ["Board", "Epics", "Initiatives"] as const;
-const SETTINGS_TABS = ["Analytics", "Templates", "Workflow Rules"] as const;
+const SETTINGS_TABS = ["Analytics", "Templates", "Stages & Flow"] as const;
 type Tab = (typeof TABS)[number] | (typeof SETTINGS_TABS)[number];
 
 export default function EngineeringPage() {
@@ -144,7 +145,7 @@ function EngineeringPageInner() {
                       setSettingsOpen(false);
                     }}
                   >
-                    Board settings
+                    App details
                   </button>
                 </div>
               </>
@@ -184,7 +185,12 @@ function EngineeringPageInner() {
           {tab === "Initiatives" && boardId && <InitiativesBoard buildId={boardId} />}
           {tab === "Analytics" && <EngineeringAnalytics tickets={all} />}
           {tab === "Templates" && boardId && <EngineeringTemplates buildId={boardId} />}
-          {tab === "Workflow Rules" && boardId && <WorkflowRulesEditor buildId={boardId} />}
+          {tab === "Stages & Flow" && boardId && (
+            <div className="space-y-4">
+              <StagesEditor buildId={boardId} />
+              <WorkflowRulesEditor buildId={boardId} />
+            </div>
+          )}
         </>
       )}
 

@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, useTemplates, useWorkflowStageRules } from "@/lib/queries/hooks";
+import { supabase, useTemplates, useWorkflowStageRules, useWorkflowStages } from "@/lib/queries/hooks";
 import { Card, SectionTitle, Badge } from "@/components/ui";
 import { inputClass, primaryBtn, ghostBtn } from "@/components/Modal";
-import { WORKFLOW_STAGES, type CustomField } from "@/lib/board-constants";
+import { resolveStages, type CustomField } from "@/lib/board-constants";
 
 const ITEM_TYPES = ["ticket", "epic", "initiative"] as const;
 type ItemType = (typeof ITEM_TYPES)[number];
@@ -21,6 +21,7 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string }) {
   const qc = useQueryClient();
   const templates = useTemplates();
   const rules = useWorkflowStageRules();
+  const workflowStages = useWorkflowStages();
   const [itemType, setItemType] = useState<ItemType>("ticket");
   const [saving, setSaving] = useState(false);
 
@@ -38,7 +39,7 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string }) {
     setEdges(next);
   }, [itemType, rules.data, buildId]);
 
-  const stages = WORKFLOW_STAGES[itemType];
+  const stages = resolveStages(workflowStages.data, buildId, itemType);
   const template =
     templates.data?.find((t) => t.build_id === buildId && t.item_type === itemType) ??
     templates.data?.find((t) => t.build_id === null && t.item_type === itemType);

@@ -12,6 +12,7 @@ import {
   useTemplates,
   useTickets,
   useWorkflowStageRules,
+  useWorkflowStages,
 } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
 import { EmptyState, ProgressBar, Avatar, Lineage, Badge, WorkItemKeyLink, SettingsMenu, type LineageEntry } from "@/components/ui";
@@ -19,7 +20,7 @@ import { useUIStore } from "@/lib/store";
 import { useToast } from "@/components/Toast";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import { NewIssueModal } from "@/components/NewIssueModal";
-import { EPIC_COLUMNS, SWIMLANES } from "@/lib/board-constants";
+import { SWIMLANES, resolveStages } from "@/lib/board-constants";
 import { checkStageGate } from "@/lib/workflow-gating";
 import type { Tables } from "@/lib/database.types";
 
@@ -34,10 +35,12 @@ export function EpicsBoard({ buildId }: { buildId: string }) {
   const members = useMembers();
   const me = useCurrentMember();
   const stageRules = useWorkflowStageRules();
+  const workflowStages = useWorkflowStages();
   const toast = useToast();
   const [selected, setSelected] = useState<Epic | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const columns = resolveStages(workflowStages.data, buildId, "epic");
   const items = (epics.data ?? []).filter((e) => e.build_id === buildId);
   const initiativeById = useMemo(
     () => new Map((initiatives.data ?? []).map((i) => [i.id, i])),
@@ -94,7 +97,7 @@ export function EpicsBoard({ buildId }: { buildId: string }) {
         <EmptyState title="No epics" hint="Group related tickets into an epic to track progress toward a bigger outcome." />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {EPIC_COLUMNS.map((col) => {
+          {columns.map((col) => {
             const colItems = items.filter((e) => e.status === col.key);
             return (
               <div

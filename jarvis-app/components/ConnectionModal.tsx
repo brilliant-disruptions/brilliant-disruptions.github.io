@@ -123,7 +123,7 @@ export function ConnectionModal({
     const { error } = await supabase.rpc("set_connection", {
       p_provider: connection.provider,
       p_status: status,
-      p_sync_frequency: freq || null,
+      p_sync_frequency: (freq || null) as never,
     });
     setBusy(null);
     if (error) return toast.push(error.message, "error");
