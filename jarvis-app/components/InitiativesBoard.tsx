@@ -341,6 +341,7 @@ function InitiativeDrawer({
 
 function CreateInitiativeModal({ buildId, onClose }: { buildId: string; onClose: () => void }) {
   const qc = useQueryClient();
+  const workflowStages = useWorkflowStages();
   const [title, setTitle] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -349,7 +350,9 @@ function CreateInitiativeModal({ buildId, onClose }: { buildId: string; onClose:
     if (!title.trim()) return setErr("Title is required.");
     setSaving(true);
     setErr(null);
-    const { error } = await supabase.from("initiatives").insert({ build_id: buildId, title: title.trim() });
+    const columns = resolveStages(workflowStages.data, buildId, "initiative");
+    const status = columns[0]?.key ?? "proposed";
+    const { error } = await supabase.from("initiatives").insert({ build_id: buildId, title: title.trim(), status });
     setSaving(false);
     if (error) return setErr(error.message);
     qc.invalidateQueries({ queryKey: ["initiatives"] });
