@@ -220,6 +220,7 @@ function EpicDrawer({
   const swimlanes = useWorkflowSwimlanes();
   const lanes = resolveSwimlanes(swimlanes.data, epic.build_id);
   const initiatives = { data: initiativesList };
+  const stageRules = useWorkflowStageRules();
   const [title, setTitle] = useState(epic.title);
   const [description, setDescription] = useState(epic.description ?? "");
   const [swimlane, setSwimlane] = useState(epic.swimlane);
@@ -260,6 +261,16 @@ function EpicDrawer({
   const template =
     templates.find((t) => t.build_id === epic.build_id && t.item_type === "epic") ??
     templates.find((t) => t.build_id === null && t.item_type === "epic");
+
+  const ownRules = (stageRules.data ?? []).filter((r) => r.build_id === epic.build_id);
+  const rulesSource = ownRules.length > 0 ? ownRules : (stageRules.data ?? []).filter((r) => r.build_id === null);
+  const checklistRules = rulesSource.filter(
+    (r) =>
+      r.item_type === "epic" &&
+      r.from_stage === epic.status &&
+      r.required_checklist_key &&
+      (r.checklist_items?.length ?? 0) > 0,
+  );
 
   async function save() {
     setSaving(true);
@@ -341,6 +352,35 @@ function EpicDrawer({
         {template && template.fields && (template.fields as unknown[]).length > 0 && (
           <CustomFieldsEditor fields={template.fields as never} values={customFields} onChange={setCustomFields} />
         )}
+
+        {checklistRules.map((rule) => {
+          const key = rule.required_checklist_key as string;
+          const state = (customFields[key] as Record<string, boolean> | undefined) ?? {};
+          return (
+            <div key={rule.id}>
+              <label className={labelClass}>
+                Kill gate checklist — {rule.from_stage} → {rule.to_stage} (all required)
+              </label>
+              <div className="space-y-1">
+                {rule.checklist_items.map((item) => (
+                  <label key={item} className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
+                    <input
+                      type="checkbox"
+                      checked={state[item] === true}
+                      onChange={(e) =>
+                        setCustomFields((prev) => ({
+                          ...prev,
+                          [key]: { ...state, [item]: e.target.checked },
+                        }))
+                      }
+                    />
+                    {item}
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
 
         <div>
           <div className="flex items-center justify-between">

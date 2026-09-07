@@ -180,6 +180,7 @@ function InitiativeDrawer({
   epics: Tables<"epics">[];
 }) {
   const qc = useQueryClient();
+  const stageRules = useWorkflowStageRules();
   const [title, setTitle] = useState(initiative.title);
   const [description, setDescription] = useState(initiative.description ?? "");
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(
@@ -214,6 +215,16 @@ function InitiativeDrawer({
   const template =
     templates.find((t) => t.build_id === initiative.build_id && t.item_type === "initiative") ??
     templates.find((t) => t.build_id === null && t.item_type === "initiative");
+
+  const ownRules = (stageRules.data ?? []).filter((r) => r.build_id === initiative.build_id);
+  const rulesSource = ownRules.length > 0 ? ownRules : (stageRules.data ?? []).filter((r) => r.build_id === null);
+  const checklistRules = rulesSource.filter(
+    (r) =>
+      r.item_type === "initiative" &&
+      r.from_stage === initiative.status &&
+      r.required_checklist_key &&
+      (r.checklist_items?.length ?? 0) > 0,
+  );
 
   async function save() {
     setSaving(true);
@@ -264,6 +275,35 @@ function InitiativeDrawer({
         {template && template.fields && (template.fields as unknown[]).length > 0 && (
           <CustomFieldsEditor fields={template.fields as never} values={customFields} onChange={setCustomFields} />
         )}
+
+        {checklistRules.map((rule) => {
+          const key = rule.required_checklist_key as string;
+          const state = (customFields[key] as Record<string, boolean> | undefined) ?? {};
+          return (
+            <div key={rule.id}>
+              <label className={labelClass}>
+                Kill gate checklist — {rule.from_stage} → {rule.to_stage} (all required)
+              </label>
+              <div className="space-y-1">
+                {rule.checklist_items.map((item) => (
+                  <label key={item} className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
+                    <input
+                      type="checkbox"
+                      checked={state[item] === true}
+                      onChange={(e) =>
+                        setCustomFields((prev) => ({
+                          ...prev,
+                          [key]: { ...state, [item]: e.target.checked },
+                        }))
+                      }
+                    />
+                    {item}
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
 
         <div>
           <div className="flex items-center justify-between">

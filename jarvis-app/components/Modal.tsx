@@ -27,10 +27,10 @@ export function Modal({
       onClick={onClose}
     >
       <div
-        className="glass w-full max-w-md rounded-2xl p-6"
+        className="glass flex max-h-full w-full max-w-md flex-col rounded-2xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex shrink-0 items-center justify-between">
           <h3 className="font-display text-lg font-semibold text-[var(--white)]">
             {title}
           </h3>
@@ -42,7 +42,7 @@ export function Modal({
             ✕
           </button>
         </div>
-        {children}
+        <div className="overflow-y-auto">{children}</div>
       </div>
     </div>
   );
