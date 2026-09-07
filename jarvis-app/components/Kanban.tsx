@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, useEpics, useCurrentMember, useBoardFilters, useWorkflowStages } from "@/lib/queries/hooks";
+import { supabase, useEpics, useCurrentMember, useBoardFilters, useWorkflowStages, useWorkflowSwimlanes } from "@/lib/queries/hooks";
 import { useToast } from "@/components/Toast";
 import { Badge, Tag, Avatar } from "@/components/ui";
 import { TicketDrawer } from "@/components/TicketDrawer";
 import { BoardFilters } from "@/components/BoardFilters";
 import { useUIStore } from "@/lib/store";
 import { applyActiveFilters, type BoardFilterConfig } from "@/lib/board-filters";
-import { SWIMLANES, resolveStages, type StageDef } from "@/lib/board-constants";
+import { resolveStages, resolveSwimlanes, type StageDef, type SwimlaneDef } from "@/lib/board-constants";
 import type { Tables } from "@/lib/database.types";
 
 type Ticket = Tables<"tickets">;
@@ -44,6 +44,7 @@ function TicketCard({
   togglePullable,
   onOpen,
   allStages,
+  lanes,
 }: {
   ticket: Ticket;
   assignee: Member | null;
@@ -53,8 +54,9 @@ function TicketCard({
   togglePullable: TogglePullableFn;
   onOpen: () => void;
   allStages: string[];
+  lanes: SwimlaneDef[];
 }) {
-  const lane = SWIMLANES.find((l) => l.key === ticket.swimlane);
+  const lane = lanes.find((l) => l.key === ticket.swimlane);
   return (
     <article
       draggable
@@ -124,6 +126,7 @@ function ColumnsGrid({
   hiddenColumns,
   columns,
   allStages,
+  lanes,
 }: {
   items: Ticket[];
   allTickets: Ticket[];
@@ -136,6 +139,7 @@ function ColumnsGrid({
   hiddenColumns: Set<string>;
   columns: { key: string; label: string }[];
   allStages: string[];
+  lanes: SwimlaneDef[];
 }) {
   const visibleColumns = columns.filter((c) => !hiddenColumns.has(c.key));
   return (
@@ -170,6 +174,7 @@ function ColumnsGrid({
                 togglePullable={togglePullable}
                 onOpen={() => onOpen(t)}
                 allStages={allStages}
+                lanes={lanes}
               />
             ))}
           </div>
@@ -191,9 +196,14 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
 
   const activeBuild = useUIStore((s) => s.activeBuild);
   const workflowStages = useWorkflowStages();
+  const workflowSwimlanes = useWorkflowSwimlanes();
   const stages: StageDef[] = useMemo(
     () => resolveStages(workflowStages.data, activeBuild, "ticket"),
     [workflowStages.data, activeBuild],
+  );
+  const lanes: SwimlaneDef[] = useMemo(
+    () => resolveSwimlanes(workflowSwimlanes.data, activeBuild),
+    [workflowSwimlanes.data, activeBuild],
   );
   const columns = useMemo(() => {
     const cols = stages.map((s) => ({ key: s.key, label: s.label }));
@@ -353,7 +363,7 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
       </div>
       {groupBySwimlane ? (
         <div className="space-y-4">
-          {SWIMLANES.map((lane) => {
+          {lanes.map((lane) => {
             const items = visibleTickets.filter((t) => t.swimlane === lane.key);
             if (items.length === 0) return null;
             return (
@@ -377,6 +387,7 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
                   hiddenColumns={hiddenColumns}
                   columns={columns}
                   allStages={allStages}
+                  lanes={lanes}
                 />
               </div>
             );
@@ -395,6 +406,7 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
           hiddenColumns={hiddenColumns}
           columns={columns}
           allStages={allStages}
+          lanes={lanes}
         />
       )}
       {selected && <TicketDrawer key={selected.id} ticket={selected} onClose={() => setSelected(null)} />}

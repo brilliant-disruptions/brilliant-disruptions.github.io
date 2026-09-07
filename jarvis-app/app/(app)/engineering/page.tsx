@@ -12,6 +12,8 @@ import { EngineeringAnalytics } from "@/components/EngineeringAnalytics";
 import { EngineeringTemplates } from "@/components/EngineeringTemplates";
 import { WorkflowRulesEditor } from "@/components/WorkflowRulesEditor";
 import { StagesEditor } from "@/components/StagesEditor";
+import { SwimlanesEditor } from "@/components/SwimlanesEditor";
+import { LoadTemplateButton } from "@/components/LoadTemplateButton";
 import { NewIssueModal } from "@/components/NewIssueModal";
 import { BuildSettingsModal } from "@/components/BuildSettingsModal";
 import { primaryBtn } from "@/components/Modal";
@@ -187,7 +189,11 @@ function EngineeringPageInner() {
           {tab === "Templates" && boardId && <EngineeringTemplates buildId={boardId} />}
           {tab === "Stages & Flow" && boardId && (
             <div className="space-y-4">
+              <div className="flex justify-end">
+                <LoadTemplateButton buildId={boardId} />
+              </div>
               <StagesEditor buildId={boardId} />
+              <SwimlanesEditor buildId={boardId} />
               <WorkflowRulesEditor buildId={boardId} />
             </div>
           )}

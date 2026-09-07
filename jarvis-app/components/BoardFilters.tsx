@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, useBoardFilters, useMembers, useWorkflowStages } from "@/lib/queries/hooks";
+import { supabase, useBoardFilters, useMembers, useWorkflowStages, useWorkflowSwimlanes } from "@/lib/queries/hooks";
 import { useUIStore } from "@/lib/store";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
-import { SWIMLANES, resolveStages } from "@/lib/board-constants";
+import { resolveStages, resolveSwimlanes } from "@/lib/board-constants";
 import type { BoardFilterConfig } from "@/lib/board-filters";
 
 const TICKET_TYPES = ["bug", "feature", "chore", "spike"];
@@ -23,6 +23,8 @@ export function BoardFilters() {
   const activeBuild = useUIStore((s) => s.activeBuild);
   const workflowStages = useWorkflowStages();
   const ticketColumns = resolveStages(workflowStages.data, activeBuild, "ticket");
+  const swimlanesQ = useWorkflowSwimlanes();
+  const lanes = resolveSwimlanes(swimlanesQ.data, activeBuild);
 
   const rows = filters.data ?? [];
 
@@ -72,6 +74,7 @@ export function BoardFilters() {
         <CreateFilterModal
           members={members.data ?? []}
           ticketColumns={ticketColumns}
+          lanes={lanes}
           onClose={() => setCreating(false)}
         />
       )}
@@ -82,10 +85,12 @@ export function BoardFilters() {
 function CreateFilterModal({
   members,
   ticketColumns,
+  lanes,
   onClose,
 }: {
   members: { id: string; full_name: string }[];
   ticketColumns: { key: string; label: string }[];
+  lanes: { key: string; label: string }[];
   onClose: () => void;
 }) {
   const qc = useQueryClient();
@@ -151,7 +156,7 @@ function CreateFilterModal({
         <div>
           <label className={labelClass}>Swimlanes</label>
           <div className="mt-1 flex flex-wrap gap-2">
-            {SWIMLANES.map((s) => (
+            {lanes.map((s) => (
               <label key={s.key} className="flex items-center gap-1 text-[12px] text-[var(--white)]">
                 <input
                   type="checkbox"

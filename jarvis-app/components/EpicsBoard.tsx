@@ -11,8 +11,11 @@ import {
   useMembers,
   useTemplates,
   useTickets,
+  useWorkflowFieldRequirements,
   useWorkflowStageRules,
   useWorkflowStages,
+  useWorkflowSwimlanes,
+  useWorkflowWipGroups,
 } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
 import { EmptyState, ProgressBar, Avatar, Lineage, Badge, WorkItemKeyLink, SettingsMenu, type LineageEntry } from "@/components/ui";
@@ -20,8 +23,8 @@ import { useUIStore } from "@/lib/store";
 import { useToast } from "@/components/Toast";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import { NewIssueModal } from "@/components/NewIssueModal";
-import { SWIMLANES, resolveStages } from "@/lib/board-constants";
-import { checkStageGate } from "@/lib/workflow-gating";
+import { resolveStages, resolveSwimlanes } from "@/lib/board-constants";
+import { checkFieldRequirements, checkStageGate, checkWipLimit } from "@/lib/workflow-gating";
 import type { Tables } from "@/lib/database.types";
 
 type Epic = Tables<"epics">;
@@ -36,11 +39,15 @@ export function EpicsBoard({ buildId }: { buildId: string }) {
   const me = useCurrentMember();
   const stageRules = useWorkflowStageRules();
   const workflowStages = useWorkflowStages();
+  const wipGroups = useWorkflowWipGroups();
+  const fieldRequirements = useWorkflowFieldRequirements();
+  const swimlanes = useWorkflowSwimlanes();
   const toast = useToast();
   const [selected, setSelected] = useState<Epic | null>(null);
   const [creating, setCreating] = useState(false);
 
   const columns = resolveStages(workflowStages.data, buildId, "epic");
+  const lanes = resolveSwimlanes(swimlanes.data, buildId);
   const items = (epics.data ?? []).filter((e) => e.build_id === buildId);
   const initiativeById = useMemo(
     () => new Map((initiatives.data ?? []).map((i) => [i.id, i])),
@@ -68,15 +75,29 @@ export function EpicsBoard({ buildId }: { buildId: string }) {
   // Dragging an epic to a new status also assigns it to whoever moved it,
   // mirroring advance_ticket's behavior for tickets.
   async function move(epic: Epic, status: string) {
-    const gate = checkStageGate(
-      stageRules.data ?? [],
+    const customFields = (epic.custom_fields as Record<string, unknown>) ?? {};
+    const gate = checkStageGate(stageRules.data ?? [], "epic", epic.build_id, epic.status, status, customFields);
+    if (!gate.allowed) return toast.push(gate.reason, "error");
+    const fieldCheck = checkFieldRequirements(
+      fieldRequirements.data ?? [],
       "epic",
       epic.build_id,
       epic.status,
       status,
-      (epic.custom_fields as Record<string, unknown>) ?? {},
+      customFields,
     );
-    if (!gate.allowed) return toast.push(gate.reason, "error");
+    if (!fieldCheck.allowed) return toast.push(fieldCheck.reason, "error");
+    const wipCheck = checkWipLimit(
+      workflowStages.data ?? [],
+      wipGroups.data ?? [],
+      "epic",
+      epic.build_id,
+      status,
+      epic.status,
+      items.map((e) => ({ status: e.status, assignee_id: e.assignee_id })),
+      me.data?.id ?? null,
+    );
+    if (!wipCheck.allowed) return toast.push(wipCheck.reason, "error");
     const { error } = await supabase
       .from("epics")
       .update({ status, assignee_id: me.data?.id ?? epic.assignee_id })
@@ -117,7 +138,7 @@ export function EpicsBoard({ buildId }: { buildId: string }) {
                   <span className="font-mono text-[10px] text-[var(--muted-hi)]">{colItems.length}</span>
                 </div>
                 {colItems.map((e) => {
-                  const lane = SWIMLANES.find((l) => l.key === e.swimlane);
+                  const lane = lanes.find((l) => l.key === e.swimlane);
                   const children = (tickets.data ?? []).filter(
                     (t) => t.epic_id === e.id && t.stage !== "archived",
                   );
@@ -196,6 +217,8 @@ function EpicDrawer({
 }) {
   const qc = useQueryClient();
   const builds = useBuilds();
+  const swimlanes = useWorkflowSwimlanes();
+  const lanes = resolveSwimlanes(swimlanes.data, epic.build_id);
   const initiatives = { data: initiativesList };
   const [title, setTitle] = useState(epic.title);
   const [description, setDescription] = useState(epic.description ?? "");
@@ -294,7 +317,7 @@ function EpicDrawer({
           <div>
             <label className={labelClass}>Swimlane</label>
             <select className={inputClass} value={swimlane} onChange={(e) => setSwimlane(e.target.value)}>
-              {SWIMLANES.map((s) => (
+              {lanes.map((s) => (
                 <option key={s.key} value={s.key}>
                   {s.icon} {s.label}
                 </option>
@@ -406,6 +429,8 @@ export function CreateEpicModal({
   defaultInitiativeId?: string;
 }) {
   const qc = useQueryClient();
+  const swimlanesQ = useWorkflowSwimlanes();
+  const lanes = resolveSwimlanes(swimlanesQ.data, buildId);
   const [title, setTitle] = useState("");
   const [swimlane, setSwimlane] = useState("product");
   const [initiativeId, setInitiativeId] = useState(defaultInitiativeId ?? "");
@@ -439,7 +464,7 @@ export function CreateEpicModal({
           <div>
             <label className={labelClass}>Swimlane</label>
             <select className={inputClass} value={swimlane} onChange={(e) => setSwimlane(e.target.value)}>
-              {SWIMLANES.map((s) => (
+              {lanes.map((s) => (
                 <option key={s.key} value={s.key}>
                   {s.icon} {s.label}
                 </option>

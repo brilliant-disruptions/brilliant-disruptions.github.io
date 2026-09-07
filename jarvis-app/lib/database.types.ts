@@ -1484,31 +1484,37 @@ export type Database = {
       workflow_stage_rules: {
         Row: {
           build_id: string | null
+          checklist_items: string[]
           created_at: string
           from_stage: string
           gating_conditions: Json
           id: string
           item_type: string
+          required_checklist_key: string | null
           to_stage: string
           updated_at: string
         }
         Insert: {
           build_id?: string | null
+          checklist_items?: string[]
           created_at?: string
           from_stage: string
           gating_conditions?: Json
           id?: string
           item_type: string
+          required_checklist_key?: string | null
           to_stage: string
           updated_at?: string
         }
         Update: {
           build_id?: string | null
+          checklist_items?: string[]
           created_at?: string
           from_stage?: string
           gating_conditions?: Json
           id?: string
           item_type?: string
+          required_checklist_key?: string | null
           to_stage?: string
           updated_at?: string
         }
@@ -1533,6 +1539,7 @@ export type Database = {
           label: string
           sort_order: number
           updated_at: string
+          wip_limit: number | null
         }
         Insert: {
           build_id?: string | null
@@ -1544,6 +1551,7 @@ export type Database = {
           label: string
           sort_order?: number
           updated_at?: string
+          wip_limit?: number | null
         }
         Update: {
           build_id?: string | null
@@ -1555,10 +1563,143 @@ export type Database = {
           label?: string
           sort_order?: number
           updated_at?: string
+          wip_limit?: number | null
         }
         Relationships: [
           {
             foreignKeyName: "workflow_stages_build_id_fkey"
+            columns: ["build_id"]
+            isOneToOne: false
+            referencedRelation: "builds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_wip_groups: {
+        Row: {
+          build_id: string | null
+          created_at: string
+          id: string
+          item_type: string
+          max_count: number
+          name: string
+          scope: string
+          stage_keys: string[]
+          updated_at: string
+        }
+        Insert: {
+          build_id?: string | null
+          created_at?: string
+          id?: string
+          item_type: string
+          max_count: number
+          name: string
+          scope?: string
+          stage_keys?: string[]
+          updated_at?: string
+        }
+        Update: {
+          build_id?: string | null
+          created_at?: string
+          id?: string
+          item_type?: string
+          max_count?: number
+          name?: string
+          scope?: string
+          stage_keys?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_wip_groups_build_id_fkey"
+            columns: ["build_id"]
+            isOneToOne: false
+            referencedRelation: "builds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_field_requirements: {
+        Row: {
+          build_id: string | null
+          created_at: string
+          direction: string
+          field_key: string
+          field_label: string
+          id: string
+          item_type: string
+          stage_key: string
+          updated_at: string
+        }
+        Insert: {
+          build_id?: string | null
+          created_at?: string
+          direction: string
+          field_key: string
+          field_label: string
+          id?: string
+          item_type: string
+          stage_key: string
+          updated_at?: string
+        }
+        Update: {
+          build_id?: string | null
+          created_at?: string
+          direction?: string
+          field_key?: string
+          field_label?: string
+          id?: string
+          item_type?: string
+          stage_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_field_requirements_build_id_fkey"
+            columns: ["build_id"]
+            isOneToOne: false
+            referencedRelation: "builds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_swimlanes: {
+        Row: {
+          build_id: string | null
+          color: string
+          created_at: string
+          icon: string
+          id: string
+          key: string
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          build_id?: string | null
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          key: string
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          build_id?: string | null
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          key?: string
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_swimlanes_build_id_fkey"
             columns: ["build_id"]
             isOneToOne: false
             referencedRelation: "builds"

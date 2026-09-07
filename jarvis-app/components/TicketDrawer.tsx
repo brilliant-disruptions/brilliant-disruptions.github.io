@@ -2,10 +2,20 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, useMembers, useEpics, useInitiatives, useTemplates, useBuilds, useLinkedActivity } from "@/lib/queries/hooks";
+import {
+  supabase,
+  useMembers,
+  useEpics,
+  useInitiatives,
+  useTemplates,
+  useBuilds,
+  useLinkedActivity,
+  useWorkflowSwimlanes,
+  useWorkflowStageRules,
+} from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
 import { Badge, Lineage, SettingsMenu, type LineageEntry } from "@/components/ui";
-import { SWIMLANES } from "@/lib/board-constants";
+import { resolveSwimlanes } from "@/lib/board-constants";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import type { Tables } from "@/lib/database.types";
 
@@ -32,6 +42,9 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
   const initiatives = useInitiatives();
   const templates = useTemplates();
   const linkedActivity = useLinkedActivity(ticket.key);
+  const swimlanesQ = useWorkflowSwimlanes();
+  const lanes = resolveSwimlanes(swimlanesQ.data, ticket.build_id);
+  const stageRules = useWorkflowStageRules();
   const [description, setDescription] = useState(ticket.description ?? "");
   const [editingDescription, setEditingDescription] = useState(false);
   const [type, setType] = useState(ticket.type ?? "feature");
@@ -46,6 +59,23 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
   );
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const ownRules = (stageRules.data ?? []).filter((r) => r.build_id === ticket.build_id);
+  const rulesSource = ownRules.length > 0 ? ownRules : (stageRules.data ?? []).filter((r) => r.build_id === null);
+  const checklistRules = rulesSource.filter(
+    (r) =>
+      r.item_type === "ticket" &&
+      r.from_stage === ticket.stage &&
+      r.required_checklist_key &&
+      (r.checklist_items?.length ?? 0) > 0,
+  );
+  const gateRules = rulesSource.filter(
+    (r) =>
+      r.item_type === "ticket" &&
+      r.from_stage === ticket.stage &&
+      Array.isArray(r.gating_conditions) &&
+      (r.gating_conditions as { field: string; operator?: string; value: unknown }[]).length > 0,
+  );
 
   const template =
     templates.data?.find((t) => t.build_id === ticket.build_id && t.item_type === "ticket") ??
@@ -204,7 +234,7 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
           <div>
             <label className={labelClass}>Swimlane</label>
             <select className={inputClass} value={swimlane} onChange={(e) => setSwimlane(e.target.value)}>
-              {SWIMLANES.map((s) => (
+              {lanes.map((s) => (
                 <option key={s.key} value={s.key}>
                   {s.icon} {s.label}
                 </option>
@@ -247,6 +277,59 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
             onChange={setCustomFields}
           />
         )}
+
+        {gateRules.map((rule) => {
+          const conditions = rule.gating_conditions as { field: string; operator?: string; value: unknown }[];
+          return (
+            <div key={rule.id}>
+              <label className={labelClass}>
+                Transition conditions — {rule.from_stage} → {rule.to_stage} (all required)
+              </label>
+              <div className="space-y-1">
+                {conditions.map((cond, i) => {
+                  const fieldVal = customFields[cond.field];
+                  const op = cond.operator ?? "==";
+                  const met = op === "!=" ? fieldVal !== cond.value : fieldVal === cond.value;
+                  return (
+                    <div key={i} className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
+                      <span className={met ? "text-[var(--success)]" : "text-[var(--danger)]"}>{met ? "✓" : "✗"}</span>
+                      {cond.field} {op} {JSON.stringify(cond.value)}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+
+        {checklistRules.map((rule) => {
+          const key = rule.required_checklist_key as string;
+          const state = (customFields[key] as Record<string, boolean> | undefined) ?? {};
+          return (
+            <div key={rule.id}>
+              <label className={labelClass}>
+                Kill gate checklist — {rule.from_stage} → {rule.to_stage} (all required)
+              </label>
+              <div className="space-y-1">
+                {rule.checklist_items.map((item) => (
+                  <label key={item} className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
+                    <input
+                      type="checkbox"
+                      checked={state[item] === true}
+                      onChange={(e) =>
+                        setCustomFields((prev) => ({
+                          ...prev,
+                          [key]: { ...state, [item]: e.target.checked },
+                        }))
+                      }
+                    />
+                    {item}
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
 
         <label className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
           <input type="checkbox" checked={isBlocker} onChange={(e) => setIsBlocker(e.target.checked)} />

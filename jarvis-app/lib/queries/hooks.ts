@@ -575,6 +575,48 @@ export function useWorkflowStages() {
   });
 }
 
+/** Aggregate WIP limits spanning multiple stages, per build/item_type. build_id null = global fallback. */
+export function useWorkflowWipGroups() {
+  const key = ["workflow_wip_groups"];
+  useRealtime("workflow_wip_groups", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("workflow_wip_groups").select("*");
+      if (error) throw error;
+      return data as Tables<"workflow_wip_groups">[];
+    },
+  });
+}
+
+/** "Field X required to enter/exit stage Y" movement rules, per build/item_type. */
+export function useWorkflowFieldRequirements() {
+  const key = ["workflow_field_requirements"];
+  useRealtime("workflow_field_requirements", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("workflow_field_requirements").select("*");
+      if (error) throw error;
+      return data as Tables<"workflow_field_requirements">[];
+    },
+  });
+}
+
+/** Configurable swimlanes per build. build_id null = global fallback. */
+export function useWorkflowSwimlanes() {
+  const key = ["workflow_swimlanes"];
+  useRealtime("workflow_swimlanes", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("workflow_swimlanes").select("*").order("sort_order");
+      if (error) throw error;
+      return data as Tables<"workflow_swimlanes">[];
+    },
+  });
+}
+
 /** Saved board filter presets (spec: custom filters dropdown). */
 export function useBoardFilters() {
   const key = ["board_filters"];
