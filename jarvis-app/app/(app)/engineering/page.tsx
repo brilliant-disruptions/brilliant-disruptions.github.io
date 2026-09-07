@@ -4,13 +4,12 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTickets, useBuilds, useMembers } from "@/lib/queries/hooks";
 import { useUIStore } from "@/lib/store";
-import { GROUP_BY_OPTIONS } from "@/lib/board-constants";
+import { GROUP_BY_OPTIONS, type ItemType } from "@/lib/board-constants";
 import { MetricCard, EmptyState } from "@/components/ui";
 import { Kanban } from "@/components/Kanban";
 import { EpicsBoard } from "@/components/EpicsBoard";
 import { InitiativesBoard } from "@/components/InitiativesBoard";
 import { EngineeringAnalytics } from "@/components/EngineeringAnalytics";
-import { EngineeringTemplates } from "@/components/EngineeringTemplates";
 import { WorkflowRulesEditor } from "@/components/WorkflowRulesEditor";
 import { StagesEditor } from "@/components/StagesEditor";
 import { SwimlanesEditor } from "@/components/SwimlanesEditor";
@@ -22,7 +21,7 @@ import { WorkItemsAdmin } from "@/components/WorkItemsAdmin";
 import { primaryBtn } from "@/components/Modal";
 
 const TABS = ["Board", "Epics", "Initiatives"] as const;
-const SETTINGS_TABS = ["Analytics", "Templates", "Stages & Flow", "All Work Items"] as const;
+const SETTINGS_TABS = ["Analytics", "Stages & Flow", "All Work Items"] as const;
 type Tab = (typeof TABS)[number] | (typeof SETTINGS_TABS)[number];
 
 export default function EngineeringPage() {
@@ -51,11 +50,16 @@ function EngineeringPageInner() {
   // to the global config (null) rather than silently inheriting whatever build
   // happens to be selected for the Board/Epics/Initiatives views.
   const [settingsBuildId, setSettingsBuildId] = useState<string | null>(null);
+  // Shared item-type filter for the Stages & Flow tab — StagesEditor and
+  // WorkflowRulesEditor used to each keep their own independent copy of this,
+  // meaning a user had to set the same filter twice and the two editors could
+  // disagree. Lifted here so there's exactly one control.
+  const [settingsItemType, setSettingsItemType] = useState<ItemType>("ticket");
   // Board/Epics/Initiatives scope, independent of the top-nav build filter —
   // lets these boards view buildless items ("Unassigned") or every build at
   // once ("All Builds"), neither of which the top-nav filter (always a
   // single concrete build) can represent.
-  const [workBuildScope, setWorkBuildScope] = useState<string | null | "all">(null);
+  const [workBuildScope, setWorkBuildScope] = useState<string | null | "all">("all");
 
   const router = useRouter();
   const pathname = usePathname();
@@ -104,15 +108,6 @@ function EngineeringPageInner() {
 
   const hasBuilds = (builds.data?.length ?? 0) > 0;
   const boardId = activeBuild !== "all" ? activeBuild : (builds.data?.[0]?.id ?? "");
-
-  // Default workBuildScope to the top-nav board once it first resolves, then
-  // leave it alone — the Epics/Initiatives scope selector takes over from there.
-  const workBuildScopeInitialized = useRef(false);
-  useEffect(() => {
-    if (workBuildScopeInitialized.current || !boardId) return;
-    workBuildScopeInitialized.current = true;
-    setWorkBuildScope(boardId);
-  }, [boardId]);
 
   return (
     <div className="space-y-6">
@@ -246,34 +241,43 @@ function EngineeringPageInner() {
           {tab === "Epics" && <EpicsBoard buildId={workBuildScope} />}
           {tab === "Initiatives" && <InitiativesBoard buildId={workBuildScope} />}
           {tab === "Analytics" && <EngineeringAnalytics tickets={all} />}
-          {(tab === "Templates" || tab === "Stages & Flow") && (
+          {tab === "Stages & Flow" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-xs text-[var(--muted-hi)]">
-                  Scope
-                  <select
-                    className="rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] px-2 py-1 text-sm text-[var(--white)]"
-                    value={settingsBuildId ?? ""}
-                    onChange={(e) => setSettingsBuildId(e.target.value || null)}
-                  >
-                    <option value="">Global (all builds)</option>
-                    {(builds.data ?? []).map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name} (override)
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {tab === "Stages & Flow" && <LoadTemplateButton buildId={settingsBuildId} />}
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-xs text-[var(--muted-hi)]">
+                    Scope
+                    <select
+                      className="rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] px-2 py-1 text-sm text-[var(--white)]"
+                      value={settingsBuildId ?? ""}
+                      onChange={(e) => setSettingsBuildId(e.target.value || null)}
+                    >
+                      <option value="">Global (all builds)</option>
+                      {(builds.data ?? []).map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} (override)
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-[var(--muted-hi)]">
+                    Item type
+                    <select
+                      className="rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] px-2 py-1 text-sm text-[var(--white)]"
+                      value={settingsItemType}
+                      onChange={(e) => setSettingsItemType(e.target.value as ItemType)}
+                    >
+                      <option value="ticket">ticket</option>
+                      <option value="epic">epic</option>
+                      <option value="initiative">initiative</option>
+                    </select>
+                  </label>
+                </div>
+                <LoadTemplateButton buildId={settingsBuildId} />
               </div>
-              {tab === "Templates" && <EngineeringTemplates buildId={settingsBuildId} />}
-              {tab === "Stages & Flow" && (
-                <>
-                  <StagesEditor buildId={settingsBuildId} />
-                  <SwimlanesEditor buildId={settingsBuildId} />
-                  <WorkflowRulesEditor buildId={settingsBuildId} />
-                </>
-              )}
+              <StagesEditor buildId={settingsBuildId} itemType={settingsItemType} />
+              <SwimlanesEditor buildId={settingsBuildId} />
+              <WorkflowRulesEditor buildId={settingsBuildId} itemType={settingsItemType} />
             </div>
           )}
           {tab === "All Work Items" && <WorkItemsAdmin />}

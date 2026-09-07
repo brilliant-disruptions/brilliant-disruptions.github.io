@@ -2,28 +2,51 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase, useBuilds } from "@/lib/queries/hooks";
+import { supabase, useBuilds, useTemplates } from "@/lib/queries/hooks";
 import { useToast } from "@/components/Toast";
-import { Modal, inputClass, ghostBtn } from "@/components/Modal";
+import { ghostBtn, inputClass } from "@/components/Modal";
 import { Card, SectionTitle, Badge } from "@/components/ui";
+import { TicketDrawer } from "@/components/TicketDrawer";
+import { EpicDrawer } from "@/components/EpicsBoard";
+import { InitiativeDrawer } from "@/components/InitiativesBoard";
+import { EngineeringTemplates } from "@/components/EngineeringTemplates";
 import type { Tables } from "@/lib/database.types";
 
 type ItemType = "initiative" | "epic" | "ticket";
 type AnyRow = Tables<"initiatives"> | Tables<"epics"> | Tables<"tickets">;
+type Tab = ItemType | "template";
 
 const TABLES: { type: ItemType; table: "initiatives" | "epics" | "tickets"; label: string }[] = [
   { type: "initiative", table: "initiatives", label: "Initiatives" },
   { type: "epic", table: "epics", label: "Epics" },
   { type: "ticket", table: "tickets", label: "Tickets" },
 ];
+const TABS: { type: Tab; label: string }[] = [...TABLES, { type: "template", label: "Templates" }];
+
+function useAllRows<T>(table: "initiatives" | "epics" | "tickets") {
+  return useQuery({
+    queryKey: ["settings_all_work_items", table],
+    queryFn: async () => {
+      const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as T[];
+    },
+  });
+}
 
 /** Every work item, unfiltered by build/status — including rows that are
  *  orphaned from their board (e.g. a status that no configured Kanban column
- *  matches). Lets an admin find and hard-delete rows the boards can't show. */
+ *  matches). Lets an admin open the real drawer for any item, or hard-delete
+ *  a row the boards can't show. Also surfaces every field/checklist template
+ *  for viewing, editing, and deletion. */
 export function WorkItemsAdmin() {
-  const [activeType, setActiveType] = useState<ItemType>("initiative");
+  const [activeTab, setActiveTab] = useState<Tab>("initiative");
   const [selected, setSelected] = useState<{ type: ItemType; row: AnyRow } | null>(null);
   const builds = useBuilds();
+  const templates = useTemplates();
+  const initiatives = useAllRows<Tables<"initiatives">>("initiatives");
+  const epics = useAllRows<Tables<"epics">>("epics");
+  const tickets = useAllRows<Tables<"tickets">>("tickets");
   const buildName = useMemo(() => {
     const map = new Map((builds.data ?? []).map((b) => [b.id, b.name]));
     return (id: string | null) => (id === null ? "— No build —" : (map.get(id) ?? id));
@@ -33,18 +56,18 @@ export function WorkItemsAdmin() {
     <div className="space-y-4">
       <SectionTitle>All Work Items</SectionTitle>
       <p className="text-xs text-[var(--muted)]">
-        Every initiative, epic, and ticket in the database — including items that don&apos;t appear
-        on their Kanban board (e.g. a status no configured column matches). View full details or
-        permanently delete a row.
+        Every initiative, epic, ticket, and field template in the database — including items that
+        don&apos;t appear on their Kanban board (e.g. a status no configured column matches). Click a
+        key to open the real drawer, or delete a row permanently.
       </p>
 
       <div className="flex gap-1.5 border-b border-[var(--glass-border)]">
-        {TABLES.map((t) => (
+        {TABS.map((t) => (
           <button
             key={t.type}
-            onClick={() => setActiveType(t.type)}
+            onClick={() => setActiveTab(t.type)}
             className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm transition ${
-              activeType === t.type
+              activeTab === t.type
                 ? "border-[var(--cyan)] text-[var(--white)]"
                 : "border-transparent text-[var(--muted-hi)] hover:text-[var(--white)]"
             }`}
@@ -54,13 +77,33 @@ export function WorkItemsAdmin() {
         ))}
       </div>
 
-      <WorkItemTable type={activeType} buildName={buildName} onSelect={(row) => setSelected({ type: activeType, row })} />
-
-      {selected && (
-        <WorkItemDetailModal
-          type={selected.type}
-          row={selected.row}
+      {activeTab === "template" ? (
+        <EngineeringTemplates buildId={null} />
+      ) : (
+        <WorkItemTable
+          type={activeTab}
           buildName={buildName}
+          onSelect={(row) => setSelected({ type: activeTab, row })}
+        />
+      )}
+
+      {selected && selected.type === "ticket" && (
+        <TicketDrawer ticket={selected.row as Tables<"tickets">} onClose={() => setSelected(null)} />
+      )}
+      {selected && selected.type === "epic" && (
+        <EpicDrawer
+          epic={selected.row as Tables<"epics">}
+          templates={templates.data ?? []}
+          initiatives={initiatives.data ?? []}
+          tickets={tickets.data ?? []}
+          onClose={() => setSelected(null)}
+        />
+      )}
+      {selected && selected.type === "initiative" && (
+        <InitiativeDrawer
+          initiative={selected.row as Tables<"initiatives">}
+          templates={templates.data ?? []}
+          epics={epics.data ?? []}
           onClose={() => setSelected(null)}
         />
       )}
@@ -82,14 +125,7 @@ function WorkItemTable({
   onSelect: (row: AnyRow) => void;
 }) {
   const table = TABLES.find((t) => t.type === type)!.table;
-  const query = useQuery({
-    queryKey: ["settings_all_work_items", table],
-    queryFn: async () => {
-      const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as AnyRow[];
-    },
-  });
+  const query = useAllRows<AnyRow>(table);
 
   if (query.isLoading) return <p className="text-xs text-[var(--muted)]">Loading…</p>;
   if (query.error) return <p className="text-xs text-[var(--danger)]">{(query.error as Error).message}</p>;
@@ -113,11 +149,17 @@ function WorkItemTable({
           {rows.map((row) => (
             <tr
               key={row.id}
-              className="cursor-pointer border-b border-[var(--glass-border)] last:border-0 hover:bg-[var(--glass-border)]/30"
-              onClick={() => onSelect(row)}
+              className="border-b border-[var(--glass-border)] last:border-0 hover:bg-[var(--glass-border)]/30"
             >
-              <td className="px-3 py-2 font-mono text-xs text-[var(--cyan)]">{row.key}</td>
-              <td className="px-3 py-2 text-[var(--white)]">{row.title}</td>
+              <td
+                className="cursor-pointer px-3 py-2 font-mono text-xs text-[var(--cyan)] hover:underline"
+                onClick={() => onSelect(row)}
+              >
+                {row.key}
+              </td>
+              <td className="cursor-pointer px-3 py-2 text-[var(--white)]" onClick={() => onSelect(row)}>
+                {row.title}
+              </td>
               <td className="px-3 py-2 text-xs text-[var(--muted-hi)]">{buildName(row.build_id)}</td>
               <td className="px-3 py-2">
                 <Badge tone="muted">{statusOf(row)}</Badge>
@@ -126,15 +168,7 @@ function WorkItemTable({
                 {new Date(row.created_at).toLocaleDateString()}
               </td>
               <td className="px-3 py-2 text-right">
-                <button
-                  className="font-mono text-[10px] text-[var(--muted-hi)] hover:text-[var(--white)]"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelect(row);
-                  }}
-                >
-                  view →
-                </button>
+                <DeleteRowButton type={type} table={table} row={row} />
               </td>
             </tr>
           ))}
@@ -144,21 +178,18 @@ function WorkItemTable({
   );
 }
 
-function WorkItemDetailModal({
+function DeleteRowButton({
   type,
+  table,
   row,
-  buildName,
-  onClose,
 }: {
   type: ItemType;
+  table: "initiatives" | "epics" | "tickets";
   row: AnyRow;
-  buildName: (id: string | null) => string;
-  onClose: () => void;
 }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const table = TABLES.find((t) => t.type === type)!.table;
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -170,81 +201,52 @@ function WorkItemDetailModal({
     qc.invalidateQueries({ queryKey: ["settings_all_work_items", table] });
     qc.invalidateQueries(); // boards + drawers referencing this row
     toast.push(`Deleted ${row.key}`, "info");
-    onClose();
+    setConfirming(false);
+    setConfirmText("");
+  }
+
+  if (!confirming) {
+    return (
+      <button
+        className="font-mono text-[10px] text-[var(--danger)] hover:underline"
+        onClick={(e) => {
+          e.stopPropagation();
+          setConfirming(true);
+        }}
+      >
+        delete
+      </button>
+    );
   }
 
   return (
-    <Modal open onClose={onClose} title={`${row.key} — ${row.title}`}>
-      <div className="space-y-3">
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-          <dt className="text-[var(--muted-hi)]">Build</dt>
-          <dd className="text-[var(--white)]">{buildName(row.build_id)}</dd>
-          <dt className="text-[var(--muted-hi)]">Status</dt>
-          <dd className="text-[var(--white)]">{statusOf(row)}</dd>
-          <dt className="text-[var(--muted-hi)]">Created</dt>
-          <dd className="text-[var(--white)]">{new Date(row.created_at).toLocaleString()}</dd>
-          <dt className="text-[var(--muted-hi)]">Updated</dt>
-          <dd className="text-[var(--white)]">{new Date(row.updated_at).toLocaleString()}</dd>
-        </dl>
-        {row.description && (
-          <div>
-            <p className="text-[10px] uppercase tracking-wide text-[var(--muted-hi)]">Description</p>
-            <p className="whitespace-pre-wrap text-sm text-[var(--white)]">{row.description}</p>
-          </div>
-        )}
-        <div>
-          <p className="text-[10px] uppercase tracking-wide text-[var(--muted-hi)]">Raw record</p>
-          <pre className="max-h-64 overflow-auto rounded-lg border border-[var(--glass-border)] bg-black/20 p-2 text-[10px] text-[var(--muted-hi)]">
-            {JSON.stringify(row, null, 2)}
-          </pre>
-        </div>
-
-        <div className="flex items-center justify-between gap-2 pt-1">
-          {!confirmDelete ? (
-            <button className="text-xs text-[var(--danger)] hover:underline" onClick={() => setConfirmDelete(true)}>
-              Delete {type}…
-            </button>
-          ) : (
-            <span />
-          )}
-          <button className={ghostBtn} onClick={onClose}>
-            Close
-          </button>
-        </div>
-
-        {confirmDelete && (
-          <div className="space-y-2 rounded-lg border border-[var(--danger)]/40 bg-[var(--danger)]/5 p-3">
-            <p className="text-sm text-[var(--white)]">
-              Permanently delete <span className="font-semibold">{row.key}</span>? This cannot be undone.
-            </p>
-            <input
-              className={inputClass}
-              value={confirmText}
-              onChange={(e) => setConfirmText(e.target.value)}
-              placeholder="type DELETE to confirm"
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                className={ghostBtn}
-                onClick={() => {
-                  setConfirmDelete(false);
-                  setConfirmText("");
-                }}
-              >
-                Keep it
-              </button>
-              <button
-                className="rounded-lg bg-[var(--danger)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-                disabled={confirmText !== "DELETE" || busy}
-                onClick={del}
-              >
-                {busy ? "Deleting…" : "Delete permanently"}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </Modal>
+    <div
+      className="flex items-center justify-end gap-1.5"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        className={inputClass + " mt-0 w-28 py-1 text-[10px]"}
+        value={confirmText}
+        onChange={(e) => setConfirmText(e.target.value)}
+        placeholder="type DELETE"
+        autoFocus
+      />
+      <button
+        className="rounded bg-[var(--danger)] px-2 py-1 text-[10px] font-semibold text-white disabled:opacity-40"
+        disabled={confirmText !== "DELETE" || busy}
+        onClick={del}
+      >
+        {busy ? "…" : `Delete ${type}`}
+      </button>
+      <button
+        className={ghostBtn + " mb-0 px-2 py-1 text-[10px]"}
+        onClick={() => {
+          setConfirming(false);
+          setConfirmText("");
+        }}
+      >
+        Cancel
+      </button>
+    </div>
   );
 }

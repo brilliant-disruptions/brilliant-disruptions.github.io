@@ -323,7 +323,7 @@ export function EpicsBoard({ buildId }: { buildId: string | null | "all" }) {
   );
 }
 
-function EpicDrawer({
+export function EpicDrawer({
   epic,
   onClose,
   templates,
