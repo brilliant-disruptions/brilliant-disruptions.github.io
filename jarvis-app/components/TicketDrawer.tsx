@@ -17,6 +17,7 @@ import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/component
 import { Badge, Lineage, SettingsMenu, type LineageEntry } from "@/components/ui";
 import { resolveSwimlanes } from "@/lib/board-constants";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
+import { checklistItemsKey, effectiveChecklistItems } from "@/lib/workflow-gating";
 import type { Tables } from "@/lib/database.types";
 
 const TYPES = ["bug", "feature", "perf", "security", "ux", "infra", "chore"];
@@ -59,15 +60,12 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
   );
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [newChecklistItem, setNewChecklistItem] = useState<Record<string, string>>({});
 
   const ownRules = (stageRules.data ?? []).filter((r) => r.build_id === ticket.build_id);
   const rulesSource = ownRules.length > 0 ? ownRules : (stageRules.data ?? []).filter((r) => r.build_id === null);
   const checklistRules = rulesSource.filter(
-    (r) =>
-      r.item_type === "ticket" &&
-      r.from_stage === ticket.stage &&
-      r.required_checklist_key &&
-      (r.checklist_items?.length ?? 0) > 0,
+    (r) => r.item_type === "ticket" && r.from_stage === ticket.stage && r.required_checklist_key,
   );
   const gateRules = rulesSource.filter(
     (r) =>
@@ -304,28 +302,63 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
 
         {checklistRules.map((rule) => {
           const key = rule.required_checklist_key as string;
+          const itemsKey = checklistItemsKey(key);
+          const items = effectiveChecklistItems(rule, customFields);
           const state = (customFields[key] as Record<string, boolean> | undefined) ?? {};
           return (
             <div key={rule.id}>
               <label className={labelClass}>
-                Kill gate checklist — {rule.from_stage} → {rule.to_stage} (all required)
+                Kill gate checklist — {rule.from_stage} → {rule.to_stage} (all required, this card only)
               </label>
               <div className="space-y-1">
-                {rule.checklist_items.map((item) => (
-                  <label key={item} className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
-                    <input
-                      type="checkbox"
-                      checked={state[item] === true}
-                      onChange={(e) =>
+                {items.map((item) => (
+                  <div key={item} className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
+                    <label className="flex flex-1 items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={state[item] === true}
+                        onChange={(e) =>
+                          setCustomFields((prev) => ({
+                            ...prev,
+                            [key]: { ...state, [item]: e.target.checked },
+                          }))
+                        }
+                      />
+                      {item}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const { [item]: _removed, ...restState } = state;
                         setCustomFields((prev) => ({
                           ...prev,
-                          [key]: { ...state, [item]: e.target.checked },
-                        }))
-                      }
-                    />
-                    {item}
-                  </label>
+                          [key]: restState,
+                          [itemsKey]: items.filter((i) => i !== item),
+                        }));
+                      }}
+                      className="text-[var(--muted-hi)] hover:text-[var(--danger)]"
+                      aria-label={`Remove ${item}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 ))}
+              </div>
+              <div className="mt-1.5 flex gap-2">
+                <input
+                  className={inputClass + " flex-1"}
+                  placeholder="Add checklist item (this card only)"
+                  value={newChecklistItem[rule.id] ?? ""}
+                  onChange={(e) => setNewChecklistItem((prev) => ({ ...prev, [rule.id]: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    const text = (newChecklistItem[rule.id] ?? "").trim();
+                    if (!text || items.includes(text)) return;
+                    setCustomFields((prev) => ({ ...prev, [itemsKey]: [...items, text] }));
+                    setNewChecklistItem((prev) => ({ ...prev, [rule.id]: "" }));
+                  }}
+                />
               </div>
             </div>
           );

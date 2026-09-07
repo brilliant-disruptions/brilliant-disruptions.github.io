@@ -5,7 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase, useWorkflowSwimlanes } from "@/lib/queries/hooks";
 import { Card, SectionTitle } from "@/components/ui";
 import { inputClass, primaryBtn, ghostBtn } from "@/components/Modal";
-import { resolveSwimlanes, type SwimlaneDef } from "@/lib/board-constants";
+import { resolveSwimlanesForEditor, type SwimlaneDef } from "@/lib/board-constants";
+import { scopeFilter } from "@/lib/scope";
 
 function slugify(label: string) {
   return label
@@ -18,7 +19,7 @@ function slugify(label: string) {
 /** Per-build editor for swimlanes (the horizontal groupings shown on ticket
  *  boards). No workflow_swimlanes rows for a build means "use the hardcoded
  *  app defaults" (see lib/board-constants.ts resolveSwimlanes). */
-export function SwimlanesEditor({ buildId }: { buildId: string }) {
+export function SwimlanesEditor({ buildId }: { buildId: string | null }) {
   const qc = useQueryClient();
   const swimlanesQ = useWorkflowSwimlanes();
   const [lanes, setLanes] = useState<SwimlaneDef[]>([]);
@@ -28,7 +29,7 @@ export function SwimlanesEditor({ buildId }: { buildId: string }) {
   // delete+insert during save) doesn't silently overwrite them before Save
   // is clicked. Cleared on successful save and on an intentional build switch.
   const dirtyRef = useRef(false);
-  const scopeKeyRef = useRef<string>("");
+  const scopeKeyRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     const switchedScope = scopeKeyRef.current !== buildId;
@@ -36,7 +37,7 @@ export function SwimlanesEditor({ buildId }: { buildId: string }) {
     scopeKeyRef.current = buildId;
     dirtyRef.current = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- resyncing local edit state when buildId/data changes
-    setLanes(resolveSwimlanes(swimlanesQ.data, buildId));
+    setLanes(resolveSwimlanesForEditor(swimlanesQ.data, buildId));
   }, [buildId, swimlanesQ.data]);
 
   function addLane() {
@@ -74,7 +75,7 @@ export function SwimlanesEditor({ buildId }: { buildId: string }) {
       icon: l.icon,
       sort_order: i,
     }));
-    await supabase.from("workflow_swimlanes").delete().eq("build_id", buildId);
+    await scopeFilter(supabase.from("workflow_swimlanes").delete(), buildId);
     if (rows.length > 0) await supabase.from("workflow_swimlanes").insert(rows);
     dirtyRef.current = false;
     setSaving(false);

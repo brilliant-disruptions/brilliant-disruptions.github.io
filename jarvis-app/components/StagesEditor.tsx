@@ -5,7 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase, useWorkflowStageRules, useWorkflowStages, useWorkflowWipGroups } from "@/lib/queries/hooks";
 import { Card, SectionTitle } from "@/components/ui";
 import { inputClass, primaryBtn, ghostBtn } from "@/components/Modal";
-import { resolveStages, type ItemType, type StageDef } from "@/lib/board-constants";
+import { resolveStagesForEditor, type ItemType, type StageDef } from "@/lib/board-constants";
+import { scopeFilter } from "@/lib/scope";
 import type { Tables } from "@/lib/database.types";
 
 type WipGroup = Tables<"workflow_wip_groups">;
@@ -25,7 +26,7 @@ function slugify(label: string) {
  *  No workflow_stages rows for a build/item_type means "use the hardcoded app
  *  defaults" (see lib/board-constants.ts resolveStages) — saving here is what
  *  creates a build's first custom rows. */
-export function StagesEditor({ buildId }: { buildId: string }) {
+export function StagesEditor({ buildId }: { buildId: string | null }) {
   const qc = useQueryClient();
   const workflowStages = useWorkflowStages();
   const rules = useWorkflowStageRules();
@@ -46,7 +47,7 @@ export function StagesEditor({ buildId }: { buildId: string }) {
     scopeKeyRef.current = scopeKey;
     dirtyRef.current = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- resyncing local edit state when itemType/buildId/data changes
-    setStages(resolveStages(workflowStages.data, buildId, itemType));
+    setStages(resolveStagesForEditor(workflowStages.data, buildId, itemType));
   }, [itemType, buildId, workflowStages.data]);
 
   const edges = (rules.data ?? []).filter((r) => r.item_type === itemType && (r.build_id === buildId || r.build_id === null));
@@ -98,7 +99,7 @@ export function StagesEditor({ buildId }: { buildId: string }) {
     }));
     // Small table, one editor screen at a time — replace this build+item_type's rows
     // wholesale, matching WorkflowRulesEditor.save()'s delete-then-bulk-insert approach.
-    await supabase.from("workflow_stages").delete().eq("build_id", buildId).eq("item_type", itemType);
+    await scopeFilter(supabase.from("workflow_stages").delete(), buildId).eq("item_type", itemType);
     if (rows.length > 0) await supabase.from("workflow_stages").insert(rows);
     dirtyRef.current = false;
     setSaving(false);
@@ -222,7 +223,15 @@ export function StagesEditor({ buildId }: { buildId: string }) {
 
 /** Aggregate WIP limits spanning multiple stages (e.g. "sum of VALIDATING+
  *  SPECCING+BUILDING <= 1"), which a single per-stage wip_limit can't express. */
-function WipGroupsEditor({ buildId, itemType, stages }: { buildId: string; itemType: ItemType; stages: StageDef[] }) {
+function WipGroupsEditor({
+  buildId,
+  itemType,
+  stages,
+}: {
+  buildId: string | null;
+  itemType: ItemType;
+  stages: StageDef[];
+}) {
   const qc = useQueryClient();
   const wipGroups = useWorkflowWipGroups();
   const [saving, setSaving] = useState(false);
