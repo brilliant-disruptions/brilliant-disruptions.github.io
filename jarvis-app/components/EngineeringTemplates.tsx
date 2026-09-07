@@ -6,6 +6,7 @@ import { supabase, useAllBuilds, useTemplates } from "@/lib/queries/hooks";
 import { Card, SectionTitle } from "@/components/ui";
 import { inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
 import { FIELD_TYPES, type CustomField } from "@/lib/board-constants";
+import { scopeFilter } from "@/lib/scope";
 import type { Tables } from "@/lib/database.types";
 
 const ITEM_TYPES = ["ticket", "epic", "initiative"] as const;
@@ -58,9 +59,22 @@ export function EngineeringTemplates({ buildId }: { buildId: string | null }) {
 
   async function save(scopeBuildId: string | null) {
     setSaving(true);
-    const { error } = await supabase
-      .from("work_item_templates")
-      .upsert({ build_id: scopeBuildId, item_type: itemType, fields: fields as never }, { onConflict: "build_id,item_type" });
+    const payload = { build_id: scopeBuildId, item_type: itemType, fields: fields as never };
+    // Plain .upsert(onConflict: "build_id,item_type") can't resolve to an update
+    // when build_id is null — Postgres's UNIQUE constraint never treats two NULLs
+    // as conflicting, so a Global-scope save always inserted a duplicate row
+    // instead of updating the existing one. Resolve the target row explicitly.
+    let id = openId !== "new" ? openId : null;
+    if (!id) {
+      const { data: existing } = await scopeFilter(
+        supabase.from("work_item_templates").select("id").eq("item_type", itemType),
+        scopeBuildId,
+      ).maybeSingle();
+      id = existing?.id ?? null;
+    }
+    const { error } = id
+      ? await supabase.from("work_item_templates").update(payload).eq("id", id)
+      : await supabase.from("work_item_templates").insert(payload);
     setSaving(false);
     if (!error) {
       qc.invalidateQueries({ queryKey: ["work_item_templates"] });
