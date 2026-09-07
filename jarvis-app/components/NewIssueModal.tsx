@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase, useTemplates } from "@/lib/queries/hooks";
+import { supabase, useTemplates, useWorkflowSwimlanes } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
-import { SWIMLANES } from "@/lib/board-constants";
+import { resolveSwimlanes } from "@/lib/board-constants";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import type { Tables } from "@/lib/database.types";
 
@@ -28,6 +28,8 @@ export function NewIssueModal({
   const templates = useTemplates();
   const initialBuild = defaultBuild !== "all" ? defaultBuild : (builds[0]?.id ?? "");
   const [buildId, setBuildId] = useState(initialBuild);
+  const swimlanesQ = useWorkflowSwimlanes();
+  const lanes = resolveSwimlanes(swimlanesQ.data, buildId);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState("feature");
@@ -144,7 +146,7 @@ export function NewIssueModal({
           <div>
             <label className={labelClass}>Swimlane</label>
             <select className={inputClass} value={swimlane} onChange={(e) => setSwimlane(e.target.value)}>
-              {SWIMLANES.map((s) => (
+              {lanes.map((s) => (
                 <option key={s.key} value={s.key}>
                   {s.icon} {s.label}
                 </option>

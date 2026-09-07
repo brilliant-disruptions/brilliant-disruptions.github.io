@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   supabase,
+  useCurrentMember,
   useInitiatives,
   useEpics,
   useTemplates,
+  useWorkflowFieldRequirements,
   useWorkflowStageRules,
   useWorkflowStages,
+  useWorkflowWipGroups,
 } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
 import { EmptyState, ProgressBar, Lineage, Badge, WorkItemKeyLink, SettingsMenu } from "@/components/ui";
@@ -17,7 +20,7 @@ import { useToast } from "@/components/Toast";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import { CreateEpicModal } from "@/components/EpicsBoard";
 import { resolveStages } from "@/lib/board-constants";
-import { checkStageGate } from "@/lib/workflow-gating";
+import { checkFieldRequirements, checkStageGate, checkWipLimit } from "@/lib/workflow-gating";
 import type { Tables } from "@/lib/database.types";
 
 type Initiative = Tables<"initiatives">;
@@ -29,6 +32,9 @@ export function InitiativesBoard({ buildId }: { buildId: string }) {
   const templates = useTemplates();
   const stageRules = useWorkflowStageRules();
   const workflowStages = useWorkflowStages();
+  const wipGroups = useWorkflowWipGroups();
+  const fieldRequirements = useWorkflowFieldRequirements();
+  const me = useCurrentMember();
   const toast = useToast();
   const [selected, setSelected] = useState<Initiative | null>(null);
   const [creating, setCreating] = useState(false);
@@ -54,15 +60,29 @@ export function InitiativesBoard({ buildId }: { buildId: string }) {
   }, [selected, setActiveCard]);
 
   async function move(initiative: Initiative, status: string) {
-    const gate = checkStageGate(
-      stageRules.data ?? [],
+    const customFields = (initiative.custom_fields as Record<string, unknown>) ?? {};
+    const gate = checkStageGate(stageRules.data ?? [], "initiative", initiative.build_id, initiative.status, status, customFields);
+    if (!gate.allowed) return toast.push(gate.reason, "error");
+    const fieldCheck = checkFieldRequirements(
+      fieldRequirements.data ?? [],
       "initiative",
       initiative.build_id,
       initiative.status,
       status,
-      (initiative.custom_fields as Record<string, unknown>) ?? {},
+      customFields,
     );
-    if (!gate.allowed) return toast.push(gate.reason, "error");
+    if (!fieldCheck.allowed) return toast.push(fieldCheck.reason, "error");
+    const wipCheck = checkWipLimit(
+      workflowStages.data ?? [],
+      wipGroups.data ?? [],
+      "initiative",
+      initiative.build_id,
+      status,
+      initiative.status,
+      items.map((i) => ({ status: i.status, assignee_id: null })),
+      me.data?.id ?? null,
+    );
+    if (!wipCheck.allowed) return toast.push(wipCheck.reason, "error");
     const { error } = await supabase.from("initiatives").update({ status }).eq("id", initiative.id);
     if (!error) qc.invalidateQueries({ queryKey: ["initiatives"] });
   }

@@ -1,17 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, useTemplates, useWorkflowStageRules, useWorkflowStages } from "@/lib/queries/hooks";
+import {
+  supabase,
+  useTemplates,
+  useWorkflowFieldRequirements,
+  useWorkflowStageRules,
+  useWorkflowStages,
+} from "@/lib/queries/hooks";
 import { Card, SectionTitle, Badge } from "@/components/ui";
 import { inputClass, primaryBtn, ghostBtn } from "@/components/Modal";
 import { resolveStages, type CustomField } from "@/lib/board-constants";
+import type { Tables } from "@/lib/database.types";
 
 const ITEM_TYPES = ["ticket", "epic", "initiative"] as const;
 type ItemType = (typeof ITEM_TYPES)[number];
 
 type GatingCondition = { field: string; operator: "==" | "!="; value: unknown };
-type EdgeRule = { toStage: string; gatingConditions: GatingCondition[] };
+type EdgeRule = {
+  toStage: string;
+  gatingConditions: GatingCondition[];
+  checklistItems: string[];
+  requiredChecklistKey: string | null;
+};
+type FieldRequirement = Tables<"workflow_field_requirements">;
 
 /** Per-build visual editor for allowed stage transitions and the custom-field
  *  conditions required to make them, per item type. No rows for a given
@@ -27,13 +40,29 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string }) {
 
   // from_stage -> list of allowed edges (presence of a from_stage key = restricted)
   const [edges, setEdges] = useState<Record<string, EdgeRule[]>>({});
+  // Tracks unsaved local edits so a background refetch (realtime CDC on
+  // workflow_stage_rules fires on every change, incl. this component's own
+  // delete+insert during save) doesn't silently overwrite them before Save
+  // is clicked. Cleared on successful save and on an intentional tab switch.
+  const dirtyRef = useRef(false);
+  const scopeKeyRef = useRef<string>("");
 
   useEffect(() => {
+    const scopeKey = `${itemType}:${buildId}`;
+    const switchedScope = scopeKeyRef.current !== scopeKey;
+    if (dirtyRef.current && !switchedScope) return;
+    scopeKeyRef.current = scopeKey;
+    dirtyRef.current = false;
     const scoped = (rules.data ?? []).filter((r) => r.build_id === buildId && r.item_type === itemType);
     const next: Record<string, EdgeRule[]> = {};
     for (const r of scoped) {
       const list = next[r.from_stage] ?? (next[r.from_stage] = []);
-      list.push({ toStage: r.to_stage, gatingConditions: (r.gating_conditions as GatingCondition[]) ?? [] });
+      list.push({
+        toStage: r.to_stage,
+        gatingConditions: (r.gating_conditions as GatingCondition[]) ?? [],
+        checklistItems: r.checklist_items ?? [],
+        requiredChecklistKey: r.required_checklist_key ?? null,
+      });
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- resyncing local edit state from the fetched rows when itemType/buildId/rules change
     setEdges(next);
@@ -46,6 +75,7 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string }) {
   const fields = ((template?.fields as CustomField[] | undefined) ?? []).filter((f) => f.key !== "points");
 
   function toggleRestricted(fromStage: string, restricted: boolean) {
+    dirtyRef.current = true;
     setEdges((prev) => {
       const next = { ...prev };
       if (restricted) next[fromStage] = [];
@@ -55,19 +85,31 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string }) {
   }
 
   function toggleEdge(fromStage: string, toStage: string, allowed: boolean) {
+    dirtyRef.current = true;
     setEdges((prev) => {
       const list = prev[fromStage] ?? [];
       const nextList = allowed
-        ? [...list, { toStage, gatingConditions: [] }]
+        ? [...list, { toStage, gatingConditions: [], checklistItems: [], requiredChecklistKey: null }]
         : list.filter((e) => e.toStage !== toStage);
       return { ...prev, [fromStage]: nextList };
     });
   }
 
   function updateEdgeConditions(fromStage: string, toStage: string, conditions: GatingCondition[]) {
+    dirtyRef.current = true;
     setEdges((prev) => ({
       ...prev,
       [fromStage]: (prev[fromStage] ?? []).map((e) => (e.toStage === toStage ? { ...e, gatingConditions: conditions } : e)),
+    }));
+  }
+
+  function updateEdgeChecklist(fromStage: string, toStage: string, items: string[]) {
+    dirtyRef.current = true;
+    setEdges((prev) => ({
+      ...prev,
+      [fromStage]: (prev[fromStage] ?? []).map((e) =>
+        e.toStage === toStage ? { ...e, checklistItems: items, requiredChecklistKey: items.length > 0 ? `kill_gate_${fromStage}_${toStage}` : null } : e,
+      ),
     }));
   }
 
@@ -80,12 +122,15 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string }) {
         from_stage: fromStage,
         to_stage: e.toStage,
         gating_conditions: e.gatingConditions as never,
+        checklist_items: e.checklistItems,
+        required_checklist_key: e.requiredChecklistKey,
       })),
     );
     // Small table, one editor screen at a time — replace this build+item_type's rows wholesale
     // rather than diffing, matching EngineeringTemplates' whole-array-write approach.
     await supabase.from("workflow_stage_rules").delete().eq("build_id", buildId).eq("item_type", itemType);
     if (rows.length > 0) await supabase.from("workflow_stage_rules").insert(rows);
+    dirtyRef.current = false;
     setSaving(false);
     qc.invalidateQueries({ queryKey: ["workflow_stage_rules"] });
   }
@@ -146,11 +191,17 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string }) {
                             → {to.label}
                           </label>
                           {edge && (
-                            <GatingConditionsEditor
-                              fields={fields}
-                              conditions={edge.gatingConditions}
-                              onChange={(c) => updateEdgeConditions(from.key, to.key, c)}
-                            />
+                            <>
+                              <GatingConditionsEditor
+                                fields={fields}
+                                conditions={edge.gatingConditions}
+                                onChange={(c) => updateEdgeConditions(from.key, to.key, c)}
+                              />
+                              <ChecklistEditor
+                                items={edge.checklistItems}
+                                onChange={(items) => updateEdgeChecklist(from.key, to.key, items)}
+                              />
+                            </>
                           )}
                         </div>
                       );
@@ -174,7 +225,144 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string }) {
           {saving ? "Saving…" : "Save workflow rules"}
         </button>
       </div>
+
+      <FieldRequirementsEditor buildId={buildId} itemType={itemType} stages={stages} fields={fields} />
     </Card>
+  );
+}
+
+/** "Field X required to enter/exit stage Y" movement rules — e.g. archived_reason
+ *  required to enter an ARCHIVED stage, actual_hours required to enter DONE. */
+function FieldRequirementsEditor({
+  buildId,
+  itemType,
+  stages,
+  fields,
+}: {
+  buildId: string;
+  itemType: ItemType;
+  stages: { key: string; label: string }[];
+  fields: CustomField[];
+}) {
+  const qc = useQueryClient();
+  const reqs = useWorkflowFieldRequirements();
+  const scoped = (reqs.data ?? []).filter((r) => r.build_id === buildId && r.item_type === itemType);
+
+  async function addRequirement() {
+    if (fields.length === 0 || stages.length === 0) return;
+    await supabase.from("workflow_field_requirements").insert({
+      build_id: buildId,
+      item_type: itemType,
+      stage_key: stages[0].key,
+      direction: "enter",
+      field_key: fields[0].key,
+      field_label: fields[0].label,
+    });
+    qc.invalidateQueries({ queryKey: ["workflow_field_requirements"] });
+  }
+
+  async function updateRequirement(id: string, patch: Partial<FieldRequirement>) {
+    await supabase.from("workflow_field_requirements").update(patch).eq("id", id);
+    qc.invalidateQueries({ queryKey: ["workflow_field_requirements"] });
+  }
+
+  async function removeRequirement(id: string) {
+    await supabase.from("workflow_field_requirements").delete().eq("id", id);
+    qc.invalidateQueries({ queryKey: ["workflow_field_requirements"] });
+  }
+
+  return (
+    <div className="mt-6 border-t border-[var(--glass-border-2)] pt-4">
+      <SectionTitle>Field requirements (movement rules)</SectionTitle>
+      <p className="mt-2 text-xs text-[var(--muted-hi)]">
+        Require a custom field to be set before an item can enter or exit a stage — e.g. a reason required to
+        archive, actual hours required to mark done.
+      </p>
+      <div className="mt-3 space-y-2">
+        {scoped.map((r) => (
+          <div key={r.id} className="flex flex-wrap items-center gap-1.5">
+            <select
+              className={inputClass + " mt-0 w-20"}
+              value={r.direction}
+              onChange={(e) => updateRequirement(r.id, { direction: e.target.value })}
+            >
+              <option value="enter">enter</option>
+              <option value="exit">exit</option>
+            </select>
+            <select
+              className={inputClass + " mt-0 w-32"}
+              value={r.stage_key}
+              onChange={(e) => updateRequirement(r.id, { stage_key: e.target.value })}
+            >
+              {stages.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-[var(--muted-hi)]">requires</span>
+            <select
+              className={inputClass + " mt-0 w-32"}
+              value={r.field_key}
+              onChange={(e) => {
+                const f = fields.find((x) => x.key === e.target.value);
+                updateRequirement(r.id, { field_key: e.target.value, field_label: f?.label ?? e.target.value });
+              }}
+            >
+              {fields.map((f) => (
+                <option key={f.key} value={f.key}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            <button className={ghostBtn + " mb-0 px-2 py-1"} onClick={() => removeRequirement(r.id)}>
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+      {fields.length === 0 ? (
+        <p className="mt-2 text-[10px] text-[var(--muted-hi)]">No custom fields defined to require.</p>
+      ) : (
+        <button className={ghostBtn + " mt-2 text-[11px]"} onClick={addRequirement}>
+          + field requirement
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ChecklistEditor({ items, onChange }: { items: string[]; onChange: (items: string[]) => void }) {
+  function addItem() {
+    onChange([...items, ""]);
+  }
+  function updateItem(i: number, text: string) {
+    onChange(items.map((it, idx) => (idx === i ? text : it)));
+  }
+  function removeItem(i: number) {
+    onChange(items.filter((_, idx) => idx !== i));
+  }
+
+  return (
+    <div className="mt-2 space-y-1.5 border-t border-[var(--glass-border-2)] pt-2">
+      <p className="text-[10px] font-medium text-[var(--muted-hi)]">Kill gate checklist (all items required)</p>
+      {items.map((item, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <input
+            className={inputClass + " mt-0 flex-1"}
+            value={item}
+            placeholder="Checklist item…"
+            onChange={(e) => updateItem(i, e.target.value)}
+          />
+          <button className={ghostBtn + " mb-0 px-2 py-1"} onClick={() => removeItem(i)}>
+            ×
+          </button>
+        </div>
+      ))}
+      <button className={ghostBtn + " mb-0 px-2 py-1 text-[11px]"} onClick={addItem}>
+        + checklist item
+      </button>
+    </div>
   );
 }
 
