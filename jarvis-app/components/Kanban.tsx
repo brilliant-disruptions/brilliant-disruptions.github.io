@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, useEpics, useCurrentMember, useBoardFilters, useWorkflowStages, useWorkflowSwimlanes } from "@/lib/queries/hooks";
+import { supabase, useEpics, useCurrentMember, useBoardFilters, useBuilds, useWorkflowStages, useWorkflowSwimlanes } from "@/lib/queries/hooks";
 import { useToast } from "@/components/Toast";
 import { Badge, Tag, Avatar } from "@/components/ui";
 import { TicketDrawer } from "@/components/TicketDrawer";
-import { BoardFilters } from "@/components/BoardFilters";
 import { useUIStore } from "@/lib/store";
 import { applyActiveFilters, type BoardFilterConfig } from "@/lib/board-filters";
 import { resolveStages, resolveSwimlanes, type StageDef, type SwimlaneDef } from "@/lib/board-constants";
@@ -34,16 +33,6 @@ const PRIORITY_TONE: Record<string, "red" | "amber" | "cyan" | "muted"> = {
   medium: "cyan",
   low: "muted",
 };
-
-type GroupByOption = "swimlane" | "assignee" | "epic" | "priority" | "none";
-
-const GROUP_BY_OPTIONS: { value: GroupByOption; label: string }[] = [
-  { value: "swimlane", label: "Swimlane" },
-  { value: "assignee", label: "Assignee" },
-  { value: "epic", label: "Epic" },
-  { value: "priority", label: "Priority" },
-  { value: "none", label: "None" },
-];
 
 const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
 
@@ -205,7 +194,8 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
   const me = useCurrentMember();
   const [acting, setActing] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Ticket | null>(null);
-  const [groupBy, setGroupBy] = useState<GroupByOption>("swimlane");
+  const groupBy = useUIStore((s) => s.boardGroupBy);
+  const builds = useBuilds();
   const watchRef = useRef<Set<string>>(new Set());
 
   const activeBuild = useUIStore((s) => s.activeBuild);
@@ -262,6 +252,7 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
 
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const epicById = useMemo(() => new Map((epics.data ?? []).map((e) => [e.id, e])), [epics.data]);
+  const buildById = useMemo(() => new Map((builds.data ?? []).map((b) => [b.id, b])), [builds.data]);
 
   const groups: Group[] = useMemo(() => {
     if (groupBy === "swimlane") {
@@ -312,8 +303,25 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
         (g) => g.items.length > 0,
       );
     }
+    if (groupBy === "build") {
+      const byId = new Map<string, Ticket[]>();
+      for (const t of visibleTickets) {
+        const k = t.build_id ?? "__unassigned__";
+        if (!byId.has(k)) byId.set(k, []);
+        byId.get(k)!.push(t);
+      }
+      return [...byId.entries()]
+        .map(([key, items]) => ({
+          key,
+          label: key === "__unassigned__" ? "Unassigned" : (buildById.get(key)?.name ?? "Unknown build"),
+          items,
+        }))
+        .sort((a, b) =>
+          a.key === "__unassigned__" ? 1 : b.key === "__unassigned__" ? -1 : a.label.localeCompare(b.label),
+        );
+    }
     return [];
-  }, [groupBy, visibleTickets, lanes, memberById, epicById]);
+  }, [groupBy, visibleTickets, lanes, memberById, epicById, buildById]);
 
   // Subscribe to action_log so the cascade trail surfaces as toasts after a drag.
   useEffect(() => {
@@ -416,23 +424,6 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
 
   return (
     <>
-      <div className="mb-2 flex items-center justify-end gap-3">
-        <label className="flex items-center gap-1.5 font-mono text-[10px] text-[var(--muted-hi)]">
-          Group by
-          <select
-            className="rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--white)]"
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as GroupByOption)}
-          >
-            {GROUP_BY_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <BoardFilters />
-      </div>
       {groupBy !== "none" ? (
         <div className="space-y-4">
           {groups.map((g) => (

@@ -4,7 +4,8 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTickets, useBuilds, useMembers } from "@/lib/queries/hooks";
 import { useUIStore } from "@/lib/store";
-import { MetricCard, SectionTitle, EmptyState } from "@/components/ui";
+import { GROUP_BY_OPTIONS } from "@/lib/board-constants";
+import { MetricCard, EmptyState } from "@/components/ui";
 import { Kanban } from "@/components/Kanban";
 import { EpicsBoard } from "@/components/EpicsBoard";
 import { InitiativesBoard } from "@/components/InitiativesBoard";
@@ -15,6 +16,7 @@ import { StagesEditor } from "@/components/StagesEditor";
 import { SwimlanesEditor } from "@/components/SwimlanesEditor";
 import { LoadTemplateButton } from "@/components/LoadTemplateButton";
 import { NewIssueModal } from "@/components/NewIssueModal";
+import { BoardFilters } from "@/components/BoardFilters";
 import { BuildSettingsModal } from "@/components/BuildSettingsModal";
 import { WorkItemsAdmin } from "@/components/WorkItemsAdmin";
 import { primaryBtn } from "@/components/Modal";
@@ -39,6 +41,8 @@ function EngineeringPageInner() {
   const openWorkItem = useUIStore((s) => s.openWorkItem);
   const setOpenWorkItem = useUIStore((s) => s.setOpenWorkItem);
   const activeCard = useUIStore((s) => s.activeCard);
+  const groupBy = useUIStore((s) => s.boardGroupBy);
+  const setGroupBy = useUIStore((s) => s.setBoardGroupBy);
   const [issueOpen, setIssueOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("Board");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -181,7 +185,22 @@ function EngineeringPageInner() {
       ) : (
         <>
           {(tab === "Board" || tab === "Epics" || tab === "Initiatives") && (
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-end gap-3">
+              <label className="flex items-center gap-2 text-xs text-[var(--muted-hi)]">
+                Group by
+                <select
+                  className="rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] px-2 py-1 text-sm text-[var(--white)]"
+                  value={groupBy}
+                  onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
+                >
+                  {GROUP_BY_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <BoardFilters />
               <label className="flex items-center gap-2 text-xs text-[var(--muted-hi)]">
                 Scope
                 <select
@@ -204,7 +223,6 @@ function EngineeringPageInner() {
           )}
           {tab === "Board" && (
             <section className="space-y-3">
-              <SectionTitle>Kanban — drag to advance</SectionTitle>
               <div className="flex justify-end">
                 <button className={primaryBtn} onClick={() => setIssueOpen(true)}>
                   + New issue

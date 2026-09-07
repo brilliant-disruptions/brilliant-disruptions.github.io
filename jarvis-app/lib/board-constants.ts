@@ -142,6 +142,22 @@ export function resolveStagesForEditor(
     .map((r) => ({ key: r.key, label: r.label, is_terminal: r.is_terminal, wip_limit: r.wip_limit ?? null }));
 }
 
+// Shared across Board/Epics/Initiatives (spec: grouping choice + saved
+// filters persist and stay visible regardless of which tab is active).
+// Not every option applies to every item type (e.g. initiatives have no
+// swimlane/assignee/priority) — a board that can't honor the selected
+// option falls back to an ungrouped render rather than hiding the control.
+export type GroupByOption = "swimlane" | "assignee" | "epic" | "priority" | "build" | "none";
+
+export const GROUP_BY_OPTIONS: { value: GroupByOption; label: string }[] = [
+  { value: "swimlane", label: "Swimlane" },
+  { value: "assignee", label: "Assignee" },
+  { value: "epic", label: "Epic" },
+  { value: "priority", label: "Priority" },
+  { value: "build", label: "Build" },
+  { value: "none", label: "None" },
+];
+
 export const FIELD_TYPES = ["text", "number", "select", "date", "checkbox"] as const;
 
 export type CustomField = {

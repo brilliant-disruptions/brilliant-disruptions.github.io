@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   supabase,
@@ -31,6 +31,78 @@ import {
 import type { Tables } from "@/lib/database.types";
 
 type Initiative = Tables<"initiatives">;
+type InitiativeGroup = { key: string; label: string; items: Initiative[] };
+
+function InitiativeColumnsGrid({
+  items,
+  allInitiatives,
+  columns,
+  epics,
+  move,
+  onOpen,
+}: {
+  items: Initiative[];
+  allInitiatives: Initiative[];
+  columns: { key: string; label: string }[];
+  epics: Tables<"epics">[];
+  move: (initiative: Initiative, status: string) => void;
+  onOpen: (initiative: Initiative) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {columns.map((col) => {
+        const colItems = items.filter((i) => i.status === col.key);
+        return (
+          <div
+            key={col.key}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              const id = e.dataTransfer.getData("text/plain");
+              const initiative = allInitiatives.find((x) => x.id === id);
+              if (initiative) move(initiative, col.key);
+            }}
+            className="flex min-h-[120px] flex-col gap-2 rounded-lg border border-[var(--glass-border)] bg-[var(--surface)]/40 p-2"
+          >
+            <div className="flex items-center justify-between px-1 py-1">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-hi)]">
+                {col.label}
+              </span>
+              <span className="font-mono text-[10px] text-[var(--muted-hi)]">{colItems.length}</span>
+            </div>
+            {colItems.map((i) => {
+              const children = epics.filter((e) => e.initiative_id === i.id && e.status !== "archived");
+              const done = children.filter((e) => e.status === "done").length;
+              return (
+                <article
+                  key={i.id}
+                  draggable
+                  onDragStart={(ev) => ev.dataTransfer.setData("text/plain", i.id)}
+                  onClick={() => onOpen(i)}
+                  className="cursor-pointer rounded-md border border-[var(--glass-border-2)] bg-[var(--elevated)] p-2.5 hover:border-[var(--indigo)]/50"
+                >
+                  <p className="text-sm text-[var(--white)]">
+                    <span className="font-mono text-[11px] font-semibold text-[var(--indigo-bright)]">{i.key}</span> {i.title}
+                  </p>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <Badge tone="muted">{col.label}</Badge>
+                    <span className="font-mono text-[10px] text-[var(--muted-hi)]">
+                      {done}/{children.length}
+                    </span>
+                  </div>
+                  {children.length > 0 && (
+                    <div className="mt-1.5">
+                      <ProgressBar value={done} total={children.length} />
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function InitiativesBoard({ buildId }: { buildId: string | null | "all" }) {
   const qc = useQueryClient();
@@ -43,12 +115,35 @@ export function InitiativesBoard({ buildId }: { buildId: string | null | "all" }
   const fieldRequirements = useWorkflowFieldRequirements();
   const me = useCurrentMember();
   const toast = useToast();
+  const builds = useBuilds();
   const [selected, setSelected] = useState<Initiative | null>(null);
   const [creating, setCreating] = useState(false);
 
   const configBuildId = buildId === "all" ? null : buildId;
   const columns = resolveStages(workflowStages.data, configBuildId, "initiative");
   const items = (initiatives.data ?? []).filter((i) => buildId === "all" || i.build_id === buildId);
+  const buildById = useMemo(() => new Map((builds.data ?? []).map((b) => [b.id, b])), [builds.data]);
+  const groupBy = useUIStore((s) => s.boardGroupBy);
+
+  // Initiatives only have a build_id — every other groupBy option (swimlane,
+  // assignee, epic, priority) has no corresponding field, so falls back to
+  // ungrouped rather than the control disappearing.
+  const groups: InitiativeGroup[] = useMemo(() => {
+    if (groupBy !== "build") return [];
+    const byId = new Map<string, Initiative[]>();
+    for (const i of items) {
+      const k = i.build_id ?? "__unassigned__";
+      if (!byId.has(k)) byId.set(k, []);
+      byId.get(k)!.push(i);
+    }
+    return [...byId.entries()]
+      .map(([key, groupItems]) => ({
+        key,
+        label: key === "__unassigned__" ? "Unassigned" : (buildById.get(key)?.name ?? "Unknown build"),
+        items: groupItems,
+      }))
+      .sort((a, b) => (a.key === "__unassigned__" ? 1 : b.key === "__unassigned__" ? -1 : a.label.localeCompare(b.label)));
+  }, [groupBy, items, buildById]);
 
   const openWorkItem = useUIStore((s) => s.openWorkItem);
   const setOpenWorkItem = useUIStore((s) => s.setOpenWorkItem);
@@ -106,61 +201,36 @@ export function InitiativesBoard({ buildId }: { buildId: string | null | "all" }
       </div>
       {items.length === 0 ? (
         <EmptyState title="No initiatives" hint="Initiatives group epics behind a company-level bet or outcome." />
-      ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {columns.map((col) => {
-            const colItems = items.filter((i) => i.status === col.key);
-            return (
-              <div
-                key={col.key}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  const id = e.dataTransfer.getData("text/plain");
-                  const initiative = items.find((x) => x.id === id);
-                  if (initiative) move(initiative, col.key);
-                }}
-                className="flex min-h-[120px] flex-col gap-2 rounded-lg border border-[var(--glass-border)] bg-[var(--surface)]/40 p-2"
-              >
-                <div className="flex items-center justify-between px-1 py-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-hi)]">
-                    {col.label}
-                  </span>
-                  <span className="font-mono text-[10px] text-[var(--muted-hi)]">{colItems.length}</span>
-                </div>
-                {colItems.map((i) => {
-                  const children = (epics.data ?? []).filter(
-                    (e) => e.initiative_id === i.id && e.status !== "archived",
-                  );
-                  const done = children.filter((e) => e.status === "done").length;
-                  return (
-                    <article
-                      key={i.id}
-                      draggable
-                      onDragStart={(ev) => ev.dataTransfer.setData("text/plain", i.id)}
-                      onClick={() => setSelected(i)}
-                      className="cursor-pointer rounded-md border border-[var(--glass-border-2)] bg-[var(--elevated)] p-2.5 hover:border-[var(--indigo)]/50"
-                    >
-                      <p className="text-sm text-[var(--white)]">
-                        <span className="font-mono text-[11px] font-semibold text-[var(--indigo-bright)]">{i.key}</span> {i.title}
-                      </p>
-                      <div className="mt-1.5 flex items-center gap-1.5">
-                        <Badge tone="muted">{col.label}</Badge>
-                        <span className="font-mono text-[10px] text-[var(--muted-hi)]">
-                          {done}/{children.length}
-                        </span>
-                      </div>
-                      {children.length > 0 && (
-                        <div className="mt-1.5">
-                          <ProgressBar value={done} total={children.length} />
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
+      ) : groupBy === "build" && groups.length > 0 ? (
+        <div className="space-y-4">
+          {groups.map((g) => (
+            <div key={g.key}>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-hi)]">
+                  {g.label}
+                </span>
+                <span className="font-mono text-[10px] text-[var(--muted-hi)]">{g.items.length}</span>
               </div>
-            );
-          })}
+              <InitiativeColumnsGrid
+                items={g.items}
+                allInitiatives={items}
+                columns={columns}
+                epics={epics.data ?? []}
+                move={move}
+                onOpen={setSelected}
+              />
+            </div>
+          ))}
         </div>
+      ) : (
+        <InitiativeColumnsGrid
+          items={items}
+          allInitiatives={items}
+          columns={columns}
+          epics={epics.data ?? []}
+          move={move}
+          onOpen={setSelected}
+        />
       )}
       {selected && (
         <InitiativeDrawer

@@ -24,6 +24,97 @@ import { useToast } from "@/components/Toast";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import { NewIssueModal } from "@/components/NewIssueModal";
 import { resolveStages, resolveSwimlanes } from "@/lib/board-constants";
+type EpicGroup = { key: string; label: string; icon?: string; color?: string; items: Epic[] };
+
+function EpicColumnsGrid({
+  items,
+  allEpics,
+  columns,
+  lanes,
+  memberById,
+  initiativeById,
+  tickets,
+  move,
+  onOpen,
+}: {
+  items: Epic[];
+  allEpics: Epic[];
+  columns: { key: string; label: string }[];
+  lanes: { key: string; label: string; color: string; icon: string }[];
+  memberById: Map<string, Tables<"members">>;
+  initiativeById: Map<string, Tables<"initiatives">>;
+  tickets: Tables<"tickets">[];
+  move: (epic: Epic, status: string) => void;
+  onOpen: (epic: Epic) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {columns.map((col) => {
+        const colItems = items.filter((e) => e.status === col.key);
+        return (
+          <div
+            key={col.key}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              const id = e.dataTransfer.getData("text/plain");
+              const epic = allEpics.find((x) => x.id === id);
+              if (epic) move(epic, col.key);
+            }}
+            className="flex min-h-[120px] flex-col gap-2 rounded-lg border border-[var(--glass-border)] bg-[var(--surface)]/40 p-2"
+          >
+            <div className="flex items-center justify-between px-1 py-1">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-hi)]">
+                {col.label}
+              </span>
+              <span className="font-mono text-[10px] text-[var(--muted-hi)]">{colItems.length}</span>
+            </div>
+            {colItems.map((e) => {
+              const lane = lanes.find((l) => l.key === e.swimlane);
+              const children = tickets.filter((t) => t.epic_id === e.id && t.stage !== "archived");
+              const done = children.filter((t) => t.stage === "done").length;
+              return (
+                <article
+                  key={e.id}
+                  draggable
+                  onDragStart={(ev) => ev.dataTransfer.setData("text/plain", e.id)}
+                  onClick={() => onOpen(e)}
+                  style={{ borderLeftColor: lane?.color ?? "var(--glass-border-2)" }}
+                  className="cursor-pointer rounded-md border border-l-[3px] border-[var(--glass-border-2)] bg-[var(--elevated)] p-2.5 hover:border-[var(--indigo)]/50"
+                >
+                  <div className="flex items-center gap-1.5">
+                    {lane && <span style={{ color: lane.color }}>{lane.icon}</span>}
+                    <span className="font-mono text-[11px] font-semibold text-[var(--indigo-bright)]">{e.key}</span>
+                    <p className="flex-1 text-sm text-[var(--white)]">{e.title}</p>
+                    <Avatar
+                      name={e.assignee_id ? (memberById.get(e.assignee_id)?.full_name ?? null) : null}
+                      color={e.assignee_id ? memberById.get(e.assignee_id)?.avatar_color : null}
+                    />
+                  </div>
+                  {initiativeById.get(e.initiative_id ?? "") && (
+                    <p className="mt-0.5 truncate text-[11px] text-[var(--muted-hi)]">
+                      ↳ {initiativeById.get(e.initiative_id ?? "")?.title}
+                    </p>
+                  )}
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <Badge tone="muted">{col.label}</Badge>
+                    <span className="font-mono text-[10px] text-[var(--muted-hi)]">
+                      {done}/{children.length}
+                    </span>
+                  </div>
+                  {children.length > 0 && (
+                    <div className="mt-1.5">
+                      <ProgressBar value={done} total={children.length} />
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 import {
   checkFieldRequirements,
   checkStageGate,
@@ -61,6 +152,60 @@ export function EpicsBoard({ buildId }: { buildId: string | null | "all" }) {
     [initiatives.data],
   );
   const memberById = useMemo(() => new Map((members.data ?? []).map((m) => [m.id, m])), [members.data]);
+  const builds = useBuilds();
+  const buildById = useMemo(() => new Map((builds.data ?? []).map((b) => [b.id, b])), [builds.data]);
+  const groupBy = useUIStore((s) => s.boardGroupBy);
+
+  // Only options with a corresponding field on epics apply here — anything
+  // else (e.g. "priority", which epics don't have) falls back to ungrouped.
+  const groups: EpicGroup[] = useMemo(() => {
+    if (groupBy === "swimlane") {
+      return lanes
+        .map((lane) => ({
+          key: lane.key,
+          label: lane.label,
+          icon: lane.icon,
+          color: lane.color,
+          items: items.filter((e) => e.swimlane === lane.key),
+        }))
+        .filter((g) => g.items.length > 0);
+    }
+    if (groupBy === "assignee") {
+      const byId = new Map<string, Epic[]>();
+      for (const e of items) {
+        const k = e.assignee_id ?? "__unassigned__";
+        if (!byId.has(k)) byId.set(k, []);
+        byId.get(k)!.push(e);
+      }
+      return [...byId.entries()]
+        .map(([key, groupItems]) => ({
+          key,
+          label: key === "__unassigned__" ? "Unassigned" : (memberById.get(key)?.full_name ?? "Unknown"),
+          items: groupItems,
+        }))
+        .sort((a, b) =>
+          a.key === "__unassigned__" ? 1 : b.key === "__unassigned__" ? -1 : a.label.localeCompare(b.label),
+        );
+    }
+    if (groupBy === "build") {
+      const byId = new Map<string, Epic[]>();
+      for (const e of items) {
+        const k = e.build_id ?? "__unassigned__";
+        if (!byId.has(k)) byId.set(k, []);
+        byId.get(k)!.push(e);
+      }
+      return [...byId.entries()]
+        .map(([key, groupItems]) => ({
+          key,
+          label: key === "__unassigned__" ? "Unassigned" : (buildById.get(key)?.name ?? "Unknown build"),
+          items: groupItems,
+        }))
+        .sort((a, b) =>
+          a.key === "__unassigned__" ? 1 : b.key === "__unassigned__" ? -1 : a.label.localeCompare(b.label),
+        );
+    }
+    return [];
+  }, [groupBy, items, lanes, memberById, buildById]);
 
   const openWorkItem = useUIStore((s) => s.openWorkItem);
   const setOpenWorkItem = useUIStore((s) => s.setOpenWorkItem);
@@ -123,74 +268,43 @@ export function EpicsBoard({ buildId }: { buildId: string | null | "all" }) {
       </div>
       {items.length === 0 ? (
         <EmptyState title="No epics" hint="Group related tickets into an epic to track progress toward a bigger outcome." />
-      ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {columns.map((col) => {
-            const colItems = items.filter((e) => e.status === col.key);
-            return (
-              <div
-                key={col.key}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  const id = e.dataTransfer.getData("text/plain");
-                  const epic = items.find((x) => x.id === id);
-                  if (epic) move(epic, col.key);
-                }}
-                className="flex min-h-[120px] flex-col gap-2 rounded-lg border border-[var(--glass-border)] bg-[var(--surface)]/40 p-2"
-              >
-                <div className="flex items-center justify-between px-1 py-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-hi)]">
-                    {col.label}
-                  </span>
-                  <span className="font-mono text-[10px] text-[var(--muted-hi)]">{colItems.length}</span>
-                </div>
-                {colItems.map((e) => {
-                  const lane = lanes.find((l) => l.key === e.swimlane);
-                  const children = (tickets.data ?? []).filter(
-                    (t) => t.epic_id === e.id && t.stage !== "archived",
-                  );
-                  const done = children.filter((t) => t.stage === "done").length;
-                  return (
-                    <article
-                      key={e.id}
-                      draggable
-                      onDragStart={(ev) => ev.dataTransfer.setData("text/plain", e.id)}
-                      onClick={() => setSelected(e)}
-                      style={{ borderLeftColor: lane?.color ?? "var(--glass-border-2)" }}
-                      className="cursor-pointer rounded-md border border-l-[3px] border-[var(--glass-border-2)] bg-[var(--elevated)] p-2.5 hover:border-[var(--indigo)]/50"
-                    >
-                      <div className="flex items-center gap-1.5">
-                        {lane && <span style={{ color: lane.color }}>{lane.icon}</span>}
-                        <span className="font-mono text-[11px] font-semibold text-[var(--indigo-bright)]">{e.key}</span>
-                        <p className="flex-1 text-sm text-[var(--white)]">{e.title}</p>
-                        <Avatar
-                          name={e.assignee_id ? (memberById.get(e.assignee_id)?.full_name ?? null) : null}
-                          color={e.assignee_id ? memberById.get(e.assignee_id)?.avatar_color : null}
-                        />
-                      </div>
-                      {initiativeById.get(e.initiative_id ?? "") && (
-                        <p className="mt-0.5 truncate text-[11px] text-[var(--muted-hi)]">
-                          ↳ {initiativeById.get(e.initiative_id ?? "")?.title}
-                        </p>
-                      )}
-                      <div className="mt-1.5 flex items-center gap-1.5">
-                        <Badge tone="muted">{col.label}</Badge>
-                        <span className="font-mono text-[10px] text-[var(--muted-hi)]">
-                          {done}/{children.length}
-                        </span>
-                      </div>
-                      {children.length > 0 && (
-                        <div className="mt-1.5">
-                          <ProgressBar value={done} total={children.length} />
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
+      ) : groupBy !== "none" && groups.length > 0 ? (
+        <div className="space-y-4">
+          {groups.map((g) => (
+            <div key={g.key}>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                {g.icon && <span style={{ color: g.color }}>{g.icon}</span>}
+                <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-hi)]">
+                  {g.label}
+                </span>
+                <span className="font-mono text-[10px] text-[var(--muted-hi)]">{g.items.length}</span>
               </div>
-            );
-          })}
+              <EpicColumnsGrid
+                items={g.items}
+                allEpics={items}
+                columns={columns}
+                lanes={lanes}
+                memberById={memberById}
+                initiativeById={initiativeById}
+                tickets={tickets.data ?? []}
+                move={move}
+                onOpen={setSelected}
+              />
+            </div>
+          ))}
         </div>
+      ) : (
+        <EpicColumnsGrid
+          items={items}
+          allEpics={items}
+          columns={columns}
+          lanes={lanes}
+          memberById={memberById}
+          initiativeById={initiativeById}
+          tickets={tickets.data ?? []}
+          move={move}
+          onOpen={setSelected}
+        />
       )}
       {selected && (
         <EpicDrawer

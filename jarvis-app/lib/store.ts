@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import type { GroupByOption } from "@/lib/board-constants";
 
 /** Ephemeral UI state only (spec §10.2). Server data lives in TanStack Query.
  *  `activeBuild` = a build id, or "all" for the portfolio view. */
@@ -11,6 +12,11 @@ type UIState = {
   setApprovalsOpen: (open: boolean) => void;
   activeTicketFilterIds: string[]; // board_filters.id[] currently applied to the ticket board
   setActiveTicketFilterIds: (ids: string[]) => void;
+  // Shared "Group by" choice for the Board/Epics/Initiatives tabs — lives here
+  // (rather than component state) so it persists across tab switches instead
+  // of resetting each time Kanban/EpicsBoard/InitiativesBoard remounts.
+  boardGroupBy: GroupByOption;
+  setBoardGroupBy: (v: GroupByOption) => void;
   // A lineage/reference link click (or an incoming shareable URL) stashes
   // what to open here, keyed by the item's human-readable key (e.g.
   // "ENG-42") rather than its id, since that's what's URL- and
@@ -31,6 +37,8 @@ export const useUIStore = create<UIState>((set) => ({
   setApprovalsOpen: (open) => set({ approvalsOpen: open }),
   activeTicketFilterIds: [],
   setActiveTicketFilterIds: (ids) => set({ activeTicketFilterIds: ids }),
+  boardGroupBy: "swimlane",
+  setBoardGroupBy: (v) => set({ boardGroupBy: v }),
   openWorkItem: null,
   setOpenWorkItem: (item) => set({ openWorkItem: item }),
   activeCard: null,
