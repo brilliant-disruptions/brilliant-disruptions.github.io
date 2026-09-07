@@ -553,7 +553,7 @@ export type Database = {
       epics: {
         Row: {
           assignee_id: string | null
-          build_id: string
+          build_id: string | null
           created_at: string
           custom_fields: Json
           description: string | null
@@ -568,7 +568,7 @@ export type Database = {
         }
         Insert: {
           assignee_id?: string | null
-          build_id: string
+          build_id?: string | null
           created_at?: string
           custom_fields?: Json
           description?: string | null
@@ -583,7 +583,7 @@ export type Database = {
         }
         Update: {
           assignee_id?: string | null
-          build_id?: string
+          build_id?: string | null
           created_at?: string
           custom_fields?: Json
           description?: string | null
@@ -856,7 +856,7 @@ export type Database = {
       }
       initiatives: {
         Row: {
-          build_id: string
+          build_id: string | null
           created_at: string
           custom_fields: Json
           description: string | null
@@ -868,7 +868,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          build_id: string
+          build_id?: string | null
           created_at?: string
           custom_fields?: Json
           description?: string | null
@@ -880,7 +880,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          build_id?: string
+          build_id?: string | null
           created_at?: string
           custom_fields?: Json
           description?: string | null
@@ -1338,7 +1338,7 @@ export type Database = {
         Row: {
           assignee_id: string | null
           blocks_milestone_id: string | null
-          build_id: string
+          build_id: string | null
           closed_at: string | null
           created_at: string
           custom_fields: Json
@@ -1367,7 +1367,7 @@ export type Database = {
         Insert: {
           assignee_id?: string | null
           blocks_milestone_id?: string | null
-          build_id: string
+          build_id?: string | null
           closed_at?: string | null
           created_at?: string
           custom_fields?: Json
@@ -1396,7 +1396,7 @@ export type Database = {
         Update: {
           assignee_id?: string | null
           blocks_milestone_id?: string | null
-          build_id?: string
+          build_id?: string | null
           closed_at?: string | null
           created_at?: string
           custom_fields?: Json
@@ -1753,7 +1753,7 @@ export type Database = {
         Returns: {
           assignee_id: string | null
           blocks_milestone_id: string | null
-          build_id: string
+          build_id: string | null
           closed_at: string | null
           created_at: string
           custom_fields: Json
@@ -1819,6 +1819,27 @@ export type Database = {
       is_member: { Args: never; Returns: boolean }
       log_login: { Args: never; Returns: undefined }
       read_secret: { Args: { p_name: string }; Returns: string }
+      reassign_initiative_build: {
+        Args: { p_build_id: string | null; p_initiative_id: string }
+        Returns: {
+          build_id: string | null
+          created_at: string
+          custom_fields: Json
+          description: string | null
+          id: string
+          key: string
+          sort_order: number
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "initiatives"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       request_agent_run: {
         Args: { p_input?: Json; p_slug: string }
         Returns: undefined

@@ -43,7 +43,7 @@ export type SwimlaneDef = { key: string; label: string; color: string; icon: str
  *  defaults above — mirrors resolveStages()'s fallback semantics. */
 export function resolveSwimlanes(
   rows: { build_id: string | null; key: string; label: string; color: string; icon: string; sort_order: number }[] | undefined,
-  buildId: string,
+  buildId: string | null,
 ): SwimlaneDef[] {
   const own = (rows ?? []).filter((r) => r.build_id === buildId);
   const global = (rows ?? []).filter((r) => r.build_id === null);
@@ -104,7 +104,7 @@ export function resolveStages(
         wip_limit?: number | null;
       }[]
     | undefined,
-  buildId: string,
+  buildId: string | null,
   itemType: ItemType,
 ): StageDef[] {
   const forType = (rows ?? []).filter((r) => r.item_type === itemType);

@@ -26,7 +26,7 @@ export function WorkItemsAdmin() {
   const builds = useBuilds();
   const buildName = useMemo(() => {
     const map = new Map((builds.data ?? []).map((b) => [b.id, b.name]));
-    return (id: string) => map.get(id) ?? id;
+    return (id: string | null) => (id === null ? "— No build —" : (map.get(id) ?? id));
   }, [builds.data]);
 
   return (
@@ -78,7 +78,7 @@ function WorkItemTable({
   onSelect,
 }: {
   type: ItemType;
-  buildName: (id: string) => string;
+  buildName: (id: string | null) => string;
   onSelect: (row: AnyRow) => void;
 }) {
   const table = TABLES.find((t) => t.type === type)!.table;
@@ -152,7 +152,7 @@ function WorkItemDetailModal({
 }: {
   type: ItemType;
   row: AnyRow;
-  buildName: (id: string) => string;
+  buildName: (id: string | null) => string;
   onClose: () => void;
 }) {
   const qc = useQueryClient();

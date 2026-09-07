@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, useTemplates, useWorkflowSwimlanes } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
 import { resolveSwimlanes } from "@/lib/board-constants";
+import { scopeFilter } from "@/lib/scope";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import type { Tables } from "@/lib/database.types";
 
@@ -46,14 +47,11 @@ export function NewIssueModal({
   // filter — otherwise switching the Build dropdown here wouldn't show that
   // build's epics whenever the global filter points at a different build.
   const epics = useQuery({
-    queryKey: ["epics", "for-build", buildId],
-    enabled: !!buildId,
+    queryKey: ["epics", "for-build", buildId || null],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("epics")
-        .select("*")
-        .eq("build_id", buildId)
-        .order("sort_order");
+      const { data, error } = await scopeFilter(supabase.from("epics").select("*"), buildId || null).order(
+        "sort_order",
+      );
       if (error) throw error;
       return data as Tables<"epics">[];
     },
@@ -64,12 +62,11 @@ export function NewIssueModal({
     templates.data?.find((t) => t.build_id === null && t.item_type === "ticket");
 
   async function submit() {
-    if (!buildId) return setErr("Select a build.");
     if (!title.trim()) return setErr("Title is required.");
     setSaving(true);
     setErr(null);
     const { error } = await supabase.from("tickets").insert({
-      build_id: buildId,
+      build_id: buildId || null,
       title: title.trim(),
       description: description.trim() || null,
       type,
@@ -99,7 +96,7 @@ export function NewIssueModal({
         <div>
           <label className={labelClass}>Build</label>
           <select className={inputClass} value={buildId} onChange={(e) => setBuildId(e.target.value)}>
-            <option value="">— select —</option>
+            <option value="">— No build —</option>
             {builds.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}

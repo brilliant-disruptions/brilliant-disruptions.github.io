@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   supabase,
+  useBuilds,
   useCurrentMember,
   useInitiatives,
   useEpics,
@@ -31,7 +32,7 @@ import type { Tables } from "@/lib/database.types";
 
 type Initiative = Tables<"initiatives">;
 
-export function InitiativesBoard({ buildId }: { buildId: string }) {
+export function InitiativesBoard({ buildId }: { buildId: string | null }) {
   const qc = useQueryClient();
   const initiatives = useInitiatives();
   const epics = useEpics();
@@ -187,8 +188,10 @@ function InitiativeDrawer({
 }) {
   const qc = useQueryClient();
   const stageRules = useWorkflowStageRules();
+  const builds = useBuilds();
   const [title, setTitle] = useState(initiative.title);
   const [description, setDescription] = useState(initiative.description ?? "");
+  const [buildId, setBuildId] = useState(initiative.build_id ?? "");
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(
     (initiative.custom_fields as Record<string, unknown>) ?? {},
   );
@@ -236,8 +239,23 @@ function InitiativeDrawer({
       .from("initiatives")
       .update({ title: title.trim(), description: description.trim() || null, custom_fields: customFields as never })
       .eq("id", initiative.id);
-    setSaving(false);
-    if (error) return setErr(error.message);
+    if (error) {
+      setSaving(false);
+      return setErr(error.message);
+    }
+    const newBuildId = buildId || null;
+    if (newBuildId !== initiative.build_id) {
+      const { error: rpcError } = await supabase.rpc("reassign_initiative_build", {
+        p_initiative_id: initiative.id,
+        p_build_id: newBuildId,
+      });
+      setSaving(false);
+      if (rpcError) return setErr(rpcError.message);
+      qc.invalidateQueries({ queryKey: ["epics"] });
+      qc.invalidateQueries({ queryKey: ["tickets"] });
+    } else {
+      setSaving(false);
+    }
     qc.invalidateQueries({ queryKey: ["initiatives"] });
     onClose();
   }
@@ -274,6 +292,17 @@ function InitiativeDrawer({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+        </div>
+        <div>
+          <label className={labelClass}>Build</label>
+          <select className={inputClass} value={buildId} onChange={(e) => setBuildId(e.target.value)}>
+            <option value="">— No build —</option>
+            {(builds.data ?? []).map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
         </div>
         {template && template.fields && (template.fields as unknown[]).length > 0 && (
           <CustomFieldsEditor fields={template.fields as never} values={customFields} onChange={setCustomFields} />
@@ -417,10 +446,12 @@ function InitiativeDrawer({
   );
 }
 
-function CreateInitiativeModal({ buildId, onClose }: { buildId: string; onClose: () => void }) {
+function CreateInitiativeModal({ buildId, onClose }: { buildId: string | null; onClose: () => void }) {
   const qc = useQueryClient();
   const workflowStages = useWorkflowStages();
+  const builds = useBuilds();
   const [title, setTitle] = useState("");
+  const [selectedBuildId, setSelectedBuildId] = useState(buildId ?? "");
   const [err, setErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -428,9 +459,12 @@ function CreateInitiativeModal({ buildId, onClose }: { buildId: string; onClose:
     if (!title.trim()) return setErr("Title is required.");
     setSaving(true);
     setErr(null);
-    const columns = resolveStages(workflowStages.data, buildId, "initiative");
+    const insertBuildId = selectedBuildId || null;
+    const columns = resolveStages(workflowStages.data, insertBuildId, "initiative");
     const status = columns[0]?.key ?? "proposed";
-    const { error } = await supabase.from("initiatives").insert({ build_id: buildId, title: title.trim(), status });
+    const { error } = await supabase
+      .from("initiatives")
+      .insert({ build_id: insertBuildId, title: title.trim(), status });
     setSaving(false);
     if (error) return setErr(error.message);
     qc.invalidateQueries({ queryKey: ["initiatives"] });
@@ -443,6 +477,21 @@ function CreateInitiativeModal({ buildId, onClose }: { buildId: string; onClose:
         <div>
           <label className={labelClass}>Title</label>
           <input className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+        </div>
+        <div>
+          <label className={labelClass}>Build</label>
+          <select
+            className={inputClass}
+            value={selectedBuildId}
+            onChange={(e) => setSelectedBuildId(e.target.value)}
+          >
+            <option value="">— No build —</option>
+            {(builds.data ?? []).map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
         </div>
         {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
         <div className="flex justify-end gap-2 pt-2">
