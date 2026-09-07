@@ -35,6 +35,20 @@ const PRIORITY_TONE: Record<string, "red" | "amber" | "cyan" | "muted"> = {
   low: "muted",
 };
 
+type GroupByOption = "swimlane" | "assignee" | "epic" | "priority" | "none";
+
+const GROUP_BY_OPTIONS: { value: GroupByOption; label: string }[] = [
+  { value: "swimlane", label: "Swimlane" },
+  { value: "assignee", label: "Assignee" },
+  { value: "epic", label: "Epic" },
+  { value: "priority", label: "Priority" },
+  { value: "none", label: "None" },
+];
+
+const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
+
+type Group = { key: string; label: string; icon?: string; color?: string; items: Ticket[] };
+
 function TicketCard({
   ticket,
   assignee,
@@ -191,7 +205,7 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
   const me = useCurrentMember();
   const [acting, setActing] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Ticket | null>(null);
-  const [groupBySwimlane, setGroupBySwimlane] = useState(true);
+  const [groupBy, setGroupBy] = useState<GroupByOption>("swimlane");
   const watchRef = useRef<Set<string>>(new Set());
 
   const activeBuild = useUIStore((s) => s.activeBuild);
@@ -248,6 +262,58 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
 
   const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const epicById = useMemo(() => new Map((epics.data ?? []).map((e) => [e.id, e])), [epics.data]);
+
+  const groups: Group[] = useMemo(() => {
+    if (groupBy === "swimlane") {
+      return lanes
+        .map((lane) => ({
+          key: lane.key,
+          label: lane.label,
+          icon: lane.icon,
+          color: lane.color,
+          items: visibleTickets.filter((t) => t.swimlane === lane.key),
+        }))
+        .filter((g) => g.items.length > 0);
+    }
+    if (groupBy === "assignee") {
+      const byId = new Map<string, Ticket[]>();
+      for (const t of visibleTickets) {
+        const k = t.assignee_id ?? "__unassigned__";
+        if (!byId.has(k)) byId.set(k, []);
+        byId.get(k)!.push(t);
+      }
+      return [...byId.entries()]
+        .map(([key, items]) => ({
+          key,
+          label: key === "__unassigned__" ? "Unassigned" : (memberById.get(key)?.full_name ?? "Unknown"),
+          items,
+        }))
+        .sort((a, b) =>
+          a.key === "__unassigned__" ? 1 : b.key === "__unassigned__" ? -1 : a.label.localeCompare(b.label),
+        );
+    }
+    if (groupBy === "epic") {
+      const byId = new Map<string, Ticket[]>();
+      for (const t of visibleTickets) {
+        const k = t.epic_id ?? "__none__";
+        if (!byId.has(k)) byId.set(k, []);
+        byId.get(k)!.push(t);
+      }
+      return [...byId.entries()]
+        .map(([key, items]) => ({
+          key,
+          label: key === "__none__" ? "No epic" : (epicById.get(key)?.title ?? "Unknown epic"),
+          items,
+        }))
+        .sort((a, b) => (a.key === "__none__" ? 1 : b.key === "__none__" ? -1 : a.label.localeCompare(b.label)));
+    }
+    if (groupBy === "priority") {
+      return PRIORITY_ORDER.map((p) => ({ key: p, label: p, items: visibleTickets.filter((t) => t.priority === p) })).filter(
+        (g) => g.items.length > 0,
+      );
+    }
+    return [];
+  }, [groupBy, visibleTickets, lanes, memberById, epicById]);
 
   // Subscribe to action_log so the cascade trail surfaces as toasts after a drag.
   useEffect(() => {
@@ -352,46 +418,48 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
     <>
       <div className="mb-2 flex items-center justify-end gap-3">
         <label className="flex items-center gap-1.5 font-mono text-[10px] text-[var(--muted-hi)]">
-          <input
-            type="checkbox"
-            checked={groupBySwimlane}
-            onChange={(e) => setGroupBySwimlane(e.target.checked)}
-          />
-          Group by swimlane
+          Group by
+          <select
+            className="rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--white)]"
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value as GroupByOption)}
+          >
+            {GROUP_BY_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </label>
         <BoardFilters />
       </div>
-      {groupBySwimlane ? (
+      {groupBy !== "none" ? (
         <div className="space-y-4">
-          {lanes.map((lane) => {
-            const items = visibleTickets.filter((t) => t.swimlane === lane.key);
-            if (items.length === 0) return null;
-            return (
-              <div key={lane.key}>
-                <div className="mb-1.5 flex items-center gap-1.5">
-                  <span style={{ color: lane.color }}>{lane.icon}</span>
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-hi)]">
-                    {lane.label}
-                  </span>
-                  <span className="font-mono text-[10px] text-[var(--muted-hi)]">{items.length}</span>
-                </div>
-                <ColumnsGrid
-                  items={items}
-                  allTickets={visibleTickets}
-                  acting={acting}
-                  memberById={memberById}
-                  epicById={epicById}
-                  move={move}
-                  togglePullable={togglePullable}
-                  onOpen={setSelected}
-                  hiddenColumns={hiddenColumns}
-                  columns={columns}
-                  allStages={allStages}
-                  lanes={lanes}
-                />
+          {groups.map((g) => (
+            <div key={g.key}>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                {g.icon && <span style={{ color: g.color }}>{g.icon}</span>}
+                <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-hi)]">
+                  {g.label}
+                </span>
+                <span className="font-mono text-[10px] text-[var(--muted-hi)]">{g.items.length}</span>
               </div>
-            );
-          })}
+              <ColumnsGrid
+                items={g.items}
+                allTickets={visibleTickets}
+                acting={acting}
+                memberById={memberById}
+                epicById={epicById}
+                move={move}
+                togglePullable={togglePullable}
+                onOpen={setSelected}
+                hiddenColumns={hiddenColumns}
+                columns={columns}
+                allStages={allStages}
+                lanes={lanes}
+              />
+            </div>
+          ))}
         </div>
       ) : (
         <ColumnsGrid
