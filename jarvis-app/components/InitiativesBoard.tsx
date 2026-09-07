@@ -2,13 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, useInitiatives, useEpics, useTemplates } from "@/lib/queries/hooks";
+import {
+  supabase,
+  useInitiatives,
+  useEpics,
+  useTemplates,
+  useWorkflowStageRules,
+  useWorkflowStages,
+} from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
 import { EmptyState, ProgressBar, Lineage, Badge, WorkItemKeyLink, SettingsMenu } from "@/components/ui";
 import { useUIStore } from "@/lib/store";
+import { useToast } from "@/components/Toast";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
 import { CreateEpicModal } from "@/components/EpicsBoard";
-import { INITIATIVE_COLUMNS } from "@/lib/board-constants";
+import { resolveStages } from "@/lib/board-constants";
+import { checkStageGate } from "@/lib/workflow-gating";
 import type { Tables } from "@/lib/database.types";
 
 type Initiative = Tables<"initiatives">;
@@ -18,9 +27,13 @@ export function InitiativesBoard({ buildId }: { buildId: string }) {
   const initiatives = useInitiatives();
   const epics = useEpics();
   const templates = useTemplates();
+  const stageRules = useWorkflowStageRules();
+  const workflowStages = useWorkflowStages();
+  const toast = useToast();
   const [selected, setSelected] = useState<Initiative | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const columns = resolveStages(workflowStages.data, buildId, "initiative");
   const items = (initiatives.data ?? []).filter((i) => i.build_id === buildId);
 
   const openWorkItem = useUIStore((s) => s.openWorkItem);
@@ -41,6 +54,15 @@ export function InitiativesBoard({ buildId }: { buildId: string }) {
   }, [selected, setActiveCard]);
 
   async function move(initiative: Initiative, status: string) {
+    const gate = checkStageGate(
+      stageRules.data ?? [],
+      "initiative",
+      initiative.build_id,
+      initiative.status,
+      status,
+      (initiative.custom_fields as Record<string, unknown>) ?? {},
+    );
+    if (!gate.allowed) return toast.push(gate.reason, "error");
     const { error } = await supabase.from("initiatives").update({ status }).eq("id", initiative.id);
     if (!error) qc.invalidateQueries({ queryKey: ["initiatives"] });
   }
@@ -58,7 +80,7 @@ export function InitiativesBoard({ buildId }: { buildId: string }) {
         <EmptyState title="No initiatives" hint="Initiatives group epics behind a company-level bet or outcome." />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {INITIATIVE_COLUMNS.map((col) => {
+          {columns.map((col) => {
             const colItems = items.filter((i) => i.status === col.key);
             return (
               <div

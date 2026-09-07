@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase, useEpics, useCurrentMember, useBoardFilters } from "@/lib/queries/hooks";
+import { supabase, useEpics, useCurrentMember, useBoardFilters, useWorkflowStages } from "@/lib/queries/hooks";
 import { useToast } from "@/components/Toast";
 import { Badge, Tag, Avatar } from "@/components/ui";
 import { TicketDrawer } from "@/components/TicketDrawer";
 import { BoardFilters } from "@/components/BoardFilters";
 import { useUIStore } from "@/lib/store";
 import { applyActiveFilters, type BoardFilterConfig } from "@/lib/board-filters";
-import { TICKET_COLUMNS as COLUMNS, ALL_TICKET_STAGES as ALL_STAGES, SWIMLANES } from "@/lib/board-constants";
+import { SWIMLANES, resolveStages, type StageDef } from "@/lib/board-constants";
 import type { Tables } from "@/lib/database.types";
 
 type Ticket = Tables<"tickets">;
@@ -43,6 +43,7 @@ function TicketCard({
   move,
   togglePullable,
   onOpen,
+  allStages,
 }: {
   ticket: Ticket;
   assignee: Member | null;
@@ -51,6 +52,7 @@ function TicketCard({
   move: MoveFn;
   togglePullable: TogglePullableFn;
   onOpen: () => void;
+  allStages: string[];
 }) {
   const lane = SWIMLANES.find((l) => l.key === ticket.swimlane);
   return (
@@ -99,7 +101,7 @@ function TicketCard({
           onChange={(e) => move(ticket, e.target.value)}
           className="ml-auto rounded border border-[var(--glass-border-2)] bg-[var(--void-2)] px-1 py-0.5 font-mono text-[10px] text-[var(--muted-hi)]"
         >
-          {ALL_STAGES.map((s) => (
+          {allStages.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
@@ -120,6 +122,8 @@ function ColumnsGrid({
   togglePullable,
   onOpen,
   hiddenColumns,
+  columns,
+  allStages,
 }: {
   items: Ticket[];
   allTickets: Ticket[];
@@ -130,8 +134,10 @@ function ColumnsGrid({
   togglePullable: TogglePullableFn;
   onOpen: (t: Ticket) => void;
   hiddenColumns: Set<string>;
+  columns: { key: string; label: string }[];
+  allStages: string[];
 }) {
-  const visibleColumns = COLUMNS.filter((c) => !hiddenColumns.has(c.key));
+  const visibleColumns = columns.filter((c) => !hiddenColumns.has(c.key));
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
       {visibleColumns.map((col) => {
@@ -163,6 +169,7 @@ function ColumnsGrid({
                 move={move}
                 togglePullable={togglePullable}
                 onOpen={() => onOpen(t)}
+                allStages={allStages}
               />
             ))}
           </div>
@@ -181,6 +188,22 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [groupBySwimlane, setGroupBySwimlane] = useState(true);
   const watchRef = useRef<Set<string>>(new Set());
+
+  const activeBuild = useUIStore((s) => s.activeBuild);
+  const workflowStages = useWorkflowStages();
+  const stages: StageDef[] = useMemo(
+    () => resolveStages(workflowStages.data, activeBuild, "ticket"),
+    [workflowStages.data, activeBuild],
+  );
+  const columns = useMemo(() => {
+    const cols = stages.map((s) => ({ key: s.key, label: s.label }));
+    const backlogIdx = cols.findIndex((c) => c.key === "backlog");
+    if (backlogIdx !== -1) {
+      cols.splice(backlogIdx + 1, 0, { key: "backlog_pullable", label: "Backlog — Pullable" });
+    }
+    return cols;
+  }, [stages]);
+  const allStages = useMemo(() => [...stages.map((s) => s.key), "archived"], [stages]);
 
   const boardFilters = useBoardFilters();
   const activeFilterIds = useUIStore((s) => s.activeTicketFilterIds);
@@ -352,6 +375,8 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
                   togglePullable={togglePullable}
                   onOpen={setSelected}
                   hiddenColumns={hiddenColumns}
+                  columns={columns}
+                  allStages={allStages}
                 />
               </div>
             );
@@ -368,6 +393,8 @@ export function Kanban({ tickets, members = [] }: { tickets: Ticket[]; members?:
           togglePullable={togglePullable}
           onOpen={setSelected}
           hiddenColumns={hiddenColumns}
+          columns={columns}
+          allStages={allStages}
         />
       )}
       {selected && <TicketDrawer key={selected.id} ticket={selected} onClose={() => setSelected(null)} />}

@@ -72,9 +72,9 @@ export function RuleModal({
     setSaving(true);
     setErr(null);
     const { error } = await supabase.rpc("upsert_rule", {
-      p_id: rule?.id ?? null,
+      p_id: (rule?.id ?? null) as never,
       p_name: name.trim(),
-      p_description: description.trim() || null,
+      p_description: (description.trim() || null) as never,
       p_trigger_event: trigger.trim(),
       p_build_scope: buildScope.trim() || "all",
       p_conditions: conds,
