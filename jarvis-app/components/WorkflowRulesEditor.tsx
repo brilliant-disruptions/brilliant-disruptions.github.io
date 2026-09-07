@@ -11,12 +11,9 @@ import {
 } from "@/lib/queries/hooks";
 import { Card, SectionTitle, Badge } from "@/components/ui";
 import { inputClass, primaryBtn, ghostBtn } from "@/components/Modal";
-import { resolveStagesForEditor, type CustomField } from "@/lib/board-constants";
+import { resolveStagesForEditor, type CustomField, type ItemType } from "@/lib/board-constants";
 import { scopeFilter } from "@/lib/scope";
 import type { Tables } from "@/lib/database.types";
-
-const ITEM_TYPES = ["ticket", "epic", "initiative"] as const;
-type ItemType = (typeof ITEM_TYPES)[number];
 
 type GatingCondition = { field: string; operator: "==" | "!="; value: unknown };
 type EdgeRule = {
@@ -31,12 +28,11 @@ type FieldRequirement = Tables<"workflow_field_requirements">;
  *  conditions required to make them, per item type. No rows for a given
  *  from_stage means that stage is unrestricted — matches advance_ticket's
  *  backward-compatible default in supabase/migrations/0029_workflow_stage_rules.sql. */
-export function WorkflowRulesEditor({ buildId }: { buildId: string | null }) {
+export function WorkflowRulesEditor({ buildId, itemType }: { buildId: string | null; itemType: ItemType }) {
   const qc = useQueryClient();
   const templates = useTemplates();
   const rules = useWorkflowStageRules();
   const workflowStages = useWorkflowStages();
-  const [itemType, setItemType] = useState<ItemType>("ticket");
   const [saving, setSaving] = useState(false);
 
   // from_stage -> list of allowed edges (presence of a from_stage key = restricted)
@@ -65,7 +61,6 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string | null }) {
         requiredChecklistKey: r.required_checklist_key ?? null,
       });
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resyncing local edit state from the fetched rows when itemType/buildId/rules change
     setEdges(next);
   }, [itemType, rules.data, buildId]);
 
@@ -138,20 +133,7 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string | null }) {
 
   return (
     <Card>
-      <div className="flex items-center justify-between">
-        <SectionTitle>Workflow rules</SectionTitle>
-        <select
-          className={inputClass + " mt-0 w-40"}
-          value={itemType}
-          onChange={(e) => setItemType(e.target.value as ItemType)}
-        >
-          {ITEM_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SectionTitle>Workflow rules</SectionTitle>
 
       <p className="mt-2 text-xs text-[var(--muted-hi)]">
         By default any stage can move to any other. Restrict a stage to define exactly which transitions are

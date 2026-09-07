@@ -11,8 +11,6 @@ import type { Tables } from "@/lib/database.types";
 
 type WipGroup = Tables<"workflow_wip_groups">;
 
-const ITEM_TYPES: ItemType[] = ["ticket", "epic", "initiative"];
-
 function slugify(label: string) {
   return label
     .trim()
@@ -26,11 +24,10 @@ function slugify(label: string) {
  *  No workflow_stages rows for a build/item_type means "use the hardcoded app
  *  defaults" (see lib/board-constants.ts resolveStages) — saving here is what
  *  creates a build's first custom rows. */
-export function StagesEditor({ buildId }: { buildId: string | null }) {
+export function StagesEditor({ buildId, itemType }: { buildId: string | null; itemType: ItemType }) {
   const qc = useQueryClient();
   const workflowStages = useWorkflowStages();
   const rules = useWorkflowStageRules();
-  const [itemType, setItemType] = useState<ItemType>("ticket");
   const [stages, setStages] = useState<StageDef[]>([]);
   const [saving, setSaving] = useState(false);
   // Tracks unsaved local edits so a background refetch (realtime CDC on
@@ -46,7 +43,6 @@ export function StagesEditor({ buildId }: { buildId: string | null }) {
     if (dirtyRef.current && !switchedScope) return;
     scopeKeyRef.current = scopeKey;
     dirtyRef.current = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resyncing local edit state when itemType/buildId/data changes
     setStages(resolveStagesForEditor(workflowStages.data, buildId, itemType));
   }, [itemType, buildId, workflowStages.data]);
 
@@ -108,20 +104,7 @@ export function StagesEditor({ buildId }: { buildId: string | null }) {
 
   return (
     <Card>
-      <div className="flex items-center justify-between">
-        <SectionTitle>Stages</SectionTitle>
-        <select
-          className={inputClass + " mt-0 w-40"}
-          value={itemType}
-          onChange={(e) => setItemType(e.target.value as ItemType)}
-        >
-          {ITEM_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SectionTitle>Stages</SectionTitle>
 
       <p className="mt-2 text-xs text-[var(--muted-hi)]">
         Define which stages exist on this board for {itemType}s, in the order they appear as columns. &ldquo;Terminal&rdquo;

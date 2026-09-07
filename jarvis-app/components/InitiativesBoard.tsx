@@ -246,7 +246,7 @@ export function InitiativesBoard({ buildId }: { buildId: string | null | "all" }
   );
 }
 
-function InitiativeDrawer({
+export function InitiativeDrawer({
   initiative,
   onClose,
   templates,
