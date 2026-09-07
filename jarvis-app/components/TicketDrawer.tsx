@@ -17,7 +17,7 @@ import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/component
 import { Badge, Lineage, SettingsMenu, type LineageEntry } from "@/components/ui";
 import { resolveSwimlanes } from "@/lib/board-constants";
 import { CustomFieldsEditor } from "@/components/CustomFieldsEditor";
-import { checklistItemsKey, effectiveChecklistItems } from "@/lib/workflow-gating";
+import { checklistItemsKey, effectiveChecklistItems, resolveStageEdges } from "@/lib/workflow-gating";
 import type { Tables } from "@/lib/database.types";
 
 const TYPES = ["bug", "feature", "perf", "security", "ux", "infra", "chore"];
@@ -63,15 +63,10 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
   const [saving, setSaving] = useState(false);
   const [newChecklistItem, setNewChecklistItem] = useState<Record<string, string>>({});
 
-  const ownRules = (stageRules.data ?? []).filter((r) => r.build_id === ticket.build_id);
-  const rulesSource = ownRules.length > 0 ? ownRules : (stageRules.data ?? []).filter((r) => r.build_id === null);
-  const checklistRules = rulesSource.filter(
-    (r) => r.item_type === "ticket" && r.from_stage === ticket.stage && r.required_checklist_key,
-  );
-  const gateRules = rulesSource.filter(
+  const resolvedEdges = resolveStageEdges(stageRules.data ?? [], "ticket", ticket.build_id, ticket.stage);
+  const checklistRules = resolvedEdges.filter((r) => r.required_checklist_key);
+  const gateRules = resolvedEdges.filter(
     (r) =>
-      r.item_type === "ticket" &&
-      r.from_stage === ticket.stage &&
       Array.isArray(r.gating_conditions) &&
       (r.gating_conditions as { field: string; operator?: string; value: unknown }[]).length > 0,
   );

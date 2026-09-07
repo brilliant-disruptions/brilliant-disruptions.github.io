@@ -27,6 +27,7 @@ import {
   checkWipLimit,
   checklistItemsKey,
   effectiveChecklistItems,
+  resolveStageEdges,
 } from "@/lib/workflow-gating";
 import type { Tables } from "@/lib/database.types";
 
@@ -297,10 +298,8 @@ export function InitiativeDrawer({
     templates.find((t) => t.build_id === initiative.build_id && t.item_type === "initiative") ??
     templates.find((t) => t.build_id === null && t.item_type === "initiative");
 
-  const ownRules = (stageRules.data ?? []).filter((r) => r.build_id === initiative.build_id);
-  const rulesSource = ownRules.length > 0 ? ownRules : (stageRules.data ?? []).filter((r) => r.build_id === null);
-  const checklistRules = rulesSource.filter(
-    (r) => r.item_type === "initiative" && r.from_stage === initiative.status && r.required_checklist_key,
+  const checklistRules = resolveStageEdges(stageRules.data ?? [], "initiative", initiative.build_id, initiative.status).filter(
+    (r) => r.required_checklist_key,
   );
 
   async function save() {
