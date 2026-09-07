@@ -248,7 +248,7 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
               <option value="">— none —</option>
               {(epics.data ?? []).map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.title}
+                  {e.key} — {e.title}
                   {e.build_id !== ticket.build_id ? ` (${builds.data?.find((b) => b.id === e.build_id)?.name ?? "other build"})` : ""}
                 </option>
               ))}
