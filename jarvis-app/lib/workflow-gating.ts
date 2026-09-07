@@ -32,7 +32,7 @@ export function effectiveChecklistItems(
 export function checkStageGate(
   rules: StageRule[],
   itemType: "epic" | "initiative",
-  buildId: string,
+  buildId: string | null,
   fromStage: string,
   toStage: string,
   customFields: Record<string, unknown>,
@@ -70,7 +70,7 @@ export function checkStageGate(
 export function checkFieldRequirements(
   requirements: FieldRequirement[],
   itemType: "epic" | "initiative",
-  buildId: string,
+  buildId: string | null,
   fromStage: string,
   toStage: string,
   customFields: Record<string, unknown>,
@@ -98,7 +98,7 @@ export function checkWipLimit(
   stages: WorkflowStage[],
   groups: WipGroup[],
   itemType: "epic" | "initiative",
-  buildId: string,
+  buildId: string | null,
   toStage: string,
   fromStage: string,
   currentItems: { status: string; assignee_id?: string | null }[],

@@ -35,7 +35,7 @@ import type { Tables } from "@/lib/database.types";
 
 type Epic = Tables<"epics">;
 
-export function EpicsBoard({ buildId }: { buildId: string }) {
+export function EpicsBoard({ buildId }: { buildId: string | null }) {
   const qc = useQueryClient();
   const epics = useEpics();
   const initiatives = useInitiatives();
@@ -487,7 +487,7 @@ function EpicDrawer({
           open
           onClose={() => setCreatingTicket(false)}
           builds={builds.data ?? []}
-          defaultBuild={epic.build_id}
+          defaultBuild={epic.build_id ?? "all"}
           defaultEpicId={epic.id}
         />
       )}
@@ -501,7 +501,7 @@ export function CreateEpicModal({
   initiatives,
   defaultInitiativeId,
 }: {
-  buildId: string;
+  buildId: string | null;
   onClose: () => void;
   initiatives: Tables<"initiatives">[];
   defaultInitiativeId?: string;

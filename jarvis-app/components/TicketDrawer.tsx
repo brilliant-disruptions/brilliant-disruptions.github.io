@@ -53,6 +53,7 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
   const [isBlocker, setIsBlocker] = useState(ticket.is_blocker ?? false);
   const [assigneeId, setAssigneeId] = useState(ticket.assignee_id ?? "");
   const [epicId, setEpicId] = useState(ticket.epic_id ?? "");
+  const [buildId, setBuildId] = useState(ticket.build_id ?? "");
   const [swimlane, setSwimlane] = useState(ticket.swimlane ?? "product");
   const [points, setPoints] = useState(ticket.points?.toString() ?? "");
   const [customFields, setCustomFields] = useState<Record<string, unknown>>(
@@ -90,18 +91,26 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
         description: description.trim() || null,
         type,
         priority,
-        is_blocker: isBlocker,
         assignee_id: assigneeId || null,
         epic_id: epicId || null,
         swimlane,
         points: points ? Number(points) : null,
         custom_fields: customFields as never,
+        build_id: buildId || null,
       })
       .eq("id", ticket.id);
     setSaving(false);
     if (error) return setErr(error.message);
     qc.invalidateQueries({ queryKey: ["tickets"] });
     onClose();
+  }
+
+  async function toggleBlocker() {
+    const next = !isBlocker;
+    const { error } = await supabase.from("tickets").update({ is_blocker: next }).eq("id", ticket.id);
+    if (error) return setErr(error.message);
+    setIsBlocker(next);
+    qc.invalidateQueries({ queryKey: ["tickets"] });
   }
 
   async function abort() {
@@ -131,6 +140,7 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
           <Badge tone="muted">{ticket.key}</Badge>
           <Badge tone={PRIORITY_TONE[priority] ?? "muted"}>{priority}</Badge>
           <Badge tone="muted">{ticket.stage}</Badge>
+          {isBlocker && <Badge tone="red">blocker</Badge>}
           {ticket.ref && <Badge tone="cyan">{ticket.ref}</Badge>}
           {ticket.external_url && (
             <a
@@ -143,7 +153,12 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
             </a>
           )}
           <div className="ml-auto">
-            <SettingsMenu items={[{ label: "Abort", onClick: abort, danger: true }]} />
+            <SettingsMenu
+              items={[
+                { label: isBlocker ? "Unblock" : "Blocked", onClick: toggleBlocker },
+                { label: "Abort", onClick: abort, danger: true },
+              ]}
+            />
           </div>
         </div>
 
@@ -239,6 +254,18 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
               ))}
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className={labelClass}>Build</label>
+          <select className={inputClass} value={buildId} onChange={(e) => setBuildId(e.target.value)}>
+            <option value="">— No build —</option>
+            {(builds.data ?? []).map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className={showPoints ? "grid grid-cols-2 gap-3" : ""}>
@@ -363,11 +390,6 @@ export function TicketDrawer({ ticket, onClose }: { ticket: Tables<"tickets">; o
             </div>
           );
         })}
-
-        <label className="flex items-center gap-2 text-sm text-[var(--muted-hi)]">
-          <input type="checkbox" checked={isBlocker} onChange={(e) => setIsBlocker(e.target.checked)} />
-          Launch blocker
-        </label>
 
         {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
         <div className="flex justify-end gap-2 pt-2">

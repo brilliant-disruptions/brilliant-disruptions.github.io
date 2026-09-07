@@ -47,6 +47,10 @@ function EngineeringPageInner() {
   // to the global config (null) rather than silently inheriting whatever build
   // happens to be selected for the Board/Epics/Initiatives views.
   const [settingsBuildId, setSettingsBuildId] = useState<string | null>(null);
+  // Epics/Initiatives scope, independent of the top-nav build filter — lets
+  // these two boards view buildless items ("Unassigned"), which the top-nav
+  // filter (always a concrete build) can't represent.
+  const [workBuildScope, setWorkBuildScope] = useState<string | null>(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -94,6 +98,15 @@ function EngineeringPageInner() {
 
   const hasBuilds = (builds.data?.length ?? 0) > 0;
   const boardId = activeBuild !== "all" ? activeBuild : (builds.data?.[0]?.id ?? "");
+
+  // Default workBuildScope to the top-nav board once it first resolves, then
+  // leave it alone — the Epics/Initiatives scope selector takes over from there.
+  const workBuildScopeInitialized = useRef(false);
+  useEffect(() => {
+    if (workBuildScopeInitialized.current || !boardId) return;
+    workBuildScopeInitialized.current = true;
+    setWorkBuildScope(boardId);
+  }, [boardId]);
 
   return (
     <div className="space-y-6">
@@ -188,8 +201,27 @@ function EngineeringPageInner() {
               )}
             </section>
           )}
-          {tab === "Epics" && boardId && <EpicsBoard buildId={boardId} />}
-          {tab === "Initiatives" && boardId && <InitiativesBoard buildId={boardId} />}
+          {(tab === "Epics" || tab === "Initiatives") && (
+            <div className="flex items-center justify-end">
+              <label className="flex items-center gap-2 text-xs text-[var(--muted-hi)]">
+                Scope
+                <select
+                  className="rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] px-2 py-1 text-sm text-[var(--white)]"
+                  value={workBuildScope ?? ""}
+                  onChange={(e) => setWorkBuildScope(e.target.value || null)}
+                >
+                  <option value="">Unassigned</option>
+                  {(builds.data ?? []).map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+          {tab === "Epics" && <EpicsBoard buildId={workBuildScope} />}
+          {tab === "Initiatives" && <InitiativesBoard buildId={workBuildScope} />}
           {tab === "Analytics" && <EngineeringAnalytics tickets={all} />}
           {(tab === "Templates" || tab === "Stages & Flow") && (
             <div className="space-y-4">
