@@ -387,7 +387,7 @@ export function InitiativeDrawer({
           return (
             <div key={rule.id}>
               <label className={labelClass}>
-                Kill gate checklist — {rule.from_stage} → {rule.to_stage} (all required, this card only)
+                Gates checklist — {rule.from_stage} → {rule.to_stage} (all required, this card only)
               </label>
               <div className="space-y-1">
                 {items.map((item) => (
