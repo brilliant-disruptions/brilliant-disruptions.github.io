@@ -35,7 +35,7 @@ import type { Tables } from "@/lib/database.types";
 
 type Epic = Tables<"epics">;
 
-export function EpicsBoard({ buildId }: { buildId: string | null }) {
+export function EpicsBoard({ buildId }: { buildId: string | null | "all" }) {
   const qc = useQueryClient();
   const epics = useEpics();
   const initiatives = useInitiatives();
@@ -52,9 +52,10 @@ export function EpicsBoard({ buildId }: { buildId: string | null }) {
   const [selected, setSelected] = useState<Epic | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const columns = resolveStages(workflowStages.data, buildId, "epic");
-  const lanes = resolveSwimlanes(swimlanes.data, buildId);
-  const items = (epics.data ?? []).filter((e) => e.build_id === buildId);
+  const configBuildId = buildId === "all" ? null : buildId;
+  const columns = resolveStages(workflowStages.data, configBuildId, "epic");
+  const lanes = resolveSwimlanes(swimlanes.data, configBuildId);
+  const items = (epics.data ?? []).filter((e) => buildId === "all" || e.build_id === buildId);
   const initiativeById = useMemo(
     () => new Map((initiatives.data ?? []).map((i) => [i.id, i])),
     [initiatives.data],
@@ -202,7 +203,7 @@ export function EpicsBoard({ buildId }: { buildId: string | null }) {
         />
       )}
       {creating && (
-        <CreateEpicModal buildId={buildId} onClose={() => setCreating(false)} initiatives={initiatives.data ?? []} />
+        <CreateEpicModal buildId={configBuildId} onClose={() => setCreating(false)} initiatives={initiatives.data ?? []} />
       )}
     </div>
   );

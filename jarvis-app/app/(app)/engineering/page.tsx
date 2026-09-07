@@ -47,10 +47,11 @@ function EngineeringPageInner() {
   // to the global config (null) rather than silently inheriting whatever build
   // happens to be selected for the Board/Epics/Initiatives views.
   const [settingsBuildId, setSettingsBuildId] = useState<string | null>(null);
-  // Epics/Initiatives scope, independent of the top-nav build filter — lets
-  // these two boards view buildless items ("Unassigned"), which the top-nav
-  // filter (always a concrete build) can't represent.
-  const [workBuildScope, setWorkBuildScope] = useState<string | null>(null);
+  // Board/Epics/Initiatives scope, independent of the top-nav build filter —
+  // lets these boards view buildless items ("Unassigned") or every build at
+  // once ("All Builds"), neither of which the top-nav filter (always a
+  // single concrete build) can represent.
+  const [workBuildScope, setWorkBuildScope] = useState<string | null | "all">(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -95,6 +96,7 @@ function EngineeringPageInner() {
   const open = all.filter((t) => t.stage !== "done" && t.stage !== "archived").length;
   const inProgress = all.filter((t) => t.stage === "in_progress").length;
   const done = all.filter((t) => t.stage === "done").length;
+  const scopedTickets = workBuildScope === "all" ? all : all.filter((t) => t.build_id === workBuildScope);
 
   const hasBuilds = (builds.data?.length ?? 0) > 0;
   const boardId = activeBuild !== "all" ? activeBuild : (builds.data?.[0]?.id ?? "");
@@ -183,10 +185,32 @@ function EngineeringPageInner() {
         <EmptyState title="No builds yet" hint="Add a build from the Overview tab before creating issues." />
       ) : (
         <>
+          {(tab === "Board" || tab === "Epics" || tab === "Initiatives") && (
+            <div className="flex items-center justify-end">
+              <label className="flex items-center gap-2 text-xs text-[var(--muted-hi)]">
+                Scope
+                <select
+                  className="rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] px-2 py-1 text-sm text-[var(--white)]"
+                  value={workBuildScope === "all" ? "__all__" : (workBuildScope ?? "")}
+                  onChange={(e) =>
+                    setWorkBuildScope(e.target.value === "__all__" ? "all" : e.target.value || null)
+                  }
+                >
+                  <option value="__all__">All Builds</option>
+                  <option value="">Unassigned</option>
+                  {(builds.data ?? []).map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
           {tab === "Board" && (
             <section className="space-y-3">
               <SectionTitle>Kanban — drag to advance</SectionTitle>
-              {all.length === 0 ? (
+              {scopedTickets.length === 0 ? (
                 <EmptyState
                   title="No issues"
                   hint="Create one, then drag it to Done to watch the rules engine cascade (recompute health → notify → audit)."
@@ -197,28 +221,9 @@ function EngineeringPageInner() {
                   }
                 />
               ) : (
-                <Kanban tickets={all} members={members.data ?? []} />
+                <Kanban tickets={scopedTickets} members={members.data ?? []} />
               )}
             </section>
-          )}
-          {(tab === "Epics" || tab === "Initiatives") && (
-            <div className="flex items-center justify-end">
-              <label className="flex items-center gap-2 text-xs text-[var(--muted-hi)]">
-                Scope
-                <select
-                  className="rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] px-2 py-1 text-sm text-[var(--white)]"
-                  value={workBuildScope ?? ""}
-                  onChange={(e) => setWorkBuildScope(e.target.value || null)}
-                >
-                  <option value="">Unassigned</option>
-                  {(builds.data ?? []).map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
           )}
           {tab === "Epics" && <EpicsBoard buildId={workBuildScope} />}
           {tab === "Initiatives" && <InitiativesBoard buildId={workBuildScope} />}

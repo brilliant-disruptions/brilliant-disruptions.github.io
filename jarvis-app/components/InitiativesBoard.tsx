@@ -32,7 +32,7 @@ import type { Tables } from "@/lib/database.types";
 
 type Initiative = Tables<"initiatives">;
 
-export function InitiativesBoard({ buildId }: { buildId: string | null }) {
+export function InitiativesBoard({ buildId }: { buildId: string | null | "all" }) {
   const qc = useQueryClient();
   const initiatives = useInitiatives();
   const epics = useEpics();
@@ -46,8 +46,9 @@ export function InitiativesBoard({ buildId }: { buildId: string | null }) {
   const [selected, setSelected] = useState<Initiative | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const columns = resolveStages(workflowStages.data, buildId, "initiative");
-  const items = (initiatives.data ?? []).filter((i) => i.build_id === buildId);
+  const configBuildId = buildId === "all" ? null : buildId;
+  const columns = resolveStages(workflowStages.data, configBuildId, "initiative");
+  const items = (initiatives.data ?? []).filter((i) => buildId === "all" || i.build_id === buildId);
 
   const openWorkItem = useUIStore((s) => s.openWorkItem);
   const setOpenWorkItem = useUIStore((s) => s.setOpenWorkItem);
@@ -170,7 +171,7 @@ export function InitiativesBoard({ buildId }: { buildId: string | null }) {
           epics={epics.data ?? []}
         />
       )}
-      {creating && <CreateInitiativeModal buildId={buildId} onClose={() => setCreating(false)} />}
+      {creating && <CreateInitiativeModal buildId={configBuildId} onClose={() => setCreating(false)} />}
     </div>
   );
 }
