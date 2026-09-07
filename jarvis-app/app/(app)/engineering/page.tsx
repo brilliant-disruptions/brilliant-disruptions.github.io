@@ -42,6 +42,8 @@ function EngineeringPageInner() {
   const activeCard = useUIStore((s) => s.activeCard);
   const groupBy = useUIStore((s) => s.boardGroupBy);
   const setGroupBy = useUIStore((s) => s.setBoardGroupBy);
+  const workBuildScope = useUIStore((s) => s.workBuildScope);
+  const setWorkBuildScope = useUIStore((s) => s.setWorkBuildScope);
   const [issueOpen, setIssueOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("Board");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -55,11 +57,6 @@ function EngineeringPageInner() {
   // meaning a user had to set the same filter twice and the two editors could
   // disagree. Lifted here so there's exactly one control.
   const [settingsItemType, setSettingsItemType] = useState<ItemType>("ticket");
-  // Board/Epics/Initiatives scope, independent of the top-nav build filter —
-  // lets these boards view buildless items ("Unassigned") or every build at
-  // once ("All Builds"), neither of which the top-nav filter (always a
-  // single concrete build) can represent.
-  const [workBuildScope, setWorkBuildScope] = useState<string | null | "all">("all");
 
   const router = useRouter();
   const pathname = usePathname();
