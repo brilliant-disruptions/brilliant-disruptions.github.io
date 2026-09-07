@@ -24,6 +24,50 @@ type EdgeRule = {
 };
 type FieldRequirement = Tables<"workflow_field_requirements">;
 
+type EffectiveEdge = {
+  toStage: string;
+  source: "build" | "global";
+  checklistCount: number;
+  gatingCount: number;
+  diverged: boolean;
+};
+
+/** Read-only view of which edges resolve from this build's own override vs. the
+ *  global rule, mirroring checkStageGate's per-edge (buildSpecific ?? global)
+ *  resolution (lib/workflow-gating.ts) — the same semantics the drawers now use. */
+function groupRulesByStage(
+  allRules: Tables<"workflow_stage_rules">[] | undefined,
+  buildId: string,
+  itemType: ItemType,
+): Record<string, EffectiveEdge[]> {
+  const rows = (allRules ?? []).filter((r) => r.item_type === itemType && (r.build_id === buildId || r.build_id === null));
+  const result: Record<string, EffectiveEdge[]> = {};
+  for (const fromStage of new Set(rows.map((r) => r.from_stage))) {
+    const scoped = rows.filter((r) => r.from_stage === fromStage);
+    const list: EffectiveEdge[] = [];
+    for (const toStage of new Set(scoped.map((r) => r.to_stage))) {
+      const buildRow = scoped.find((r) => r.build_id === buildId && r.to_stage === toStage);
+      const globalRow = scoped.find((r) => r.build_id === null && r.to_stage === toStage);
+      const edge = buildRow ?? globalRow;
+      if (!edge) continue;
+      const diverged =
+        !!buildRow &&
+        !!globalRow &&
+        (JSON.stringify(buildRow.checklist_items ?? []) !== JSON.stringify(globalRow.checklist_items ?? []) ||
+          JSON.stringify(buildRow.gating_conditions ?? []) !== JSON.stringify(globalRow.gating_conditions ?? []));
+      list.push({
+        toStage,
+        source: buildRow ? "build" : "global",
+        checklistCount: (edge.checklist_items ?? []).length,
+        gatingCount: Array.isArray(edge.gating_conditions) ? (edge.gating_conditions as unknown[]).length : 0,
+        diverged,
+      });
+    }
+    result[fromStage] = list;
+  }
+  return result;
+}
+
 /** Per-build visual editor for allowed stage transitions and the custom-field
  *  conditions required to make them, per item type. No rows for a given
  *  from_stage means that stage is unrestricted — matches advance_ticket's
@@ -65,6 +109,13 @@ export function WorkflowRulesEditor({ buildId, itemType }: { buildId: string | n
   }, [itemType, rules.data, buildId]);
 
   const stages = resolveStagesForEditor(workflowStages.data, buildId, itemType);
+
+  // Read-only view of what actually resolves at runtime (checkStageGate's own
+  // buildSpecific ?? global logic), independent of the `edges` editable state
+  // above — surfaces which edges are build overrides vs inherited from global,
+  // and flags overrides that have drifted from the current global content.
+  const effectiveByStage = buildId !== null ? groupRulesByStage(rules.data, buildId, itemType) : null;
+
   const template =
     templates.data?.find((t) => t.build_id === buildId && t.item_type === itemType) ??
     templates.data?.find((t) => t.build_id === null && t.item_type === itemType);
@@ -195,6 +246,44 @@ export function WorkflowRulesEditor({ buildId, itemType }: { buildId: string | n
           );
         })}
       </div>
+
+      {effectiveByStage && (
+        <div className="mt-4 rounded-md border border-[var(--glass-border-2)] p-3">
+          <p className="text-xs font-medium text-[var(--white)]">Effective at this scope</p>
+          <p className="mt-1 text-[10px] text-[var(--muted-hi)]">
+            What actually applies to this build right now, per transition — a build-specific override wins over the
+            global rule for that exact edge; everything else falls back to global.
+          </p>
+          {Object.keys(effectiveByStage).length === 0 ? (
+            <p className="mt-2 text-[10px] text-[var(--muted-hi)]">No rules apply to this item type, globally or for this build.</p>
+          ) : (
+            <div className="mt-2 space-y-2">
+              {Object.entries(effectiveByStage).map(([fromStage, list]) => (
+                <div key={fromStage} className="text-xs">
+                  <span className="text-[var(--muted-hi)]">{stages.find((s) => s.key === fromStage)?.label ?? fromStage}:</span>{" "}
+                  {list.map((e) => (
+                    <span key={e.toStage} className="mr-2 inline-flex items-center gap-1">
+                      <span className="text-[var(--white)]">
+                        → {stages.find((s) => s.key === e.toStage)?.label ?? e.toStage}
+                      </span>
+                      <Badge tone={e.source === "build" ? (e.diverged ? "amber" : "cyan") : "muted"}>
+                        {e.source === "build" ? (e.diverged ? "override · diverged from global" : "override") : "global"}
+                      </Badge>
+                      {(e.checklistCount > 0 || e.gatingCount > 0) && (
+                        <span className="text-[10px] text-[var(--muted-hi)]">
+                          ({e.checklistCount > 0 ? `${e.checklistCount} checklist` : ""}
+                          {e.checklistCount > 0 && e.gatingCount > 0 ? ", " : ""}
+                          {e.gatingCount > 0 ? `${e.gatingCount} gate` : ""})
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {itemType !== "ticket" && (
         <p className="mt-3 text-[10px] text-[var(--muted-hi)]">

@@ -24,6 +24,32 @@ export function effectiveChecklistItems(
   return Array.isArray(override) ? (override as string[]) : rule.checklist_items;
 }
 
+/** Resolves, per to_stage, which rule applies out of a given from_stage —
+ *  a build-specific rule for that exact edge if one exists, else the global
+ *  (build_id null) rule for that edge. Mirrors checkStageGate's own edge
+ *  resolution (buildSpecific ?? global) so a drawer's checklist/gating-condition
+ *  display never has to fall back to "does this build have ANY row for this
+ *  item type" — which incorrectly hides a global rule/edit whenever the build
+ *  happens to have its own rules for *other* edges of the same item type. */
+export function resolveStageEdges(
+  rules: StageRule[],
+  itemType: "ticket" | "epic" | "initiative",
+  buildId: string | null,
+  fromStage: string,
+): StageRule[] {
+  const scoped = rules.filter(
+    (r) => r.item_type === itemType && (r.build_id === buildId || r.build_id === null) && r.from_stage === fromStage,
+  );
+  const toStages = new Set(scoped.map((r) => r.to_stage));
+  const resolved: StageRule[] = [];
+  for (const toStage of toStages) {
+    const buildSpecific = scoped.find((r) => r.build_id === buildId && r.to_stage === toStage);
+    const edge = buildSpecific ?? scoped.find((r) => r.build_id === null && r.to_stage === toStage);
+    if (edge) resolved.push(edge);
+  }
+  return resolved;
+}
+
 /** Epics and initiatives move via a direct `.update()` (no RPC), so their
  *  workflow_stage_rules are enforced here, client-side, before the write —
  *  unlike tickets, which get the same check server-side in advance_ticket
