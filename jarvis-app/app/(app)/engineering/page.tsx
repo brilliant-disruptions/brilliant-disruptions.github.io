@@ -16,10 +16,11 @@ import { SwimlanesEditor } from "@/components/SwimlanesEditor";
 import { LoadTemplateButton } from "@/components/LoadTemplateButton";
 import { NewIssueModal } from "@/components/NewIssueModal";
 import { BuildSettingsModal } from "@/components/BuildSettingsModal";
+import { WorkItemsAdmin } from "@/components/WorkItemsAdmin";
 import { primaryBtn } from "@/components/Modal";
 
 const TABS = ["Board", "Epics", "Initiatives"] as const;
-const SETTINGS_TABS = ["Analytics", "Templates", "Stages & Flow"] as const;
+const SETTINGS_TABS = ["Analytics", "Templates", "Stages & Flow", "All Work Items"] as const;
 type Tab = (typeof TABS)[number] | (typeof SETTINGS_TABS)[number];
 
 export default function EngineeringPage() {
@@ -197,6 +198,7 @@ function EngineeringPageInner() {
               <WorkflowRulesEditor buildId={boardId} />
             </div>
           )}
+          {tab === "All Work Items" && <WorkItemsAdmin />}
         </>
       )}
 

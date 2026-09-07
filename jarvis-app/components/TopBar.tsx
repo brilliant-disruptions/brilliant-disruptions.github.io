@@ -36,7 +36,6 @@ const TABS = [
   ["Rules", "/rules"],
   ["Neural", "/neural"],
   ["Air Hockey", "/air-hockey"],
-  ["Settings", "/settings"],
 ] as const;
 
 function Clock() {

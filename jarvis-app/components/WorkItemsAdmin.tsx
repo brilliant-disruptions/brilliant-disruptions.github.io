@@ -20,7 +20,7 @@ const TABLES: { type: ItemType; table: "initiatives" | "epics" | "tickets"; labe
 /** Every work item, unfiltered by build/status — including rows that are
  *  orphaned from their board (e.g. a status that no configured Kanban column
  *  matches). Lets an admin find and hard-delete rows the boards can't show. */
-export default function SettingsPage() {
+export function WorkItemsAdmin() {
   const [activeType, setActiveType] = useState<ItemType>("initiative");
   const [selected, setSelected] = useState<{ type: ItemType; row: AnyRow } | null>(null);
   const builds = useBuilds();
