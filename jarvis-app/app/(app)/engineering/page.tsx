@@ -133,7 +133,7 @@ function EngineeringPageInner() {
                 (tab === t ? "bg-[var(--indigo)] text-white" : "text-[var(--muted-hi)] hover:text-[var(--white)]")
               }
             >
-              {t}
+              {t === "Board" ? "Tickets" : t}
             </button>
           ))}
           <div className="relative">
@@ -225,7 +225,7 @@ function EngineeringPageInner() {
             <section className="space-y-3">
               <div className="flex justify-end">
                 <button className={primaryBtn} onClick={() => setIssueOpen(true)}>
-                  + New issue
+                  + Ticket
                 </button>
               </div>
               {scopedTickets.length === 0 ? (
@@ -234,7 +234,7 @@ function EngineeringPageInner() {
                   hint="Create one, then drag it to Done to watch the rules engine cascade (recompute health → notify → audit)."
                   action={
                     <button className={primaryBtn} onClick={() => setIssueOpen(true)}>
-                      + New issue
+                      + Ticket
                     </button>
                   }
                 />
