@@ -42,6 +42,10 @@ function EngineeringPageInner() {
   const [tab, setTab] = useState<Tab>("Board");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [buildSettingsOpen, setBuildSettingsOpen] = useState(false);
+  // Settings/Templates scope independent of the top-nav build filter — defaults
+  // to the global config (null) rather than silently inheriting whatever build
+  // happens to be selected for the Board/Epics/Initiatives views.
+  const [settingsBuildId, setSettingsBuildId] = useState<string | null>(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -186,15 +190,34 @@ function EngineeringPageInner() {
           {tab === "Epics" && boardId && <EpicsBoard buildId={boardId} />}
           {tab === "Initiatives" && boardId && <InitiativesBoard buildId={boardId} />}
           {tab === "Analytics" && <EngineeringAnalytics tickets={all} />}
-          {tab === "Templates" && boardId && <EngineeringTemplates buildId={boardId} />}
-          {tab === "Stages & Flow" && boardId && (
+          {(tab === "Templates" || tab === "Stages & Flow") && (
             <div className="space-y-4">
-              <div className="flex justify-end">
-                <LoadTemplateButton buildId={boardId} />
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-xs text-[var(--muted-hi)]">
+                  Scope
+                  <select
+                    className="rounded-md border border-[var(--glass-border-2)] bg-[var(--void-2)] px-2 py-1 text-sm text-[var(--white)]"
+                    value={settingsBuildId ?? ""}
+                    onChange={(e) => setSettingsBuildId(e.target.value || null)}
+                  >
+                    <option value="">Global (all builds)</option>
+                    {(builds.data ?? []).map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} (override)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {tab === "Stages & Flow" && <LoadTemplateButton buildId={settingsBuildId} />}
               </div>
-              <StagesEditor buildId={boardId} />
-              <SwimlanesEditor buildId={boardId} />
-              <WorkflowRulesEditor buildId={boardId} />
+              {tab === "Templates" && <EngineeringTemplates buildId={settingsBuildId} />}
+              {tab === "Stages & Flow" && (
+                <>
+                  <StagesEditor buildId={settingsBuildId} />
+                  <SwimlanesEditor buildId={settingsBuildId} />
+                  <WorkflowRulesEditor buildId={settingsBuildId} />
+                </>
+              )}
             </div>
           )}
         </>

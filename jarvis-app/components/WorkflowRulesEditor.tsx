@@ -11,7 +11,8 @@ import {
 } from "@/lib/queries/hooks";
 import { Card, SectionTitle, Badge } from "@/components/ui";
 import { inputClass, primaryBtn, ghostBtn } from "@/components/Modal";
-import { resolveStages, type CustomField } from "@/lib/board-constants";
+import { resolveStagesForEditor, type CustomField } from "@/lib/board-constants";
+import { scopeFilter } from "@/lib/scope";
 import type { Tables } from "@/lib/database.types";
 
 const ITEM_TYPES = ["ticket", "epic", "initiative"] as const;
@@ -30,7 +31,7 @@ type FieldRequirement = Tables<"workflow_field_requirements">;
  *  conditions required to make them, per item type. No rows for a given
  *  from_stage means that stage is unrestricted — matches advance_ticket's
  *  backward-compatible default in supabase/migrations/0029_workflow_stage_rules.sql. */
-export function WorkflowRulesEditor({ buildId }: { buildId: string }) {
+export function WorkflowRulesEditor({ buildId }: { buildId: string | null }) {
   const qc = useQueryClient();
   const templates = useTemplates();
   const rules = useWorkflowStageRules();
@@ -68,7 +69,7 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string }) {
     setEdges(next);
   }, [itemType, rules.data, buildId]);
 
-  const stages = resolveStages(workflowStages.data, buildId, itemType);
+  const stages = resolveStagesForEditor(workflowStages.data, buildId, itemType);
   const template =
     templates.data?.find((t) => t.build_id === buildId && t.item_type === itemType) ??
     templates.data?.find((t) => t.build_id === null && t.item_type === itemType);
@@ -128,7 +129,7 @@ export function WorkflowRulesEditor({ buildId }: { buildId: string }) {
     );
     // Small table, one editor screen at a time — replace this build+item_type's rows wholesale
     // rather than diffing, matching EngineeringTemplates' whole-array-write approach.
-    await supabase.from("workflow_stage_rules").delete().eq("build_id", buildId).eq("item_type", itemType);
+    await scopeFilter(supabase.from("workflow_stage_rules").delete(), buildId).eq("item_type", itemType);
     if (rows.length > 0) await supabase.from("workflow_stage_rules").insert(rows);
     dirtyRef.current = false;
     setSaving(false);
@@ -239,7 +240,7 @@ function FieldRequirementsEditor({
   stages,
   fields,
 }: {
-  buildId: string;
+  buildId: string | null;
   itemType: ItemType;
   stages: { key: string; label: string }[];
   fields: CustomField[];

@@ -54,6 +54,25 @@ export function resolveSwimlanes(
     .map((r) => ({ key: r.key, label: r.label, color: r.color, icon: r.icon }));
 }
 
+/** Editor-only variant: exact match on the selected scope (a specific build, or
+ *  `null` for global) — no falling back to another scope's rows. Falling back
+ *  would silently load, say, the global config into a build's edit buffer, and
+ *  saving unrelated changes would then instantiate an accidental build-specific
+ *  override that duplicates (and diverges from) the global config. Global scope
+ *  with nothing configured yet still shows the hardcoded defaults as a starting
+ *  point; a specific build with no override shows empty, since "no override" is
+ *  the correct state to display and save. */
+export function resolveSwimlanesForEditor(
+  rows: { build_id: string | null; key: string; label: string; color: string; icon: string; sort_order: number }[] | undefined,
+  buildId: string | null,
+): SwimlaneDef[] {
+  const own = (rows ?? []).filter((r) => r.build_id === buildId);
+  if (own.length === 0) return buildId === null ? DEFAULT_SWIMLANES.map((s) => ({ ...s })) : [];
+  return [...own]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((r) => ({ key: r.key, label: r.label, color: r.color, icon: r.icon }));
+}
+
 export type ItemType = "ticket" | "epic" | "initiative";
 export type StageDef = { key: string; label: string; is_terminal: boolean; wip_limit: number | null };
 
@@ -94,6 +113,31 @@ export function resolveStages(
   const source = own.length > 0 ? own : global.length > 0 ? global : null;
   if (!source) return defaultStages(itemType);
   return [...source]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((r) => ({ key: r.key, label: r.label, is_terminal: r.is_terminal, wip_limit: r.wip_limit ?? null }));
+}
+
+/** Editor-only variant of resolveStages: exact match on the selected scope (a
+ *  specific build, or `null` for global) — see resolveSwimlanesForEditor's doc
+ *  comment for why editors must not fall back across scopes. */
+export function resolveStagesForEditor(
+  rows:
+    | {
+        build_id: string | null;
+        item_type: string;
+        key: string;
+        label: string;
+        sort_order: number;
+        is_terminal: boolean;
+        wip_limit?: number | null;
+      }[]
+    | undefined,
+  buildId: string | null,
+  itemType: ItemType,
+): StageDef[] {
+  const own = (rows ?? []).filter((r) => r.item_type === itemType && r.build_id === buildId);
+  if (own.length === 0) return buildId === null ? defaultStages(itemType) : [];
+  return [...own]
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((r) => ({ key: r.key, label: r.label, is_terminal: r.is_terminal, wip_limit: r.wip_limit ?? null }));
 }

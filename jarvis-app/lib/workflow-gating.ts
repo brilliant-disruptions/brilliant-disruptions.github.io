@@ -6,6 +6,24 @@ type WipGroup = Tables<"workflow_wip_groups">;
 type FieldRequirement = Tables<"workflow_field_requirements">;
 type GatingCondition = { field: string; operator: "==" | "!="; value: unknown };
 
+/** Per-card checklist overrides: a card can add/remove items from a rule's
+ *  default kill-gate checklist without touching the shared board rule. The
+ *  override, when present, fully replaces the rule's checklist_items for
+ *  that card — stored alongside the checked-state under a derived key so
+ *  both travel together in custom_fields. */
+export function checklistItemsKey(requiredChecklistKey: string): string {
+  return `${requiredChecklistKey}__items`;
+}
+
+export function effectiveChecklistItems(
+  rule: { required_checklist_key: string | null; checklist_items: string[] },
+  customFields: Record<string, unknown>,
+): string[] {
+  if (!rule.required_checklist_key) return rule.checklist_items;
+  const override = customFields[checklistItemsKey(rule.required_checklist_key)];
+  return Array.isArray(override) ? (override as string[]) : rule.checklist_items;
+}
+
 /** Epics and initiatives move via a direct `.update()` (no RPC), so their
  *  workflow_stage_rules are enforced here, client-side, before the write —
  *  unlike tickets, which get the same check server-side in advance_ticket
@@ -36,9 +54,10 @@ export function checkStageGate(
     if (!met) return { allowed: false, reason: `gating condition not met: ${cond.field} ${cond.operator} ${cond.value}` };
   }
 
-  if (edge.required_checklist_key && edge.checklist_items.length > 0) {
+  if (edge.required_checklist_key) {
+    const items = effectiveChecklistItems(edge, customFields);
     const state = (customFields[edge.required_checklist_key] as Record<string, boolean> | undefined) ?? {};
-    for (const item of edge.checklist_items) {
+    for (const item of items) {
       if (state[item] !== true) return { allowed: false, reason: `kill gate checklist item not completed: ${item}` };
     }
   }

@@ -60,6 +60,20 @@ export function useBuilds() {
   });
 }
 
+/** All builds regardless of active status — used to resolve names for rows (e.g. templates) tied to a deactivated build. */
+export function useAllBuilds() {
+  const key = ["builds", "all"];
+  useRealtime("builds", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("builds").select("*").order("sort_order");
+      if (error) throw error;
+      return data as Tables<"builds">[];
+    },
+  });
+}
+
 export function useTickets() {
   const activeBuild = useUIStore((s) => s.activeBuild);
   const key = ["tickets", activeBuild];
@@ -544,6 +558,20 @@ export function useTemplates() {
       const { data, error } = await supabase.from("work_item_templates").select("*");
       if (error) throw error;
       return data as Tables<"work_item_templates">[];
+    },
+  });
+}
+
+/** Loadable stage/rule/WIP/field-requirement playbooks — a library, not scoped to any build. */
+export function useWorkflowTemplates() {
+  const key = ["workflow_templates"];
+  useRealtime("workflow_templates", key);
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("workflow_templates").select("*").order("name");
+      if (error) throw error;
+      return data as Tables<"workflow_templates">[];
     },
   });
 }
