@@ -7,7 +7,7 @@ type FieldRequirement = Tables<"workflow_field_requirements">;
 type GatingCondition = { field: string; operator: "==" | "!="; value: unknown };
 
 /** Per-card checklist overrides: a card can add/remove items from a rule's
- *  default kill-gate checklist without touching the shared board rule. The
+ *  default gate checklist without touching the shared board rule. The
  *  override, when present, fully replaces the rule's checklist_items for
  *  that card — stored alongside the checked-state under a derived key so
  *  both travel together in custom_fields. */
@@ -58,7 +58,7 @@ export function checkStageGate(
     const items = effectiveChecklistItems(edge, customFields);
     const state = (customFields[edge.required_checklist_key] as Record<string, boolean> | undefined) ?? {};
     for (const item of items) {
-      if (state[item] !== true) return { allowed: false, reason: `kill gate checklist item not completed: ${item}` };
+      if (state[item] !== true) return { allowed: false, reason: `gate checklist item not completed: ${item}` };
     }
   }
 

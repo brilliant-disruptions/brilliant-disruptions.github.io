@@ -328,7 +328,7 @@ function ChecklistEditor({ items, onChange }: { items: string[]; onChange: (item
 
   return (
     <div className="mt-2 space-y-1.5 border-t border-[var(--glass-border-2)] pt-2">
-      <p className="text-[10px] font-medium text-[var(--muted-hi)]">Kill gate checklist (all items required)</p>
+      <p className="text-[10px] font-medium text-[var(--muted-hi)]">Gates checklist (all items required)</p>
       {items.map((item, i) => (
         <div key={i} className="flex items-center gap-1.5">
           <input
