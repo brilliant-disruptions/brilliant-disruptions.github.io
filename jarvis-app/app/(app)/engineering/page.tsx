@@ -174,11 +174,6 @@ function EngineeringPageInner() {
             )}
           </div>
         </div>
-        {hasBuilds && tab === "Board" && (
-          <button className={primaryBtn} onClick={() => setIssueOpen(true)}>
-            + New issue
-          </button>
-        )}
       </div>
 
       {!hasBuilds ? (
@@ -210,6 +205,11 @@ function EngineeringPageInner() {
           {tab === "Board" && (
             <section className="space-y-3">
               <SectionTitle>Kanban — drag to advance</SectionTitle>
+              <div className="flex justify-end">
+                <button className={primaryBtn} onClick={() => setIssueOpen(true)}>
+                  + New issue
+                </button>
+              </div>
               {scopedTickets.length === 0 ? (
                 <EmptyState
                   title="No issues"
