@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, useTemplates, useWorkflowSwimlanes } from "@/lib/queries/hooks";
 import { Modal, inputClass, labelClass, primaryBtn, ghostBtn } from "@/components/Modal";
@@ -60,6 +60,15 @@ export function NewIssueModal({
   const template =
     templates.data?.find((t) => t.build_id === buildId && t.item_type === "ticket") ??
     templates.data?.find((t) => t.build_id === null && t.item_type === "ticket");
+
+  // Default the swimlane to the parent epic's swimlane once it loads, but only
+  // if the user hasn't already picked one themselves.
+  const [swimlaneTouched, setSwimlaneTouched] = useState(false);
+  useEffect(() => {
+    if (swimlaneTouched || !epicId) return;
+    const epicSwimlane = epics.data?.find((e) => e.id === epicId)?.swimlane;
+    if (epicSwimlane) setSwimlane(epicSwimlane);
+  }, [epicId, epics.data, swimlaneTouched]);
 
   async function submit() {
     if (!title.trim()) return setErr("Title is required.");
@@ -142,7 +151,14 @@ export function NewIssueModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>Swimlane</label>
-            <select className={inputClass} value={swimlane} onChange={(e) => setSwimlane(e.target.value)}>
+            <select
+              className={inputClass}
+              value={swimlane}
+              onChange={(e) => {
+                setSwimlane(e.target.value);
+                setSwimlaneTouched(true);
+              }}
+            >
               {lanes.map((s) => (
                 <option key={s.key} value={s.key}>
                   {s.icon} {s.label}
@@ -152,7 +168,14 @@ export function NewIssueModal({
           </div>
           <div>
             <label className={labelClass}>Epic (optional)</label>
-            <select className={inputClass} value={epicId} onChange={(e) => setEpicId(e.target.value)}>
+            <select
+              className={inputClass}
+              value={epicId}
+              onChange={(e) => {
+                setEpicId(e.target.value);
+                setSwimlaneTouched(false);
+              }}
+            >
               <option value="">— none —</option>
               {(epics.data ?? []).map((e) => (
                 <option key={e.id} value={e.id}>
