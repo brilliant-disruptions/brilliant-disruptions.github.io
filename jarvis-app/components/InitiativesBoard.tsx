@@ -8,6 +8,7 @@ import {
   useCurrentMember,
   useInitiatives,
   useEpics,
+  useLinkedActivity,
   useTemplates,
   useWorkflowFieldRequirements,
   useWorkflowStageRules,
@@ -261,6 +262,7 @@ export function InitiativeDrawer({
   const qc = useQueryClient();
   const stageRules = useWorkflowStageRules();
   const builds = useBuilds();
+  const linkedActivity = useLinkedActivity(initiative.key);
   const [title, setTitle] = useState(initiative.title);
   const [description, setDescription] = useState(initiative.description ?? "");
   const [buildId, setBuildId] = useState(initiative.build_id ?? "");
@@ -351,6 +353,30 @@ export function InitiativeDrawer({
             <SettingsMenu items={[{ label: "Abort", onClick: abort, danger: true }]} />
           </div>
         </div>
+
+        {(linkedActivity.data?.length ?? 0) > 0 && (
+          <div>
+            <label className={labelClass}>Linked commits &amp; PRs</label>
+            <ul className="space-y-1">
+              {linkedActivity.data!.map((a) => (
+                <li key={a.id} className="flex items-center gap-2 text-sm">
+                  <Badge tone="muted">{a.kind === "pull_request" ? "PR" : "commit"}</Badge>
+                  {a.url ? (
+                    <a href={a.url} target="_blank" rel="noreferrer" className="text-[var(--cyan)] hover:underline">
+                      {a.ref} {a.title}
+                    </a>
+                  ) : (
+                    <span>
+                      {a.ref} {a.title}
+                    </span>
+                  )}
+                  {a.status && <Badge tone="muted">{a.status}</Badge>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div>
           <label className={labelClass}>Title</label>
           <input className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} />
