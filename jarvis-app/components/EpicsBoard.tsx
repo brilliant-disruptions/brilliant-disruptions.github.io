@@ -8,6 +8,7 @@ import {
   useCurrentMember,
   useEpics,
   useInitiatives,
+  useLinkedActivity,
   useMembers,
   useTemplates,
   useTickets,
@@ -343,6 +344,7 @@ export function EpicDrawer({
   const lanes = resolveSwimlanes(swimlanes.data, epic.build_id);
   const initiatives = { data: initiativesList };
   const stageRules = useWorkflowStageRules();
+  const linkedActivity = useLinkedActivity(epic.key);
   const [title, setTitle] = useState(epic.title);
   const [description, setDescription] = useState(epic.description ?? "");
   const [swimlane, setSwimlane] = useState(epic.swimlane);
@@ -429,6 +431,30 @@ export function EpicDrawer({
             <SettingsMenu items={[{ label: "Abort", onClick: abort, danger: true }]} />
           </div>
         </div>
+
+        {(linkedActivity.data?.length ?? 0) > 0 && (
+          <div>
+            <label className={labelClass}>Linked commits &amp; PRs</label>
+            <ul className="space-y-1">
+              {linkedActivity.data!.map((a) => (
+                <li key={a.id} className="flex items-center gap-2 text-sm">
+                  <Badge tone="muted">{a.kind === "pull_request" ? "PR" : "commit"}</Badge>
+                  {a.url ? (
+                    <a href={a.url} target="_blank" rel="noreferrer" className="text-[var(--cyan)] hover:underline">
+                      {a.ref} {a.title}
+                    </a>
+                  ) : (
+                    <span>
+                      {a.ref} {a.title}
+                    </span>
+                  )}
+                  {a.status && <Badge tone="muted">{a.status}</Badge>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div>
           <label className={labelClass}>Title</label>
           <input className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} />
