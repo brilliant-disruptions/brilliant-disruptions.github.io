@@ -261,38 +261,6 @@ export type Database = {
           },
         ]
       }
-      board_filters: {
-        Row: {
-          config: Json
-          created_at: string
-          created_by: string | null
-          id: string
-          name: string
-        }
-        Insert: {
-          config?: Json
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          name: string
-        }
-        Update: {
-          config?: Json
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          name?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "board_filters_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "members"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       briefings: {
         Row: {
           body: string
@@ -550,76 +518,6 @@ export type Database = {
           },
         ]
       }
-      epics: {
-        Row: {
-          assignee_id: string | null
-          build_id: string | null
-          created_at: string
-          custom_fields: Json
-          description: string | null
-          id: string
-          initiative_id: string | null
-          key: string
-          sort_order: number
-          status: string
-          swimlane: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          assignee_id?: string | null
-          build_id?: string | null
-          created_at?: string
-          custom_fields?: Json
-          description?: string | null
-          id?: string
-          initiative_id?: string | null
-          key?: string
-          sort_order?: number
-          status?: string
-          swimlane?: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          assignee_id?: string | null
-          build_id?: string | null
-          created_at?: string
-          custom_fields?: Json
-          description?: string | null
-          id?: string
-          initiative_id?: string | null
-          key?: string
-          sort_order?: number
-          status?: string
-          swimlane?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "epics_assignee_id_fkey"
-            columns: ["assignee_id"]
-            isOneToOne: false
-            referencedRelation: "members"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "epics_build_id_fkey"
-            columns: ["build_id"]
-            isOneToOne: false
-            referencedRelation: "builds"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "epics_initiative_id_fkey"
-            columns: ["initiative_id"]
-            isOneToOne: false
-            referencedRelation: "initiatives"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       events: {
         Row: {
           actor: string
@@ -847,53 +745,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "github_open_prs_build_id_fkey"
-            columns: ["build_id"]
-            isOneToOne: false
-            referencedRelation: "builds"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      initiatives: {
-        Row: {
-          build_id: string | null
-          created_at: string
-          custom_fields: Json
-          description: string | null
-          id: string
-          key: string
-          sort_order: number
-          status: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          build_id?: string | null
-          created_at?: string
-          custom_fields?: Json
-          description?: string | null
-          id?: string
-          key?: string
-          sort_order?: number
-          status?: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          build_id?: string | null
-          created_at?: string
-          custom_fields?: Json
-          description?: string | null
-          id?: string
-          key?: string
-          sort_order?: number
-          status?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "initiatives_build_id_fkey"
             columns: ["build_id"]
             isOneToOne: false
             referencedRelation: "builds"
@@ -1336,406 +1187,71 @@ export type Database = {
       }
       tickets: {
         Row: {
-          assignee_id: string | null
           blocks_milestone_id: string | null
           build_id: string | null
           closed_at: string | null
           created_at: string
-          custom_fields: Json
           description: string | null
-          epic_id: string | null
           estimate_minutes: number | null
           external_id: string | null
           external_url: string | null
           id: string
           is_blocker: boolean
-          key: string
           labels: string[] | null
-          points: number | null
           priority: string
-          pullable: boolean
           ref: string | null
           source: string
           stage: string
           stage_changed_at: string
-          sub_status: string | null
-          swimlane: string
           title: string
           type: string
           updated_at: string
         }
         Insert: {
-          assignee_id?: string | null
           blocks_milestone_id?: string | null
           build_id?: string | null
           closed_at?: string | null
           created_at?: string
-          custom_fields?: Json
           description?: string | null
-          epic_id?: string | null
           estimate_minutes?: number | null
           external_id?: string | null
           external_url?: string | null
           id?: string
           is_blocker?: boolean
-          key?: string
           labels?: string[] | null
-          points?: number | null
           priority?: string
-          pullable?: boolean
           ref?: string | null
           source?: string
           stage?: string
           stage_changed_at?: string
-          sub_status?: string | null
-          swimlane?: string
           title: string
           type?: string
           updated_at?: string
         }
         Update: {
-          assignee_id?: string | null
           blocks_milestone_id?: string | null
           build_id?: string | null
           closed_at?: string | null
           created_at?: string
-          custom_fields?: Json
           description?: string | null
-          epic_id?: string | null
           estimate_minutes?: number | null
           external_id?: string | null
           external_url?: string | null
           id?: string
           is_blocker?: boolean
-          key?: string
           labels?: string[] | null
-          points?: number | null
           priority?: string
-          pullable?: boolean
           ref?: string | null
           source?: string
           stage?: string
           stage_changed_at?: string
-          sub_status?: string | null
-          swimlane?: string
           title?: string
           type?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "tickets_assignee_id_fkey"
-            columns: ["assignee_id"]
-            isOneToOne: false
-            referencedRelation: "members"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "tickets_build_id_fkey"
-            columns: ["build_id"]
-            isOneToOne: false
-            referencedRelation: "builds"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tickets_epic_id_fkey"
-            columns: ["epic_id"]
-            isOneToOne: false
-            referencedRelation: "epics"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      work_item_templates: {
-        Row: {
-          build_id: string | null
-          created_at: string
-          fields: Json
-          id: string
-          item_type: string
-          updated_at: string
-        }
-        Insert: {
-          build_id?: string | null
-          created_at?: string
-          fields?: Json
-          id?: string
-          item_type: string
-          updated_at?: string
-        }
-        Update: {
-          build_id?: string | null
-          created_at?: string
-          fields?: Json
-          id?: string
-          item_type?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "work_item_templates_build_id_fkey"
-            columns: ["build_id"]
-            isOneToOne: false
-            referencedRelation: "builds"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workflow_field_requirements: {
-        Row: {
-          build_id: string | null
-          created_at: string
-          direction: string
-          field_key: string
-          field_label: string
-          id: string
-          item_type: string
-          stage_key: string
-          updated_at: string
-        }
-        Insert: {
-          build_id?: string | null
-          created_at?: string
-          direction: string
-          field_key: string
-          field_label: string
-          id?: string
-          item_type: string
-          stage_key: string
-          updated_at?: string
-        }
-        Update: {
-          build_id?: string | null
-          created_at?: string
-          direction?: string
-          field_key?: string
-          field_label?: string
-          id?: string
-          item_type?: string
-          stage_key?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workflow_field_requirements_build_id_fkey"
-            columns: ["build_id"]
-            isOneToOne: false
-            referencedRelation: "builds"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workflow_stage_rules: {
-        Row: {
-          build_id: string | null
-          checklist_items: string[]
-          created_at: string
-          from_stage: string
-          gating_conditions: Json
-          id: string
-          item_type: string
-          required_checklist_key: string | null
-          to_stage: string
-          updated_at: string
-        }
-        Insert: {
-          build_id?: string | null
-          checklist_items?: string[]
-          created_at?: string
-          from_stage: string
-          gating_conditions?: Json
-          id?: string
-          item_type: string
-          required_checklist_key?: string | null
-          to_stage: string
-          updated_at?: string
-        }
-        Update: {
-          build_id?: string | null
-          checklist_items?: string[]
-          created_at?: string
-          from_stage?: string
-          gating_conditions?: Json
-          id?: string
-          item_type?: string
-          required_checklist_key?: string | null
-          to_stage?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workflow_stage_rules_build_id_fkey"
-            columns: ["build_id"]
-            isOneToOne: false
-            referencedRelation: "builds"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workflow_stages: {
-        Row: {
-          build_id: string | null
-          created_at: string
-          id: string
-          is_terminal: boolean
-          item_type: string
-          key: string
-          label: string
-          sort_order: number
-          updated_at: string
-          wip_limit: number | null
-        }
-        Insert: {
-          build_id?: string | null
-          created_at?: string
-          id?: string
-          is_terminal?: boolean
-          item_type: string
-          key: string
-          label: string
-          sort_order?: number
-          updated_at?: string
-          wip_limit?: number | null
-        }
-        Update: {
-          build_id?: string | null
-          created_at?: string
-          id?: string
-          is_terminal?: boolean
-          item_type?: string
-          key?: string
-          label?: string
-          sort_order?: number
-          updated_at?: string
-          wip_limit?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workflow_stages_build_id_fkey"
-            columns: ["build_id"]
-            isOneToOne: false
-            referencedRelation: "builds"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workflow_swimlanes: {
-        Row: {
-          build_id: string | null
-          color: string
-          created_at: string
-          icon: string
-          id: string
-          key: string
-          label: string
-          sort_order: number
-          updated_at: string
-        }
-        Insert: {
-          build_id?: string | null
-          color?: string
-          created_at?: string
-          icon?: string
-          id?: string
-          key: string
-          label: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Update: {
-          build_id?: string | null
-          color?: string
-          created_at?: string
-          icon?: string
-          id?: string
-          key?: string
-          label?: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workflow_swimlanes_build_id_fkey"
-            columns: ["build_id"]
-            isOneToOne: false
-            referencedRelation: "builds"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workflow_templates: {
-        Row: {
-          created_at: string
-          description: string | null
-          field_requirements: Json
-          id: string
-          name: string
-          stage_rules: Json
-          stages: Json
-          updated_at: string
-          wip_groups: Json
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          field_requirements?: Json
-          id?: string
-          name: string
-          stage_rules?: Json
-          stages?: Json
-          updated_at?: string
-          wip_groups?: Json
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          field_requirements?: Json
-          id?: string
-          name?: string
-          stage_rules?: Json
-          stages?: Json
-          updated_at?: string
-          wip_groups?: Json
-        }
-        Relationships: []
-      }
-      workflow_wip_groups: {
-        Row: {
-          build_id: string | null
-          created_at: string
-          id: string
-          item_type: string
-          max_count: number
-          name: string
-          scope: string
-          stage_keys: string[]
-          updated_at: string
-        }
-        Insert: {
-          build_id?: string | null
-          created_at?: string
-          id?: string
-          item_type: string
-          max_count: number
-          name: string
-          scope?: string
-          stage_keys?: string[]
-          updated_at?: string
-        }
-        Update: {
-          build_id?: string | null
-          created_at?: string
-          id?: string
-          item_type?: string
-          max_count?: number
-          name?: string
-          scope?: string
-          stage_keys?: string[]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workflow_wip_groups_build_id_fkey"
             columns: ["build_id"]
             isOneToOne: false
             referencedRelation: "builds"
@@ -1748,44 +1264,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      advance_ticket: {
-        Args: { p_ticket_id: string; p_to_stage: string }
-        Returns: {
-          assignee_id: string | null
-          blocks_milestone_id: string | null
-          build_id: string | null
-          closed_at: string | null
-          created_at: string
-          custom_fields: Json
-          description: string | null
-          epic_id: string | null
-          estimate_minutes: number | null
-          external_id: string | null
-          external_url: string | null
-          id: string
-          is_blocker: boolean
-          key: string
-          labels: string[] | null
-          points: number | null
-          priority: string
-          pullable: boolean
-          ref: string | null
-          source: string
-          stage: string
-          stage_changed_at: string
-          sub_status: string | null
-          swimlane: string
-          title: string
-          type: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "tickets"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       decide_approval: {
         Args: { p_approval_id: string; p_decision: string }
         Returns: {
@@ -1819,27 +1297,6 @@ export type Database = {
       is_member: { Args: never; Returns: boolean }
       log_login: { Args: never; Returns: undefined }
       read_secret: { Args: { p_name: string }; Returns: string }
-      reassign_initiative_build: {
-        Args: { p_build_id: string | null; p_initiative_id: string }
-        Returns: {
-          build_id: string | null
-          created_at: string
-          custom_fields: Json
-          description: string | null
-          id: string
-          key: string
-          sort_order: number
-          status: string
-          title: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "initiatives"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       request_agent_run: {
         Args: { p_input?: Json; p_slug: string }
         Returns: undefined

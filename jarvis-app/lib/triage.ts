@@ -69,7 +69,7 @@ function fromTickets(rows: Tables<"tickets">[]): TriageItem[] {
       title: t.title,
       buildId: t.build_id,
       source: TICKET_SOURCE_LABEL[t.source] ?? prettySource(t.source),
-      href: "/engineering",
+      href: null,
       at: t.stage_changed_at,
     });
   }

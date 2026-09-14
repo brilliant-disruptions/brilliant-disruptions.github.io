@@ -62,7 +62,7 @@ describe("tickets surface only when they're actually waiting on someone", () => 
   it("includes a ticket parked in review", () => {
     const [item] = buildTriageItems([], [ticket({ stage: "review" })], []);
     expect(item.category).toBe("review");
-    expect(item.href).toBe("/engineering");
+    expect(item.href).toBe(null);
   });
 
   it("buckets untriaged incoming agent/github work as feature vs fix by type", () => {
