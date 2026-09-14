@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from "react";
-import { useUIStore } from "@/lib/store";
 
 /** Small kebab-menu for a card/drawer's destructive/rare actions (e.g. Abort)
  *  so they don't sit as a permanent button next to Save/Cancel. */
@@ -194,60 +193,6 @@ export function ProgressBar({ value, total }: { value: number; total: number }) 
       <span className="font-mono text-[10px] text-[var(--muted-hi)]">
         {value}/{total}
       </span>
-    </div>
-  );
-}
-
-export type LineageEntry = {
-  key: string;
-  label: string;
-  current?: boolean;
-  /** Present on non-current entries so the key can link to that work item's drawer. */
-  type?: "ticket" | "epic" | "initiative";
-};
-
-/** A work item's key (e.g. "ENG-42"), clickable to open that item's drawer —
- *  works across tabs/builds and regardless of archived status, since it
- *  stashes an openWorkItem request on the UI store rather than depending on
- *  the item already being in scope locally (see Kanban/EpicsBoard/
- *  InitiativesBoard's openWorkItem effect). */
-export function WorkItemKeyLink({
-  itemKey,
-  type,
-  className = "font-mono text-[11px] font-semibold text-[var(--indigo-bright)] hover:underline",
-}: {
-  itemKey: string;
-  type: "ticket" | "epic" | "initiative";
-  className?: string;
-}) {
-  const setOpenWorkItem = useUIStore((s) => s.setOpenWorkItem);
-  return (
-    <button onClick={() => setOpenWorkItem({ type, key: itemKey })} className={className}>
-      {itemKey}
-    </button>
-  );
-}
-
-/** Breadcrumb trail shown atop a ticket/epic/initiative drawer, tracing
- *  upstream ancestry (initiative › epic › ticket) with the current item bold.
- *  Non-current entries are clickable via WorkItemKeyLink. */
-export function Lineage({ trail }: { trail: LineageEntry[] }) {
-  if (trail.length <= 1) return null;
-  return (
-    <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[12px]">
-      {trail.map((t, i) => (
-        <span key={t.key} className="flex items-center gap-1.5">
-          {i > 0 && <span className="text-[var(--muted-hi)]">›</span>}
-          <span className={t.current ? "text-[var(--white)]" : "text-[var(--muted-hi)]"}>
-            {!t.current && t.type ? (
-              <WorkItemKeyLink itemKey={t.key} type={t.type} />
-            ) : (
-              <span className="font-mono text-[11px] font-semibold text-[var(--indigo-bright)]">{t.key}</span>
-            )}{" "}
-            {t.label}
-          </span>
-        </span>
-      ))}
     </div>
   );
 }
