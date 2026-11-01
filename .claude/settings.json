@@ -23,6 +23,7 @@
     "marketing-team@bd-plugins": true,
     "ponytail@ponytail": true,
     "caveman@caveman": true,
-    "pr-workflow@bd-plugins": true
+    "pr-workflow@bd-plugins": true,
+    "superpowers@claude-plugins-official": true
   }
 }
