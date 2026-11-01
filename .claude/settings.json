@@ -1,18 +1,28 @@
 {
   "extraKnownMarketplaces": {
     "bd-plugins": {
-      "source": { "source": "github", "repo": "brilliant-disruptions/claude-plugins" }
+      "source": {
+        "source": "github",
+        "repo": "brilliant-disruptions/claude-plugins"
+      }
     },
     "ponytail": {
-      "source": { "source": "github", "repo": "DietrichGebert/ponytail" }
+      "source": {
+        "source": "github",
+        "repo": "DietrichGebert/ponytail"
+      }
     },
     "caveman": {
-      "source": { "source": "github", "repo": "JuliusBrussee/caveman" }
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
     }
   },
   "enabledPlugins": {
     "marketing-team@bd-plugins": true,
     "ponytail@ponytail": true,
-    "caveman@caveman": true
+    "caveman@caveman": true,
+    "pr-workflow@bd-plugins": true
   }
 }
