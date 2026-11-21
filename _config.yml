@@ -1,0 +1,8 @@
+# GitHub Pages builds this site with Jekyll. The pages are plain HTML, so the only job here is
+# keeping internal notes out of the build: Jekyll tries to render their {{ }} code samples as
+# Liquid and fails, which stopped every deploy.
+exclude:
+  - docs
+  - jarvis-app/README.md
+  - jarvis-app/CLAUDE.md
+  - jarvis-app/AGENTS.md
